@@ -1,5 +1,5 @@
 
-var data [8]byte;
+var data [8]u8;
 
 func start() i32 {
 	var n i32 = 0;

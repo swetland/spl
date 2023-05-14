@@ -45,6 +45,7 @@ enum {
 	SYMBOL_VAR,
 	SYMBOL_FLD, // struct field
 	SYMBOL_PTR, // struct *field
+	SYMBOL_DEF, // enum
 };
 
 struct Scope {
@@ -357,6 +358,7 @@ void emit(FILE* fp, const char *fmt, ...) {
 	va_end(ap);
 }
 
+#if 0
 void emit_type(FILE *fp, Type *type) {
 	if ((type->kind == TYPE_SLICE) || (type->kind == TYPE_ARRAY)) {
 		emit(fp, "t$s$");
@@ -377,7 +379,7 @@ void emit_vref(FILE *fp, Symbol *sym) {
 		emit(fp, "v$%s", sym->name->text);
 	}
 }
-
+#endif
 
 void ctx_open_source(const char* filename) {
 	ctx.filename = filename;
@@ -833,7 +835,7 @@ void parse_ident(void) {
 
 	if (ctx.tok == tOPAREN) { // function call
 		next();
-		emit(IMPL,"f$%s(", name->text);
+		emit(IMPL,"fn_%s(", name->text);
 		while (ctx.tok != tCPAREN) {
 			parse_expr();
 			if (ctx.tok != tCPAREN) {
@@ -847,24 +849,28 @@ void parse_ident(void) {
 		next();
 		String *fieldname = parse_name("field name");
 		Symbol *field = type_find_field(sym->type, fieldname);
-		emit(IMPL,"(v$%s->f$%s)", name->text, fieldname->text);
+		emit(IMPL,"($%s->%s)", name->text, fieldname->text);
 	} else if (ctx.tok == tOBRACK) { // array access
 		next();
 		// XXX handle slices
 		if (sym->type->kind != TYPE_ARRAY) {
 			error("cannot access '%s' as an array", name->text);
 		}
-		emit(IMPL,"(v$%s[", name->text);
+		emit(IMPL,"($%s[", name->text);
 		parse_expr();
 		emit(IMPL,"])");
 	} else { // variable access
-		emit(IMPL,"v$%s", sym->name->text);
+		if (sym->kind == SYMBOL_DEF) {
+			emit(IMPL,"c$%s", sym->name->text);
+		} else {
+			emit(IMPL,"$%s", sym->name->text);
+		}
 	}
 }
 
 void parse_primary_expr(void) {
 	if (ctx.tok == tNUM) {
-		emit(IMPL,"0x%08x", ctx.num);
+		emit(IMPL,"0x%x", ctx.num);
 	} else if (ctx.tok == tSTR) {
 		error("<TODO> string const");
 	} else if (ctx.tok == tTRUE) {
@@ -985,8 +991,8 @@ Type *parse_struct_type(String *name) {
 	Type *rectype = type_make(name, TYPE_STRUCT, nil, nil, 0);
 	scope_push(SCOPE_STRUCT);
 	require(tOBRACE);
-	emit(TYPE,"typedef struct t$%s t$%s;\n", name->text, name->text);
-	emit(TYPE,"struct t$%s {\n", name->text);
+	emit(TYPE,"typedef struct %s_t %s_t;\n", name->text, name->text);
+	emit(TYPE,"struct %s_t {\n", name->text);
 	while (true) {
 		if (ctx.tok == tCBRACE) {
 			next();
@@ -996,7 +1002,7 @@ Type *parse_struct_type(String *name) {
 		bool ptr = (ctx.tok == tSTAR);
 		if (ptr) next();
 		Type *type = parse_type(false);
-		emit(TYPE,"    t$%s %sf$%s;\n", type->name->text, ptr ? "*" : "", fname->text);
+		emit(TYPE,"    %s_t %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
 		Symbol *sym = symbol_make(fname, type);
 		sym->kind = ptr ? SYMBOL_PTR : SYMBOL_FLD;
 		if (ctx.tok != tCBRACE) {
@@ -1208,19 +1214,19 @@ void parse_var(void) {
 		next();
 		if (ctx.tok == tOBRACE) {
 			next();
-			emit(IMPL,"t$%s v$$%s = {\n", type->name->text, name->text);
+			emit(IMPL,"%s_t $$%s = {\n", type->name->text, name->text);
 			parse_struct_init(var);
-			emit(IMPL,"\n};\nt$%s *v$%s = &v$$%s;\n",
+			emit(IMPL,"\n};\n%s_t *$%s = &$$%s;\n",
 				type->name->text, name->text, name->text);
 		} else {
-			emit(IMPL,"t$%s %sv$%s = ", type->name->text,
+			emit(IMPL,"%s_t %s$%s = ", type->name->text,
 				(type->kind == TYPE_STRUCT) ? "*" : "",
 				name->text);
 			parse_expr();
 			emit(IMPL,";\n");
 		}
 	} else {
-		emit(IMPL,"t$%s %sv$%s = 0;", type->name->text,
+		emit(IMPL,"%s_t %s$%s = 0;", type->name->text,
 			(type->kind == TYPE_STRUCT) ? "*" : "",
 			name->text);
 	}
@@ -1319,17 +1325,17 @@ void parse_function(void) {
 		rtype = parse_type(false);
 	}
 
-	emit(DECL,"t$%s f$%s(", rtype->name->text, fname->text);
-	emit(IMPL,"t$%s f$%s(", rtype->name->text, fname->text);
+	emit(DECL,"%s_t fn_%s(", rtype->name->text, fname->text);
+	emit(IMPL,"%s_t fn_%s(", rtype->name->text, fname->text);
 	for (Symbol *s = ctx.scope->first; s != nil; s = s->next) {
-		emit(DECL,"t$%s %sv$%s%s",
+		emit(DECL,"%s_t %s$%s%s",
 			s->type->name->text,
 			s->type->kind == TYPE_STRUCT ? "*" : "",
-			s->name->text, s->next ? "," : "");
-		emit(IMPL,"t$%s %sv$%s%s",
+			s->name->text, s->next ? ", " : "");
+		emit(IMPL,"%s_t %s$%s%s",
 			s->type->name->text,
 			s->type->kind == TYPE_STRUCT ? "*" : "",
-			s->name->text, s->next ? "," : "");
+			s->name->text, s->next ? ", " : "");
 	}
 	emit(DECL,"%s);\n", ctx.scope->first ? "" : "void");
 	emit(IMPL,"%s) {\n", ctx.scope->first ? "" : "void");
@@ -1362,8 +1368,8 @@ void parse_enum_def(void) {
 			val = ctx.num;
 		}
 		require(tCOMMA);
-		symbol_make_global(name, ctx.type_u32);
-		emit(DECL,"static const t$u32 v$%s = 0x%08x;\n", name->text, val);
+		symbol_make_global(name, ctx.type_u32)->kind = SYMBOL_DEF;
+		emit(DECL,"#define c$%s = 0x%x;\n", name->text, val);
 		val++;
 	}
 	require(tCBRACE);

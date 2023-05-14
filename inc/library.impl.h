@@ -1,3 +1,3 @@
 #include <stdio.h>
 
-t$void f$_hexout_(t$i32 x);
+void fn__hexout_(i32_t x);
