@@ -130,12 +130,12 @@ struct Ctx {
 	String *idn_for;
 	String *idn_var;
 	String *idn_nil;
+	String *idn_new;
 	String *idn_case;
 	String *idn_func;
 	String *idn_else;
 	String *idn_enum;
 	String *idn_true;
-	String *idn_type;
 	String *idn_break;
 	String *idn_while;
 	String *idn_false;
@@ -148,6 +148,9 @@ struct Ctx {
 	Type *type_u32;
 	Type *type_i32;
 	Type *type_u8;
+
+	char *outptr;
+	char outbuf[4096];
 };
 
 Ctx ctx;
@@ -298,12 +301,12 @@ void ctx_init() {
 	ctx.idn_for      = string_make("for", 3);
 	ctx.idn_var      = string_make("var", 3);
 	ctx.idn_nil      = string_make("nil", 3);
+	ctx.idn_new      = string_make("new", 3);
 	ctx.idn_case     = string_make("case", 4);
 	ctx.idn_func     = string_make("func", 4);
 	ctx.idn_else     = string_make("else", 4);
 	ctx.idn_enum     = string_make("enum", 4);
 	ctx.idn_true     = string_make("true", 4);
-	ctx.idn_type     = string_make("type", 4);
 	ctx.idn_break    = string_make("break", 5);
 	ctx.idn_while    = string_make("while", 5);
 	ctx.idn_false    = string_make("false", 5);
@@ -318,6 +321,8 @@ void ctx_init() {
 	ctx.type_u8      = type_make(string_make("u8", 2), TYPE_U8, nil, nil, 0);
 
 	ctx.scope = &(ctx.global);
+
+	ctx.outptr = ctx.outbuf;
 }
 
 void dump_file_line(const char* fn, u32 offset);
@@ -358,28 +363,38 @@ void emit(FILE* fp, const char *fmt, ...) {
 	va_end(ap);
 }
 
-#if 0
-void emit_type(FILE *fp, Type *type) {
-	if ((type->kind == TYPE_SLICE) || (type->kind == TYPE_ARRAY)) {
-		emit(fp, "t$s$");
-		emit_type(fp, type->of);
-#if 0
-	} else if (type->kind == TYPE_POINTER) {
-		emit(fp, "t$%s*", type->of->name->text);
-#endif
-	} else {
-		emit(fp, "t$%s", type->name->text);
+void emit_impl(const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	int n = vsnprintf(ctx.outptr, sizeof(ctx.outbuf) - (ctx.outptr - ctx.outbuf), fmt, ap);
+	va_end(ap);
+	ctx.outptr += n;
+	if (fmt[strlen(fmt) - 1] == '\n') {
+		fwrite(ctx.outbuf, 1, ctx.outptr - ctx.outbuf, ctx.fp_impl);
+		ctx.outptr = ctx.outbuf;
+		ctx.outbuf[0] = 0;
 	}
 }
 
-void emit_vref(FILE *fp, Symbol *sym) {
-	if (sym->type->kind == TYPE_STRUCT) {
-		emit(fp, "(&v$%s)", sym->name->text);
+#define KEEP_PARENS 0x10000
+
+unsigned emit_impl_oparen(void) {
+	unsigned idx = ctx.outptr - ctx.outbuf;
+	*ctx.outptr++ = '(';
+	*ctx.outptr = 0;
+	return idx;
+}
+
+void emit_impl_cparen(unsigned idx) {
+	if (idx & KEEP_PARENS) {
+		*ctx.outptr++ = ')';
+		*ctx.outptr = 0;
 	} else {
-		emit(fp, "v$%s", sym->name->text);
+		unsigned len = ctx.outptr - ctx.outbuf;
+		idx &= 0xFFFF;
+		memmove(ctx.outbuf + idx, ctx.outbuf + idx + 1, len - idx);
 	}
 }
-#endif
 
 void ctx_open_source(const char* filename) {
 	ctx.filename = filename;
@@ -451,7 +466,7 @@ enum {
 	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
 	// Keywords
-	tTYPE, tFUNC, tSTRUCT, tVAR, tENUM,
+	tNEW, tFUNC, tSTRUCT, tVAR, tENUM,
 	tIF, tELSE, tWHILE,
 	tBREAK, tCONTINUE, tRETURN,
 	tFOR, tSWITCH, tCASE,
@@ -470,7 +485,7 @@ const char *tnames[] = {
 	"*=",    "/=",    "%=", "&=", "<<=", ">>=", "",    "",
 	";",     ":",     ".",  ",",  "~",   "&&",  "||",  "!",
 	"=",     "++",    "--",
-	"type", "func", "struct", "var", "enum",
+	"new", "func", "struct", "var", "enum",
 	"if", "else", "while",
 	"break", "continue", "return",
 	"for", "switch", "case",
@@ -606,13 +621,13 @@ token_t scan_keyword(u32 len) {
 		if (idn == ctx.idn_for) { return tFOR; }
 		if (idn == ctx.idn_var) { return tVAR; }
 		if (idn == ctx.idn_nil) { return tNIL; }
+		if (idn == ctx.idn_new) { return tNEW; }
 	} else if (len == 4) {
 		if (idn == ctx.idn_case) { return tCASE; }
 		if (idn == ctx.idn_func) { return tFUNC; }
 		if (idn == ctx.idn_else) { return tELSE; }
 		if (idn == ctx.idn_enum) { return tENUM; }
 		if (idn == ctx.idn_true) { return tTRUE; }
-		if (idn == ctx.idn_type) { return tTYPE; }
 	} else if (len == 5) {
 		if (idn == ctx.idn_break) { return tBREAK; }
 		if (idn == ctx.idn_while) { return tWHILE; }
@@ -761,11 +776,7 @@ token_t _next() {
 	}
 }
 
-token_t next() {
-	return (ctx.tok = _next());
-}
-
-void token_printstr(void) {
+void token_printstr(FILE *fp) {
 	u32 n = 0;
 	printf("\"");
 	while (n < 256) {
@@ -773,29 +784,40 @@ void token_printstr(void) {
 		if (ch == 0) {
 			break;
 		} else if ((ch < ' ') || (ch > '~')) {
-			printf("\\x%02x", ch);
+			fprintf(fp, "\\x%02x", ch);
 		} else if ((ch == '"') || (ch == '\\')) {
-			printf("\\%c", ch);
+			fprintf(fp, "\\%c", ch);
 		} else {
-			printf("%c", ch);
+			fprintf(fp, "%c", ch);
 		}
 		n++;
 	}
 	printf("\"");
 }
 
-void token_print(void) {
+void token_print(FILE *fp) {
 	if (ctx.tok == tNUM) {
-		printf("#%u ", ctx.num);
+		fprintf(fp, "#%u ", ctx.num);
 	} else if (ctx.tok == tIDN) {
-		printf("@%s ", ctx.tmp);
+		fprintf(fp, "@%s ", ctx.tmp);
 	} else if (ctx.tok == tEOL) {
-		printf("\n");
+		fprintf(fp, "\n");
 	} else if (ctx.tok == tSTR) {
-		token_printstr();
+		token_printstr(fp);
 	} else {
-		printf("%s ", tnames[ctx.tok]);
+		fprintf(fp, "%s ", tnames[ctx.tok]);
 	}
+}
+
+token_t next() {
+#if 1
+	return (ctx.tok = _next());
+#else
+	ctx.tok = _next();
+	token_print(stderr);
+	fprintf(stderr,"\n");
+	return ctx.tok;
+#endif
 }
 
 void expected(const char* what) {
@@ -883,6 +905,13 @@ void parse_primary_expr(void) {
 		next();
 		parse_expr();
 		require(tCPAREN);
+		return;
+	} else if (ctx.tok == tNEW) {
+		next();
+		require(tOPAREN);
+		String *typename = parse_name("type name");
+		require(tCPAREN);
+		emit(IMPL,"calloc(1,sizeof(%s_t))", typename->text);
 		return;
 	} else if (ctx.tok == tIDN) {
 		parse_ident();
@@ -1465,7 +1494,7 @@ int main(int argc, char **argv) {
 		ctx.flags |= 1;
 		while (true) {
 			next();
-			token_print();
+			token_print(stdout);
 			if (ctx.tok == tEOF) {
 				printf("\n");
 				return 0;
