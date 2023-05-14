@@ -1,0 +1,4 @@
+#!/bin/bash -e
+
+bin/compiler0 -o $2 $1
+gcc -Wall -I. -Iinc -Iout -o $2.bin $2.impl.c
