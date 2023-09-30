@@ -1,0 +1,16 @@
+
+struct Node {
+	next *Node,
+	value i32,
+};
+
+func print(node Node) {
+	_hexout_(node.value);
+}
+
+func start() i32 {
+	var node Node = new(Node);
+	node.value = 42;
+	print(node);	
+	return 0;
+}
