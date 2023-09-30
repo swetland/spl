@@ -1,13 +1,13 @@
 
-func is_three(n i32) bool {
+func is_three(n i32) i32 {
 	_hexout_(0x333);
 	return n == 3;
 }
-func is_six(n i32) bool {
+func is_six(n i32) i32 {
 	_hexout_(0x666);
 	return n == 6;
 }
-func is_nine(n i32) bool {
+func is_nine(n i32) i32 {
 	_hexout_(0x999);
 	return n == 9;
 }
