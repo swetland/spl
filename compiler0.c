@@ -376,6 +376,9 @@ void emit_impl(const char *fmt, ...) {
 	}
 }
 
+#define emit_decl(fmt...) emit(DECL, fmt)
+#define emit_type(fmt...) emit(TYPE, fmt)
+
 #define KEEP_PARENS 0x10000
 
 unsigned emit_impl_oparen(void) {
@@ -1026,8 +1029,8 @@ Type *parse_struct_type(String *name) {
 	Type *rectype = type_make(name, TYPE_STRUCT, nil, nil, 0);
 	scope_push(SCOPE_STRUCT);
 	require(tOBRACE);
-	emit(TYPE,"typedef struct %s_t %s_t;\n", name->text, name->text);
-	emit(TYPE,"struct %s_t {\n", name->text);
+	emit_type("typedef struct %s_t %s_t;\n", name->text, name->text);
+	emit_type("struct %s_t {\n", name->text);
 	while (true) {
 		if (ctx.tok == tCBRACE) {
 			next();
@@ -1037,14 +1040,14 @@ Type *parse_struct_type(String *name) {
 		bool ptr = (ctx.tok == tSTAR);
 		if (ptr) next();
 		Type *type = parse_type(false);
-		emit(TYPE,"    %s_t %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
+		emit_type("    %s_t %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
 		Symbol *sym = symbol_make(fname, type);
 		sym->kind = ptr ? SYMBOL_PTR : SYMBOL_FLD;
 		if (ctx.tok != tCBRACE) {
 			require(tCOMMA);
 		}
 	}
-	emit(TYPE,"};\n");
+	emit_type("};\n");
 	rectype->fields = scope_pop()->first;
 	return rectype;
 }
@@ -1360,10 +1363,10 @@ void parse_function(void) {
 		rtype = parse_type(false);
 	}
 
-	emit(DECL,"%s_t fn_%s(", rtype->name->text, fname->text);
+	emit_decl("%s_t fn_%s(", rtype->name->text, fname->text);
 	emit_impl("%s_t fn_%s(", rtype->name->text, fname->text);
 	for (Symbol *s = ctx.scope->first; s != nil; s = s->next) {
-		emit(DECL,"%s_t %s$%s%s",
+		emit_decl("%s_t %s$%s%s",
 			s->type->name->text,
 			s->type->kind == TYPE_STRUCT ? "*" : "",
 			s->name->text, s->next ? ", " : "");
@@ -1372,7 +1375,7 @@ void parse_function(void) {
 			s->type->kind == TYPE_STRUCT ? "*" : "",
 			s->name->text, s->next ? ", " : "");
 	}
-	emit(DECL,"%s);\n", ctx.scope->first ? "" : "void");
+	emit_decl("%s);\n", ctx.scope->first ? "" : "void");
 	emit_impl("%s) {\n", ctx.scope->first ? "" : "void");
 
 	require(tOBRACE);
@@ -1404,7 +1407,7 @@ void parse_enum_def(void) {
 		}
 		require(tCOMMA);
 		symbol_make_global(name, ctx.type_u32)->kind = SYMBOL_DEF;
-		emit(DECL,"#define c$%s = 0x%x;\n", name->text, val);
+		emit_decl("#define c$%s = 0x%x;\n", name->text, val);
 		val++;
 	}
 	require(tCBRACE);
