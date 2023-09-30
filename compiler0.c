@@ -393,6 +393,7 @@ void emit_impl_cparen(unsigned idx) {
 		unsigned len = ctx.outptr - ctx.outbuf;
 		idx &= 0xFFFF;
 		memmove(ctx.outbuf + idx, ctx.outbuf + idx + 1, len - idx);
+		ctx.outptr--;
 	}
 }
 
@@ -435,9 +436,9 @@ void ctx_open_output(void) {
 		error("cannot open output '%s'", tmp);
 	}
 
-	emit(IMPL,"#include <builtin.type.h>\n");
-	emit(IMPL,"#include \"%s.type.h\"\n", ctx.outname);
-	emit(IMPL,"#include \"%s.decl.h\"\n", ctx.outname);
+	emit_impl("#include <builtin.type.h>\n");
+	emit_impl("#include \"%s.type.h\"\n", ctx.outname);
+	emit_impl("#include \"%s.decl.h\"\n", ctx.outname);
 }
 
 
@@ -857,50 +858,50 @@ void parse_ident(void) {
 
 	if (ctx.tok == tOPAREN) { // function call
 		next();
-		emit(IMPL,"fn_%s(", name->text);
+		emit_impl("fn_%s(", name->text);
 		while (ctx.tok != tCPAREN) {
 			parse_expr();
 			if (ctx.tok != tCPAREN) {
 				require(tCOMMA);
-				emit(IMPL,", ");
+				emit_impl(", ");
 			}
 		}
 		next();
-		emit(IMPL,")");
+		emit_impl(")");
 	} else if (ctx.tok == tDOT) { // field access
 		next();
 		String *fieldname = parse_name("field name");
 		Symbol *field = type_find_field(sym->type, fieldname);
-		emit(IMPL,"($%s->%s)", name->text, fieldname->text);
+		emit_impl("($%s->%s)", name->text, fieldname->text);
 	} else if (ctx.tok == tOBRACK) { // array access
 		next();
 		// XXX handle slices
 		if (sym->type->kind != TYPE_ARRAY) {
 			error("cannot access '%s' as an array", name->text);
 		}
-		emit(IMPL,"($%s[", name->text);
+		emit_impl("($%s[", name->text);
 		parse_expr();
-		emit(IMPL,"])");
+		emit_impl("])");
 	} else { // variable access
 		if (sym->kind == SYMBOL_DEF) {
-			emit(IMPL,"c$%s", sym->name->text);
+			emit_impl("c$%s", sym->name->text);
 		} else {
-			emit(IMPL,"$%s", sym->name->text);
+			emit_impl("$%s", sym->name->text);
 		}
 	}
 }
 
 void parse_primary_expr(void) {
 	if (ctx.tok == tNUM) {
-		emit(IMPL,"0x%x", ctx.num);
+		emit_impl("0x%x", ctx.num);
 	} else if (ctx.tok == tSTR) {
 		error("<TODO> string const");
 	} else if (ctx.tok == tTRUE) {
-		emit(IMPL,"1");
+		emit_impl("1");
 	} else if (ctx.tok == tFALSE) {
-		emit(IMPL,"0");
+		emit_impl("0");
 	} else if (ctx.tok == tNIL) {
-		emit(IMPL,"0");
+		emit_impl("0");
 	} else if (ctx.tok == tOPAREN) {
 		next();
 		parse_expr();
@@ -911,7 +912,7 @@ void parse_primary_expr(void) {
 		require(tOPAREN);
 		String *typename = parse_name("type name");
 		require(tCPAREN);
-		emit(IMPL,"calloc(1,sizeof(%s_t))", typename->text);
+		emit_impl("calloc(1,sizeof(%s_t))", typename->text);
 		return;
 	} else if (ctx.tok == tIDN) {
 		parse_ident();
@@ -928,20 +929,20 @@ void parse_unary_expr(void) {
 		next();
 		parse_unary_expr();
 	} else if (op == tMINUS) {
-		emit(IMPL,"(-");
+		emit_impl("(-");
 		next();
 		parse_unary_expr();
-		emit(IMPL,")");
+		emit_impl(")");
 	} else if (op == tBANG) {
-		emit(IMPL,"(!");
+		emit_impl("(!");
 		next();
 		parse_unary_expr();
-		emit(IMPL,")");
+		emit_impl(")");
 	} else if (op == tNOT) {
-		emit(IMPL,"(~");
+		emit_impl("(~");
 		next();
 		parse_unary_expr();
-		emit(IMPL,")");
+		emit_impl(")");
 	} else if (op == tAMP) {
 		error("dereference not supported");
 		next();
@@ -952,62 +953,67 @@ void parse_unary_expr(void) {
 }
 
 void parse_mul_expr(void) {
-	emit(IMPL,"(");
+	unsigned x = emit_impl_oparen();
 	parse_unary_expr();
 	while ((ctx.tok & tcMASK) == tcMULOP) {
-		emit(IMPL," %s ", tnames[ctx.tok]);
+		emit_impl(" %s ", tnames[ctx.tok]);
 		next();
 		parse_unary_expr();
+		x |= KEEP_PARENS;
 	}
-	emit(IMPL,")");
+	emit_impl_cparen(x);
 }
 
 void parse_add_expr(void) {
-	emit(IMPL,"(");
+	unsigned x = emit_impl_oparen();
 	parse_mul_expr();
 	while ((ctx.tok & tcMASK) == tcADDOP) {
-		emit(IMPL," %s ", tnames[ctx.tok]);
+		emit_impl(" %s ", tnames[ctx.tok]);
 		next();
 		parse_mul_expr();
+		x |= KEEP_PARENS;
 	}
-	emit(IMPL,")");
+	emit_impl_cparen(x);
 }
 
 void parse_rel_expr(void) {
-	emit(IMPL,"(");
+	unsigned x = emit_impl_oparen();
 	parse_add_expr();
 	if ((ctx.tok & tcMASK) == tcRELOP) {
-		emit(IMPL," %s ", tnames[ctx.tok]);
+		emit_impl(" %s ", tnames[ctx.tok]);
 		next();
 		parse_add_expr();
+		x |= KEEP_PARENS;
 	}
-	emit(IMPL,")");
+	emit_impl_cparen(x);
 }
 
 void parse_and_expr(void) {
-	emit(IMPL,"(");
+	unsigned x = emit_impl_oparen();
 	parse_rel_expr();
 	if (ctx.tok == tAND) {
 		while (ctx.tok == tAND) {
-			emit(IMPL," && ");
+			emit_impl(" && ");
 			next();
 			parse_rel_expr();
 		}
+		x |= KEEP_PARENS;
 	}
-	emit(IMPL,")");
+	emit_impl_cparen(x);
 }
 
 void parse_expr(void) {
-	emit(IMPL,"(");
+	unsigned x = emit_impl_oparen();
 	parse_and_expr();
 	if (ctx.tok == tOR) {
 		while (ctx.tok == tOR) {
-			emit(IMPL," || ");
+			emit_impl(" || ");
 			next();
 			parse_and_expr();
 		}
+		x |= KEEP_PARENS;
 	}
-	emit(IMPL,")");
+	emit_impl_cparen(x);
 }
 
 // fwd_ref_ok indicates that an undefined typename
@@ -1095,21 +1101,21 @@ Type *parse_type(bool fwd_ref_ok) {
 void parse_block(void);
 
 void parse_while(void) {
-	emit(IMPL,"while ");
+	emit_impl("while (");
 	parse_expr();
 	require(tOBRACE);
 	scope_push(SCOPE_LOOP);
-	emit(IMPL,"{\n");
+	emit_impl(") {\n");
 	parse_block();
 	scope_pop();
-	emit(IMPL,"\n}\n");
+	emit_impl("}\n");
 }
 
 void parse_if(void) {
 	// if expr { block }
-	emit(IMPL,"if ");
+	emit_impl("if (");
 	parse_expr();
-	emit(IMPL," {\n");
+	emit_impl(") {\n");
 	require(tOBRACE);
 	scope_push(SCOPE_BLOCK);
 	parse_block();
@@ -1119,17 +1125,17 @@ void parse_if(void) {
 		// ... else ...
 		if (ctx.tok == tIF) {
 			// ... if expr { block }
-			emit(IMPL,"\n} else if ");
+			emit_impl("} else if ");
 			next();
 			parse_expr();
 			require(tOBRACE);
-			emit(IMPL," {\n");
+			emit_impl(" {\n");
 			scope_push(SCOPE_BLOCK);
 			parse_block();
 			scope_pop();
 		} else {
 			// ... { block }
-			emit(IMPL,"\n} else {\n");
+			emit_impl("} else {\n");
 			require(tOBRACE);
 			scope_push(SCOPE_BLOCK);
 			parse_block();
@@ -1137,19 +1143,19 @@ void parse_if(void) {
 			break;
 		}
 	}
-	emit(IMPL,"\n}\n");
+	emit_impl("}\n");
 }
 
 void parse_return(void) {
 	if (ctx.tok == tSEMI) {
 		//	error("function requires return type");
 		next();
-		emit(IMPL,"return;\n");
+		emit_impl("return;\n");
 	} else {
 		//	error("return types do not match");
-		emit(IMPL,"return ");
+		emit_impl("return ");
 		parse_expr();
-		emit(IMPL,";\n");
+		emit_impl(";\n");
 		require(tSEMI);
 	}
 }
@@ -1161,7 +1167,7 @@ void parse_break(void) {
 		error("break must be used from inside a looping construct");
 	}
 	require(tSEMI);
-	emit(IMPL,"break;\n");
+	emit_impl("break;\n");
 }
 
 void parse_continue(void) {
@@ -1171,7 +1177,7 @@ void parse_continue(void) {
 		error("continue must be used from inside a looping construct");
 	}
 	require(tSEMI);
-	emit(IMPL,"continue;\n");
+	emit_impl("continue;\n");
 }
 
 #if 0
@@ -1220,14 +1226,14 @@ void parse_struct_init(Symbol *var) {
 		require(tCOLON);
 		if (ctx.tok == tOBRACE) {
 			next();
-			emit(IMPL,"{");
+			emit_impl("{");
 			parse_struct_init(field);
-			emit(IMPL,"}");
+			emit_impl("}");
 		} else {
 			parse_expr();
-			//emit(IMPL, "0x%x", ctx.num);
+			//emit_impl( "0x%x", ctx.num);
 		}
-		emit(IMPL, ",");
+		emit_impl( ",");
 		if (ctx.tok != tCBRACE) {
 			require(tCOMMA);
 		}
@@ -1243,19 +1249,19 @@ void parse_var(void) {
 		next();
 		if (ctx.tok == tOBRACE) {
 			next();
-			emit(IMPL,"%s_t $$%s = {\n", type->name->text, name->text);
+			emit_impl("%s_t $$%s = {\n", type->name->text, name->text);
 			parse_struct_init(var);
-			emit(IMPL,"\n};\n%s_t *$%s = &$$%s;\n",
+			emit_impl("\n};\n%s_t *$%s = &$$%s;\n",
 				type->name->text, name->text, name->text);
 		} else {
-			emit(IMPL,"%s_t %s$%s = ", type->name->text,
+			emit_impl("%s_t %s$%s = ", type->name->text,
 				(type->kind == TYPE_STRUCT) ? "*" : "",
 				name->text);
 			parse_expr();
-			emit(IMPL,";\n");
+			emit_impl(";\n");
 		}
 	} else {
-		emit(IMPL,"%s_t %s$%s = 0;", type->name->text,
+		emit_impl("%s_t %s$%s = 0;", type->name->text,
 			(type->kind == TYPE_STRUCT) ? "*" : "",
 			name->text);
 	}
@@ -1266,23 +1272,23 @@ void parse_var(void) {
 void parse_expr_statement(void) {
 	parse_expr();
 	if (ctx.tok == tASSIGN) {
-		emit(IMPL," = ");
+		emit_impl(" = ");
 		next();
 		parse_expr();
 	} else if ((ctx.tok & tcMASK) == tcAEQOP) {
-		emit(IMPL," %s ", tnames[ctx.tok]);
+		emit_impl(" %s ", tnames[ctx.tok]);
 		next();
 		parse_expr();
 	} else if ((ctx.tok & tcMASK) == tcMEQOP) {
-		emit(IMPL," %s ", tnames[ctx.tok]);
+		emit_impl(" %s ", tnames[ctx.tok]);
 		next();
 		parse_expr();
 	} else if ((ctx.tok == tINC) || (ctx.tok == tDEC)) {
-		emit(IMPL," %s", tnames[ctx.tok]);
+		emit_impl(" %s", tnames[ctx.tok]);
 		next();
 	}
 	require(tSEMI);
-	emit(IMPL,";\n");
+	emit_impl(";\n");
 }
 
 void parse_block(void) {
@@ -1355,19 +1361,19 @@ void parse_function(void) {
 	}
 
 	emit(DECL,"%s_t fn_%s(", rtype->name->text, fname->text);
-	emit(IMPL,"%s_t fn_%s(", rtype->name->text, fname->text);
+	emit_impl("%s_t fn_%s(", rtype->name->text, fname->text);
 	for (Symbol *s = ctx.scope->first; s != nil; s = s->next) {
 		emit(DECL,"%s_t %s$%s%s",
 			s->type->name->text,
 			s->type->kind == TYPE_STRUCT ? "*" : "",
 			s->name->text, s->next ? ", " : "");
-		emit(IMPL,"%s_t %s$%s%s",
+		emit_impl("%s_t %s$%s%s",
 			s->type->name->text,
 			s->type->kind == TYPE_STRUCT ? "*" : "",
 			s->name->text, s->next ? ", " : "");
 	}
 	emit(DECL,"%s);\n", ctx.scope->first ? "" : "void");
-	emit(IMPL,"%s) {\n", ctx.scope->first ? "" : "void");
+	emit_impl("%s) {\n", ctx.scope->first ? "" : "void");
 
 	require(tOBRACE);
 
@@ -1375,7 +1381,7 @@ void parse_function(void) {
 	parse_block();
 	scope_pop();
 
-	emit(IMPL,"\n}\n");
+	emit_impl("}\n");
 
 	scope_pop();
 }
@@ -1406,7 +1412,7 @@ void parse_enum_def(void) {
 }
 
 void parse_program() {
-	emit(IMPL,"\n#include <library.impl.h>\n");
+	emit_impl("\n#include <library.impl.h>\n");
 	next();
 	for (;;) {
 		if (ctx.tok == tENUM) {
@@ -1424,7 +1430,7 @@ void parse_program() {
 			next();
 			parse_var();
 		} else if (ctx.tok == tEOF) {
-			emit(IMPL,"\n#include <library.impl.c>\n");
+			emit_impl("\n#include <library.impl.c>\n");
 			return;
 		} else {
 			expected("function, variable, or type definition");
