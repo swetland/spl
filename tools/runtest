@@ -12,7 +12,7 @@ log="${txt%.txt}.log"
 msg="${txt%.txt}.msg"
 gold="${src%.src}.log"
 
-#echo "RUNTEST: $src: compiling..."
+echo "RUNTEST: $src: compiling..."
 if tools/compile "$src" "$base" 2> "$msg"; then
 	# success!
 	if [[ "$txt" == *"-err"* ]]; then
@@ -38,6 +38,7 @@ if tools/compile "$src" "$base" 2> "$msg"; then
 else
 	if [[ $? > 127 ]]; then
 		echo "RUNTEST: $src: FAIL: compiler crashed"
+		echo "FAIL: $src" > "$txt"
 		cat "$msg"
 	# failure
 	elif [[ "$txt" == *"-err"* ]]; then
