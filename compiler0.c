@@ -885,6 +885,7 @@ void parse_ident(void) {
 		emit_impl("($%s[", name->text);
 		parse_expr();
 		emit_impl("])");
+		require(tCBRACK);
 	} else { // variable access
 		if (sym->kind == SYMBOL_DEF) {
 			emit_impl("c$%s", sym->name->text);
@@ -1053,18 +1054,26 @@ Type *parse_struct_type(String *name) {
 }
 
 Type *parse_array_type(void) {
+	Type *type;
+	u32 nelem = 0;
 	if (ctx.tok == tCBRACK) {
 		next();
-		return type_make(nil, TYPE_SLICE, parse_type(false), nil, 0);
+		type = type_make(nil, TYPE_SLICE, parse_type(false), nil, 0);
 	} else {
 		if (ctx.tok != tNUM) {
 			error("array size must be numeric");
 		}
-		u32 nelem = ctx.num;
+		nelem = ctx.num;
 		next();
 		require(tCBRACK);
-		return type_make(nil, TYPE_ARRAY, parse_type(false), nil, nelem);
+		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, nelem);
 	}
+	// TODO: slices
+	char tmp[256];
+	sprintf(tmp, "array_of_%s", type->of->name->text);
+	type->name = string_make(tmp, strlen(tmp));
+	emit_type("typedef %s_t %s_t[%u];\n", type->of->name->text, type->name->text, nelem);
+	return type;
 }
 
 Type *parse_type(bool fwd_ref_ok) {
@@ -1183,32 +1192,6 @@ void parse_continue(void) {
 	emit_impl("continue;\n");
 }
 
-#if 0
-u32 parse_array_init(Symbol var, u32ptr data, u32 dmax, u32 sz) {
-	memset(data, 0, dmax);
-	u32 n = 0;
-	while (true) {
-		if (ctx.tok == tCBRACE) {
-			next();
-			break;
-		}
-		if (n >= dmax) {
-			error("initializer too large");
-		}
-		Ast expr = parse_expr();
-		i32 v = ast_get_const_i32(expr);
-
-		// VALIDATE type compat/fit
-		STORE(v, data, n, sz);
-		n += sz;
-		if (ctx.tok != tCBRACE) {
-			require(tCOMMA);
-		}
-	}
-	return n;
-}
-#endif
-
 void parse_struct_init(Symbol *var) {
 	while (true) {
 		if (ctx.tok == tCBRACE) {
@@ -1243,6 +1226,20 @@ void parse_struct_init(Symbol *var) {
 	}
 }
 
+void parse_array_init(Symbol *var) {
+	while (true) {
+		if (ctx.tok == tCBRACE) {
+			next();
+			break;
+		}
+		parse_expr();
+		emit_impl(",");
+		if (ctx.tok != tCBRACE) {
+			require(tCOMMA);
+		}
+	}
+}
+
 void parse_var(void) {
 	String *name = parse_name("variable name");
 	Type *type = parse_type(false);
@@ -1252,10 +1249,18 @@ void parse_var(void) {
 		next();
 		if (ctx.tok == tOBRACE) {
 			next();
-			emit_impl("%s_t $$%s = {\n", type->name->text, name->text);
-			parse_struct_init(var);
-			emit_impl("\n};\n%s_t *$%s = &$$%s;\n",
-				type->name->text, name->text, name->text);
+			if (type->kind == TYPE_STRUCT) {
+				emit_impl("%s_t $$%s = {\n", type->name->text, name->text);
+				parse_struct_init(var);
+				emit_impl("\n};\n%s_t *$%s = &$$%s;\n",
+					type->name->text, name->text, name->text);
+			} else if (type->kind == TYPE_ARRAY) {
+				emit_impl("%s_t $%s = {\n", type->name->text, name->text);
+				parse_array_init(var);
+				emit_impl("\n};\n");
+			} else {
+				error("type %s cannot be initialized with {} expr", type->name->text);
+			}
 		} else {
 			emit_impl("%s_t %s$%s = ", type->name->text,
 				(type->kind == TYPE_STRUCT) ? "*" : "",
@@ -1264,9 +1269,13 @@ void parse_var(void) {
 			emit_impl(";\n");
 		}
 	} else {
-		emit_impl("%s_t %s$%s = 0;", type->name->text,
-			(type->kind == TYPE_STRUCT) ? "*" : "",
-			name->text);
+		if (type->kind == TYPE_ARRAY) {
+			emit_impl("%s_t $%s = { 0, };\n", type->name->text, name->text);
+		} else {
+			emit_impl("%s_t %s$%s = 0;", type->name->text,
+				(type->kind == TYPE_STRUCT) ? "*" : "",
+				name->text);
+		}
 	}
 	require(tSEMI);
 
