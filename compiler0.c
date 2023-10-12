@@ -1098,7 +1098,7 @@ Type *parse_array_type(void) {
 	}
 	// TODO: slices
 	char tmp[256];
-	sprintf(tmp, "%s_a", type->of->name->text);
+	sprintf(tmp, "%s_a%u", type->of->name->text, nelem);
 	type->name = string_make(tmp, strlen(tmp));
 	emit_type("typedef %s_t %s_t[%u];\n", type->of->name->text, type->name->text, nelem);
 	return type;
