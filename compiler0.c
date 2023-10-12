@@ -386,6 +386,23 @@ void emit_impl(const char *fmt, ...) {
 	}
 }
 
+void emit_impl_str(void) {
+	u32 n = 0;
+	emit_impl("(void*) \"");
+	while (n < 256) {
+		u32 ch = ctx.tmp[n];
+		if (ch == 0) {
+			break;
+		} else if ((ch < ' ') || (ch > '~') || (ch == '"') || (ch == '\\')) {
+			emit_impl("\\x%02x", ch);
+		} else {
+			emit_impl("%c", ch);
+		}
+		n++;
+	}
+	emit_impl("\"");
+}
+
 #define emit_decl(fmt...) emit(DECL, fmt)
 #define emit_type(fmt...) emit(TYPE, fmt)
 
@@ -606,6 +623,7 @@ token_t scan_string(u32 cc, u32 nc) {
 	u32 n = 0;
 	while (true) {
 		if (nc == '"') {
+			nc = scan();
 			break;
 		} else if (nc == 0) {
 			error("unterminated string");
@@ -909,7 +927,7 @@ void parse_primary_expr(void) {
 	if (ctx.tok == tNUM) {
 		emit_impl("0x%x", ctx.num);
 	} else if (ctx.tok == tSTR) {
-		error("<TODO> string const");
+		emit_impl_str();
 	} else if (ctx.tok == tTRUE) {
 		emit_impl("1");
 	} else if (ctx.tok == tFALSE) {
@@ -1080,7 +1098,7 @@ Type *parse_array_type(void) {
 	}
 	// TODO: slices
 	char tmp[256];
-	sprintf(tmp, "array_of_%s", type->of->name->text);
+	sprintf(tmp, "%s_a", type->of->name->text);
 	type->name = string_make(tmp, strlen(tmp));
 	emit_type("typedef %s_t %s_t[%u];\n", type->of->name->text, type->name->text, nelem);
 	return type;
