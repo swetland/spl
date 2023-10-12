@@ -363,6 +363,8 @@ void emit(FILE* fp, const char *fmt, ...) {
 	va_end(ap);
 }
 
+unsigned indent = 0;
+
 void emit_impl(const char *fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
@@ -370,7 +372,15 @@ void emit_impl(const char *fmt, ...) {
 	va_end(ap);
 	ctx.outptr += n;
 	if (fmt[strlen(fmt) - 1] == '\n') {
-		fwrite(ctx.outbuf, 1, ctx.outptr - ctx.outbuf, ctx.fp_impl);
+		unsigned len = ctx.outptr - ctx.outbuf;
+		fwrite(ctx.outbuf, 1, len, ctx.fp_impl);
+		for (unsigned n = 0; n - len; n++) {
+			if (ctx.outbuf[n] == '{') indent++;
+			if (ctx.outbuf[n] == '}') indent--;
+		}
+		for (unsigned n = 0; n < indent; n++) {
+			fwrite("    ", 1, 4, ctx.fp_impl);
+		}
 		ctx.outptr = ctx.outbuf;
 		ctx.outbuf[0] = 0;
 	}
