@@ -1,4 +1,11 @@
 #!/bin/bash -e
 
-bin/compiler0 -o $2 $1
-gcc -Wall -I. -Iinc -Iout -o $2.bin $2.impl.c
+src="$1"
+base="${src%.src}"
+out="out/${base}"
+
+if [ ! -e "${src}" ] ; then echo error: cannot find "${src}" ; exit 1 ; fi
+
+mkdir -p $(dirname ${out})
+bin/compiler0 -o ${out} ${src}
+gcc -Wall -I. -Iinc -Iout -o ${out}.bin ${out}.impl.c
