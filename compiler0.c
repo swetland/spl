@@ -1435,17 +1435,17 @@ void parse_enum_def(void) {
 		if (sym != nil) {
 			error("cannot redefine %s as enum tag\n", name->text);
 		}
+		symbol_make_global(name, ctx.type_u32)->kind = SYMBOL_DEF;
+		emit_impl("#define c$%s ", name->text, val);
 		if (ctx.tok == tASSIGN) {
 			next();
-			if (ctx.tok != tNUM) {
-				error("enum value not a number");
-			}
-			val = ctx.num;
+			parse_expr();
+			emit_impl("\n");
+		} else {
+			emit_impl("0x%x\n", val);
+			val++;
 		}
 		require(tCOMMA);
-		symbol_make_global(name, ctx.type_u32)->kind = SYMBOL_DEF;
-		emit_decl("#define c$%s = 0x%x;\n", name->text, val);
-		val++;
 	}
 	require(tCBRACE);
 	require(tSEMI);

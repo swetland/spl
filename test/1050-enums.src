@@ -3,7 +3,7 @@ var i i32 = 3;
 
 enum { ZERO, ONE, TWO, };
 
-enum { A = 5, B, C = 0x10000000, D, E = 50 + 50, F = ONE * TWO, }; 
+enum { A = 5, B = 6, C = 0x10000000, D = 0x10000001, E = 50 + 50, F = ONE * TWO, };
 
 func start() i32 {
 	_hexout_(ZERO);
