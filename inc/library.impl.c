@@ -8,7 +8,7 @@ void fn__hexout_(int x) {
 	printf("D %08x\n", x);
 }
 
-void fn_writes(int fd, u8_a_t s) {
+void fn_writes(int fd, t$u8$ s) {
 	write(fd, (void*)s, strlen((void*) s));
 }
 void fn_writex(int fd, int n) {
@@ -17,12 +17,12 @@ void fn_writex(int fd, int n) {
 	write(fd, tmp, strlen(tmp));
 }
 void fn_writec(int fd, int n) {
-	u8_t x = n;
+	t$u8 x = n;
 	if (write(fd, &x, 1) != 1) {}
 }
 
 int fn_readc(int fd) {
-	u8_t x;
+	t$u8 x;
 	if (read(fd, &x, 1) == 1) {
 		return x;
 	} else {

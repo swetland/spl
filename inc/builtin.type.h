@@ -1,13 +1,13 @@
 
 #include <stdint.h>
 
-typedef void void_t;
+typedef void t$void;
 
-typedef uint32_t u32_t;
-typedef int32_t i32_t;
-typedef uint16_t u16_t;
-typedef int16_t i16_t;
-typedef uint8_t u8_t;
-typedef int8_t i8_t;
+typedef uint32_t t$u32;
+typedef int32_t t$i32;
+typedef uint16_t t$u16;
+typedef int16_t t$i16;
+typedef uint8_t t$u8;
+typedef int8_t t$i8;
 
-typedef uint8_t *u8_a_t;
+typedef uint8_t *t$u8$;

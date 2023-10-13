@@ -1,8 +1,8 @@
 #include <stdio.h>
 
-void fn__hexout_(i32_t x);
+void fn__hexout_(t$i32 x);
 
-void fn_writes(i32_t fd, u8_a_t s);
-void fn_writex(i32_t fd, i32_t n);
-void fn_writec(i32_t fd, i32_t c);
-i32_t fn_readc(i32_t fd);
+void fn_writes(t$i32 fd, t$u8$ s);
+void fn_writex(t$i32 fd, t$i32 n);
+void fn_writec(t$i32 fd, t$i32 c);
+t$i32 fn_readc(t$i32 fd);

@@ -944,7 +944,7 @@ void parse_primary_expr(void) {
 		require(tOPAREN);
 		String *typename = parse_name("type name");
 		require(tCPAREN);
-		emit_impl("calloc(1,sizeof(%s_t))", typename->text);
+		emit_impl("calloc(1,sizeof(t$%s))", typename->text);
 		return;
 	} else if (ctx.tok == tIDN) {
 		parse_ident();
@@ -1058,8 +1058,8 @@ Type *parse_struct_type(String *name) {
 	Type *rectype = type_make(name, TYPE_STRUCT, nil, nil, 0);
 	scope_push(SCOPE_STRUCT);
 	require(tOBRACE);
-	emit_type("typedef struct %s_t %s_t;\n", name->text, name->text);
-	emit_type("struct %s_t {\n", name->text);
+	emit_type("typedef struct t$%s t$%s;\n", name->text, name->text);
+	emit_type("struct t$%s {\n", name->text);
 	while (true) {
 		if (ctx.tok == tCBRACE) {
 			next();
@@ -1069,7 +1069,7 @@ Type *parse_struct_type(String *name) {
 		bool ptr = (ctx.tok == tSTAR);
 		if (ptr) next();
 		Type *type = parse_type(false);
-		emit_type("    %s_t %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
+		emit_type("    t$%s %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
 		Symbol *sym = symbol_make(fname, type);
 		sym->kind = ptr ? SYMBOL_PTR : SYMBOL_FLD;
 		if (ctx.tok != tCBRACE) {
@@ -1098,9 +1098,9 @@ Type *parse_array_type(void) {
 	}
 	// TODO: slices
 	char tmp[256];
-	sprintf(tmp, "%s_a%u", type->of->name->text, nelem);
+	sprintf(tmp, "%s$%u", type->of->name->text, nelem);
 	type->name = string_make(tmp, strlen(tmp));
-	emit_type("typedef %s_t %s_t[%u];\n", type->of->name->text, type->name->text, nelem);
+	emit_type("typedef t$%s t$%s[%u];\n", type->of->name->text, type->name->text, nelem);
 	return type;
 }
 
@@ -1278,19 +1278,19 @@ void parse_var(void) {
 		if (ctx.tok == tOBRACE) {
 			next();
 			if (type->kind == TYPE_STRUCT) {
-				emit_impl("%s_t $$%s = {\n", type->name->text, name->text);
+				emit_impl("t$%s $$%s = {\n", type->name->text, name->text);
 				parse_struct_init(var);
-				emit_impl("\n};\n%s_t *$%s = &$$%s;\n",
+				emit_impl("\n};\nt$%s *$%s = &$$%s;\n",
 					type->name->text, name->text, name->text);
 			} else if (type->kind == TYPE_ARRAY) {
-				emit_impl("%s_t $%s = {\n", type->name->text, name->text);
+				emit_impl("t$%s $%s = {\n", type->name->text, name->text);
 				parse_array_init(var);
 				emit_impl("\n};\n");
 			} else {
 				error("type %s cannot be initialized with {} expr", type->name->text);
 			}
 		} else {
-			emit_impl("%s_t %s$%s = ", type->name->text,
+			emit_impl("t$%s %s$%s = ", type->name->text,
 				(type->kind == TYPE_STRUCT) ? "*" : "",
 				name->text);
 			parse_expr();
@@ -1298,9 +1298,9 @@ void parse_var(void) {
 		}
 	} else {
 		if (type->kind == TYPE_ARRAY) {
-			emit_impl("%s_t $%s = { 0, };\n", type->name->text, name->text);
+			emit_impl("t$%s $%s = { 0, };\n", type->name->text, name->text);
 		} else {
-			emit_impl("%s_t %s$%s = 0;", type->name->text,
+			emit_impl("t$%s %s$%s = 0;", type->name->text,
 				(type->kind == TYPE_STRUCT) ? "*" : "",
 				name->text);
 		}
@@ -1400,14 +1400,14 @@ void parse_function(void) {
 		rtype = parse_type(false);
 	}
 
-	emit_decl("%s_t fn_%s(", rtype->name->text, fname->text);
-	emit_impl("%s_t fn_%s(", rtype->name->text, fname->text);
+	emit_decl("t$%s fn_%s(", rtype->name->text, fname->text);
+	emit_impl("t$%s fn_%s(", rtype->name->text, fname->text);
 	for (Symbol *s = ctx.scope->first; s != nil; s = s->next) {
-		emit_decl("%s_t %s$%s%s",
+		emit_decl("t$%s %s$%s%s",
 			s->type->name->text,
 			s->type->kind == TYPE_STRUCT ? "*" : "",
 			s->name->text, s->next ? ", " : "");
-		emit_impl("%s_t %s$%s%s",
+		emit_impl("t$%s %s$%s%s",
 			s->type->name->text,
 			s->type->kind == TYPE_STRUCT ? "*" : "",
 			s->name->text, s->next ? ", " : "");
