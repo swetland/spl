@@ -1,5 +1,5 @@
 
-func hello(a i32, b i32) bool;
+fn hello(a i32, b i32) bool;
 
-func hello(a i32, b i32) {
+fn hello(a i32, b i32) {
 }

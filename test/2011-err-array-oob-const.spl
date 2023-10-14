@@ -1,6 +1,6 @@
 
 var blarg [256]byte;
 
-func bad() {
+fn bad() {
 	var n i32 = blarg[256];
 }

@@ -9,12 +9,12 @@ struct Line {
 	end Point,
 };
 
-func add(a Point, b Point) {
+fn add(a Point, b Point) {
 	a.x = a.x + b.x;
 	a.y = a.y + b.y;
 }
 
-func print(p Point) {
+fn print(p Point) {
 	_hexout_(p.x);
 	_hexout_(p.y);
 }
@@ -29,7 +29,7 @@ var line Line = {
 
 // var p2 struct { x i32, y i32, } = { x: 7, y: 6 };
 
-func start() i32 {
+fn start() i32 {
 	_hexout_(p0.x);
 	_hexout_(p0.y);
 	p0.x = 123;

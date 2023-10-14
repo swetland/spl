@@ -1,18 +1,18 @@
 
-func is_three(n i32) i32 {
+fn is_three(n i32) i32 {
 	_hexout_(0x333);
 	return n == 3;
 }
-func is_six(n i32) i32 {
+fn is_six(n i32) i32 {
 	_hexout_(0x666);
 	return n == 6;
 }
-func is_nine(n i32) i32 {
+fn is_nine(n i32) i32 {
 	_hexout_(0x999);
 	return n == 9;
 }
 
-func or_test2(n i32) {
+fn or_test2(n i32) {
 	if (is_three(n) || is_six(n) || is_nine(n)) {
 		_hexout_(n | 0x1100);
 	} else {
@@ -20,14 +20,14 @@ func or_test2(n i32) {
 	}
 }
 
-func or_test(n i32) {
+fn or_test(n i32) {
 	if (n == 3 || n == 6 || n == 9) {
 		_hexout_(n | 0x100);
 	} else {
 		_hexout_(n | 0x200);
 	}
 }
-func and_test(n i32) {
+fn and_test(n i32) {
 	if ((n & 1 == 1) && (n & 2 == 2) && (n < 8)) {
 		_hexout_(n | 0x300);
 	} else {
@@ -35,7 +35,7 @@ func and_test(n i32) {
 	}
 }
 
-func start() i32 {
+fn start() i32 {
 	var n i32 = 0;
 	while n < 10 {
 		or_test(n);

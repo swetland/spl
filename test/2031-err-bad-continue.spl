@@ -1,4 +1,4 @@
 
-func fail() {
+fn fail() {
 	continue;
 }

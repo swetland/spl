@@ -1,5 +1,5 @@
 
-func start() i32 {
+fn start() i32 {
 	while 1 {
 		var ch i32 = readc(0);
 		if ch < 0 { break; }

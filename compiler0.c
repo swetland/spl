@@ -129,12 +129,12 @@ struct Ctx {
 	Scope global;
 
 	String *idn_if;        // identifier strings
+	String *idn_fn;
 	String *idn_for;
 	String *idn_var;
 	String *idn_nil;
 	String *idn_new;
 	String *idn_case;
-	String *idn_func;
 	String *idn_else;
 	String *idn_enum;
 	String *idn_true;
@@ -301,12 +301,12 @@ void ctx_init() {
 
 	// pre-intern keywords
 	ctx.idn_if       = string_make("if", 2);
+	ctx.idn_fn       = string_make("fn", 2);
 	ctx.idn_for      = string_make("for", 3);
 	ctx.idn_var      = string_make("var", 3);
 	ctx.idn_nil      = string_make("nil", 3);
 	ctx.idn_new      = string_make("new", 3);
 	ctx.idn_case     = string_make("case", 4);
-	ctx.idn_func     = string_make("func", 4);
 	ctx.idn_else     = string_make("else", 4);
 	ctx.idn_enum     = string_make("enum", 4);
 	ctx.idn_true     = string_make("true", 4);
@@ -501,7 +501,7 @@ enum {
 	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
 	// Keywords
-	tNEW, tFUNC, tSTRUCT, tVAR, tENUM,
+	tNEW, tFN, tSTRUCT, tVAR, tENUM,
 	tIF, tELSE, tWHILE,
 	tBREAK, tCONTINUE, tRETURN,
 	tFOR, tSWITCH, tCASE,
@@ -520,7 +520,7 @@ const char *tnames[] = {
 	"*=",    "/=",    "%=", "&=", "<<=", ">>=", "",    "",
 	";",     ":",     ".",  ",",  "~",   "&&",  "||",  "!",
 	"=",     "++",    "--",
-	"new", "func", "struct", "var", "enum",
+	"new", "fn", "struct", "var", "enum",
 	"if", "else", "while",
 	"break", "continue", "return",
 	"for", "switch", "case",
@@ -653,6 +653,7 @@ token_t scan_keyword(u32 len) {
 
 	if (len == 2) {
 		if (idn == ctx.idn_if) { return tIF; };
+		if (idn == ctx.idn_fn) { return tFN; }
 	} else if (len == 3) {
 		if (idn == ctx.idn_for) { return tFOR; }
 		if (idn == ctx.idn_var) { return tVAR; }
@@ -660,7 +661,6 @@ token_t scan_keyword(u32 len) {
 		if (idn == ctx.idn_new) { return tNEW; }
 	} else if (len == 4) {
 		if (idn == ctx.idn_case) { return tCASE; }
-		if (idn == ctx.idn_func) { return tFUNC; }
 		if (idn == ctx.idn_else) { return tELSE; }
 		if (idn == ctx.idn_enum) { return tENUM; }
 		if (idn == ctx.idn_true) { return tTRUE; }
@@ -1150,7 +1150,7 @@ Type *parse_type(bool fwd_ref_ok) {
 	} else if (ctx.tok == tOBRACK) { // array-of
 		next();
 		return parse_array_type();
-	} else if (ctx.tok == tFUNC) {
+	} else if (ctx.tok == tFN) {
 		error("func types not supported");
 		//next();
 		//return parse_func_type();
@@ -1505,7 +1505,7 @@ void parse_program() {
 			String *name = parse_name("struct name");
 			parse_struct_type(name);
 			require(tSEMI);
-		} else if (ctx.tok == tFUNC) {
+		} else if (ctx.tok == tFN) {
 			next();
 			parse_function();
 		} else if (ctx.tok == tVAR) {

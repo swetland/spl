@@ -1,9 +1,9 @@
 
-func print(n i32) {
+fn print(n i32) {
 	_hexout_(n);
 }
 
-func test(v2 i32, v5 i32, v31 i32, v128000 i32) {
+fn test(v2 i32, v5 i32, v31 i32, v128000 i32) {
 	// quick check hex and bin consts
 	print(0xFFD23137);
 	print(0b10001000110100000101000010100001);
@@ -16,7 +16,7 @@ func test(v2 i32, v5 i32, v31 i32, v128000 i32) {
 	print(-v128000);
 }
 
-func start() i32 {
+fn start() i32 {
 	test(2, 5, 31, 128000);
 	return 0;
 }

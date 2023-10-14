@@ -1,7 +1,7 @@
 
 var data [8]u8;
 
-func start() i32 {
+fn start() i32 {
 	var n i32 = 0;
 	while n < 8 {
 		data[n] = n << 4;

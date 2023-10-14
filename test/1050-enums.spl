@@ -5,7 +5,7 @@ enum { ZERO, ONE, TWO, };
 
 enum { A = 5, B = 6, C = 0x10000000, D = 0x10000001, E = 50 + 50, F = ONE * TWO, };
 
-func start() i32 {
+fn start() i32 {
 	_hexout_(ZERO);
 	_hexout_(ONE);
 	_hexout_(TWO);

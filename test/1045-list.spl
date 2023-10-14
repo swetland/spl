@@ -4,11 +4,11 @@ struct Node {
 	value i32,
 };
 
-func print(node Node) {
+fn print(node Node) {
 	_hexout_(node.value);
 }
 
-func start() i32 {
+fn start() i32 {
 	var node Node = new(Node);
 	node.value = 42;
 	print(node);	

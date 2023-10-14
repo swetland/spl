@@ -1,5 +1,5 @@
 
-func start() i32 {
+fn start() i32 {
 	_hexout_(4294967295); // maxu32
 	_hexout_(2147483648); // highbit
 	_hexout_(0xffffffff); // maxu32

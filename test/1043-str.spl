@@ -1,7 +1,7 @@
 
 var hello str = "Hello";
 
-func strlen(x str) i32 {
+fn strlen(x str) i32 {
 	var n i32 = 0;
 	while x[n] != 0 {
 		n++;
@@ -9,7 +9,7 @@ func strlen(x str) i32 {
 	return n;
 }
 
-func dump(x str, xlen i32) {
+fn dump(x str, xlen i32) {
 	var n i32 = 0;
 	while n < xlen {
 		_hexout_(x[n]);
@@ -19,7 +19,7 @@ func dump(x str, xlen i32) {
 
 var strtab [5]str = { "aaa", "bbb", "xxx", "ddd", "eee" };
 
-func start() i32 {
+fn start() i32 {
 	dump(hello, strlen(hello));
 	var n i32 = 0;
 	strtab[2] = "ccc";

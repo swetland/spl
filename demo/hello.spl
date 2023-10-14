@@ -1,5 +1,5 @@
 
-func start() i32 {
+fn start() i32 {
 	writes(1, "Hello, World\n");
 	return 0;
 }
