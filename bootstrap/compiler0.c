@@ -1462,8 +1462,8 @@ void parse_function(void) {
 			s->type->kind == TYPE_STRUCT ? "*" : "",
 			s->name->text, s->next ? ", " : "");
 	}
-	emit_decl("%s);\n", ctx.scope->first ? "" : "void");
-	emit_impl("%s) {\n", ctx.scope->first ? "" : "void");
+	emit_decl("%s);\n", ctx.scope->first ? "" : "t$void");
+	emit_impl("%s) {\n", ctx.scope->first ? "" : "t$void");
 
 	// TODO: more complete type if needed...
 	Symbol *sym = symbol_make_global(fname, rtype);
