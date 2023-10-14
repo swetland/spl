@@ -30,9 +30,25 @@ int fn_readc(int fd) {
 	}
 }
 
+static int os_argc;
+static char **os_argv;
+
 int main(int argc, char** argv) {
+	os_argc = argc;
+	os_argv = argv;
 	int x = fn_start();
 	printf("X %08x\n", x);
 	return 0;
+}
+
+t$u8* fn_os_arg(int n) {
+	if ((n < 0) || (n >= os_argc)) {
+		return (void*) "";
+	}
+	return (void*) os_argv[n];
+}
+
+t$i32 fn_os_arg_count(void) {
+	return os_argc;
 }
 

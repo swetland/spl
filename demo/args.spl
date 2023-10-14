@@ -1,0 +1,11 @@
+
+fn start() i32 {
+	var n i32 = 0;
+	while (n < os_arg_count()) {
+		writes(1, os_arg(n));
+		writes(1, " ");
+		n++;
+	}
+	writes(1, "\n");
+	return 0;
+}
