@@ -1,8 +1,8 @@
 
 func start() i32 {
-	while (1) {
+	while 1 {
 		var ch i32 = readc(0);
-		if (ch < 0) { break; }
+		if ch < 0 { break; }
 		writec(1, ch);
 	}
 	return 0;
