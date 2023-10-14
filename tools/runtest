@@ -10,7 +10,7 @@ bin="${txt%.txt}.bin"
 lst="${txt%.txt}.lst"
 log="${txt%.txt}.log"
 msg="${txt%.txt}.msg"
-gold="${src%.src}.log"
+gold="${src%.spl}.log"
 
 echo "RUNTEST: $src: compiling..."
 if tools/compile "$src" 2> "$msg"; then
