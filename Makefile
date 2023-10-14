@@ -10,8 +10,8 @@ out/compiler0: bootstrap/compiler0.c
 	@mkdir -p out
 	gcc -Wall -O0 -g -o out/compiler0 bootstrap/compiler0.c
 
-out/compiler.bin: compiler.spl out/compiler0
-	./build/compile0 compiler.spl
+out/compiler/compiler.bin: compiler/compiler.spl out/compiler0
+	./build/compile0 compiler/compiler.spl
 
 clean::
 	rm -rf bin out
