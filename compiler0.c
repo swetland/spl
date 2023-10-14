@@ -945,7 +945,7 @@ void parse_ident(void) {
 	} else if (ctx.tok == tOBRACK) { // array access
 		next();
 		// XXX handle slices
-		if (sym->type->kind != TYPE_ARRAY) {
+		if ((sym->type->kind != TYPE_ARRAY) && (sym->type->kind != TYPE_STR)) {
 			error("cannot access '%s' as an array", name->text);
 		}
 		emit_impl("($%s[", name->text);

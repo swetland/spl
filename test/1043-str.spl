@@ -1,0 +1,31 @@
+
+var hello str = "Hello";
+
+func strlen(x str) i32 {
+	var n i32 = 0;
+	while x[n] != 0 {
+		n++;
+	}
+	return n;
+}
+
+func dump(x str, xlen i32) {
+	var n i32 = 0;
+	while n < xlen {
+		_hexout_(x[n]);
+		n++;
+	}
+}
+
+var strtab [5]str = { "aaa", "bbb", "xxx", "ddd", "eee" };
+
+func start() i32 {
+	dump(hello, strlen(hello));
+	var n i32 = 0;
+	strtab[2] = "ccc";
+	while n < 5 {
+		dump(strtab[n], strlen(strtab[n]));
+		n++;
+	}
+	return strlen(hello);
+}
