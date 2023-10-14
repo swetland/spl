@@ -367,7 +367,7 @@ void emit(FILE* fp, const char *fmt, ...) {
 	va_end(ap);
 }
 
-unsigned indent = 0;
+int indent = 0;
 
 void emit_impl(const char *fmt, ...) {
 	va_list ap;
@@ -377,13 +377,17 @@ void emit_impl(const char *fmt, ...) {
 	ctx.outptr += n;
 	if (fmt[strlen(fmt) - 1] == '\n') {
 		unsigned len = ctx.outptr - ctx.outbuf;
-		fwrite(ctx.outbuf, 1, len, ctx.fp_impl);
-		for (unsigned n = 0; n - len; n++) {
-			if (ctx.outbuf[n] == '{') indent++;
+		// any }s reduce the indent level of the current line
+		for (unsigned n = 0; n < len; n++) {
 			if (ctx.outbuf[n] == '}') indent--;
 		}
-		for (unsigned n = 0; n < indent; n++) {
+		for (int n = 0; n < indent; n++) {
 			fwrite("    ", 1, 4, ctx.fp_impl);
+		}
+		fwrite(ctx.outbuf, 1, len, ctx.fp_impl);
+		// any {s increase the indent level of the next line
+		for (unsigned n = 0; n < len; n++) {
+			if (ctx.outbuf[n] == '{') indent++;
 		}
 		ctx.outptr = ctx.outbuf;
 		ctx.outbuf[0] = 0;
