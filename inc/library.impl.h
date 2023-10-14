@@ -10,3 +10,4 @@ t$i32 fn_readc(t$i32 fd);
 
 t$u8* fn_os_arg(t$i32 n);
 t$i32 fn_os_arg_count(void);
+void fn_os_exit(t$i32 n);

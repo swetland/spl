@@ -51,3 +51,6 @@ t$i32 fn_os_arg_count(void) {
 	return os_argc;
 }
 
+void fn_os_exit(int n) {
+	exit(n);
+}
