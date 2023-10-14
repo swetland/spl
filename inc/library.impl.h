@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 void fn__hexout_(t$i32 x);
 
