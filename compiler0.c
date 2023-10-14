@@ -1097,7 +1097,7 @@ Type *parse_struct_type(String *name) {
 	scope_push(SCOPE_STRUCT);
 	require(tOBRACE);
 	emit_type("typedef struct t$%s t$%s;\n", name->text, name->text);
-	emit_type("struct t$%s {\n", name->text);
+	emit_decl("struct t$%s {\n", name->text);
 	while (true) {
 		if (ctx.tok == tCBRACE) {
 			next();
@@ -1107,14 +1107,14 @@ Type *parse_struct_type(String *name) {
 		bool ptr = (ctx.tok == tSTAR);
 		if (ptr) next();
 		Type *type = parse_type(false);
-		emit_type("    t$%s %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
+		emit_decl("    t$%s %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
 		Symbol *sym = symbol_make(fname, type);
 		sym->kind = ptr ? SYMBOL_PTR : SYMBOL_FLD;
 		if (ctx.tok != tCBRACE) {
 			require(tCOMMA);
 		}
 	}
-	emit_type("};\n");
+	emit_decl("};\n"); // xxx was _type
 	rectype->fields = scope_pop()->first;
 	return rectype;
 }
@@ -1122,9 +1122,10 @@ Type *parse_struct_type(String *name) {
 Type *parse_array_type(void) {
 	Type *type;
 	u32 nelem = 0;
+	char tmp[256];
 	if (ctx.tok == tCBRACK) {
 		next();
-		type = type_make(nil, TYPE_SLICE, parse_type(false), nil, 0);
+		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, 0);
 	} else {
 		if (ctx.tok != tNUM) {
 			error("array size must be numeric");
@@ -1134,11 +1135,13 @@ Type *parse_array_type(void) {
 		require(tCBRACK);
 		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, nelem);
 	}
-	// TODO: slices
-	char tmp[256];
 	sprintf(tmp, "%s$%u", type->of->name->text, nelem);
 	type->name = string_make(tmp, strlen(tmp));
-	emit_type("typedef t$%s t$%s[%u];\n", type->of->name->text, type->name->text, nelem);
+	if (nelem == 0) {
+		emit_type("typedef t$%s t$%s[];\n", type->of->name->text, type->name->text);
+	} else {
+		emit_type("typedef t$%s t$%s[%u];\n", type->of->name->text, type->name->text, nelem);
+	}
 	return type;
 }
 
