@@ -10,4 +10,4 @@ typedef int16_t t$i16;
 typedef uint8_t t$u8;
 typedef int8_t t$i8;
 
-typedef uint8_t *t$u8$;
+typedef uint8_t *t$str;

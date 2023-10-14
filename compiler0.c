@@ -46,6 +46,7 @@ enum {
 	SYMBOL_FLD, // struct field
 	SYMBOL_PTR, // struct *field
 	SYMBOL_DEF, // enum
+	SYMBOL_FN,
 };
 
 struct Scope {
@@ -79,6 +80,7 @@ enum {
 //	TYPE_POINTER,
 	TYPE_ARRAY,
 	TYPE_SLICE,
+	TYPE_STR,
 	TYPE_STRUCT,
 //	TYPE_FUNC,
 	TYPE_ENUM,
@@ -145,6 +147,7 @@ struct Ctx {
 	String *idn_continue;
 
 	Type *type_void;       // base types
+	Type *type_str;
 	Type *type_u32;
 	Type *type_i32;
 	Type *type_u8;
@@ -316,6 +319,7 @@ void ctx_init() {
 	ctx.idn_continue = string_make("continue", 8);
 
 	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
+	ctx.type_u32     = type_make(string_make("str", 3), TYPE_STR, nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3), TYPE_U32, nil, nil, 0);
 	ctx.type_i32     = type_make(string_make("i32", 3), TYPE_U32, nil, nil, 0);
 	ctx.type_u8      = type_make(string_make("u8", 2), TYPE_U8, nil, nil, 0);
@@ -878,6 +882,36 @@ String *parse_name(const char* what) {
 
 void parse_expr(void);
 
+int is_type(const char* typename) {
+	String *name = ctx.ident;
+	Symbol *sym = symbol_find(name);
+	if (sym == nil) {
+		error("undefined identifier '%s'", name->text);
+	}
+	return !strcmp(sym->type->name->text, typename);
+}
+
+// cheesy varargs for a few special purpose functions
+void parse_va_call(const char* fn) {
+	emit_impl("({ int fd = fn_%s_begin();", fn);
+	while (ctx.tok != tCPAREN) {
+		if (ctx.tok == tSTR) {
+			emit_impl(" fn_writes(fd,");
+		} else if (ctx.tok == tIDN) {
+			emit_impl(" fn_write%s(fd,", is_type("str") ? "s" : "x");
+		} else {
+			emit_impl(" fn_writex(fd,");
+		}
+		parse_expr();
+		emit_impl(");");
+		if (ctx.tok != tCPAREN) {
+			require(tCOMMA);
+		}
+	}
+	next();
+	emit_impl(" fn_%s_end(); })", fn);
+}
+
 void parse_ident(void) {
 	String *name = ctx.ident;
 	Symbol *sym = symbol_find(name);
@@ -889,6 +923,10 @@ void parse_ident(void) {
 
 	if (ctx.tok == tOPAREN) { // function call
 		next();
+		if (!strcmp(name->text, "error")) {
+			parse_va_call("error");
+			return;
+		}
 		emit_impl("fn_%s(", name->text);
 		while (ctx.tok != tCPAREN) {
 			parse_expr();
@@ -902,7 +940,7 @@ void parse_ident(void) {
 	} else if (ctx.tok == tDOT) { // field access
 		next();
 		String *fieldname = parse_name("field name");
-		Symbol *field = type_find_field(sym->type, fieldname);
+		//Symbol *field = type_find_field(sym->type, fieldname);
 		emit_impl("($%s->%s)", name->text, fieldname->text);
 	} else if (ctx.tok == tOBRACK) { // array access
 		next();
@@ -1414,6 +1452,10 @@ void parse_function(void) {
 	}
 	emit_decl("%s);\n", ctx.scope->first ? "" : "void");
 	emit_impl("%s) {\n", ctx.scope->first ? "" : "void");
+
+	// TODO: more complete type if needed...
+	Symbol *sym = symbol_make_global(fname, rtype);
+	sym->kind = SYMBOL_FN;
 
 	require(tOBRACE);
 
