@@ -921,7 +921,8 @@ void parse_ident(void) {
 		error("undefined identifier '%s'", name->text);
 	}
 
-	if (ctx.tok == tOPAREN) { // function call
+	if (ctx.tok == tOPAREN) {
+		// function call
 		next();
 		if (!strcmp(name->text, "error")) {
 			parse_va_call("error");
@@ -937,26 +938,30 @@ void parse_ident(void) {
 		}
 		next();
 		emit_impl(")");
-	} else if (ctx.tok == tDOT) { // field access
-		next();
-		String *fieldname = parse_name("field name");
-		//Symbol *field = type_find_field(sym->type, fieldname);
-		emit_impl("($%s->%s)", name->text, fieldname->text);
-	} else if (ctx.tok == tOBRACK) { // array access
-		next();
-		// XXX handle slices
-		if ((sym->type->kind != TYPE_ARRAY) && (sym->type->kind != TYPE_STR)) {
-			error("cannot access '%s' as an array", name->text);
-		}
-		emit_impl("($%s[", name->text);
-		parse_expr();
-		emit_impl("])");
-		require(tCBRACK);
-	} else { // variable access
+	} else {
+		// variable access
 		if (sym->kind == SYMBOL_DEF) {
 			emit_impl("c$%s", sym->name->text);
 		} else {
 			emit_impl("$%s", sym->name->text);
+		}
+	}
+
+	while (1) {
+		if (ctx.tok == tDOT) {
+			// field access
+			next();
+			String *fieldname = parse_name("field name");
+			emit_impl("->%s", fieldname->text);
+		} else if (ctx.tok == tOBRACK) {
+			// array access
+			next();
+			emit_impl("[");
+			parse_expr();
+			emit_impl("]");
+			require(tCBRACK);
+		} else {
+			return;
 		}
 	}
 }
