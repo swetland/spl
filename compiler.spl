@@ -2,12 +2,14 @@
 // Licensed under the Apache License, Version 2.0.
 
 fn error_begin() i32 {
+	writes(2, "\n");
 	writes(2, "error: ");
 	return 2;
 }
 
 fn error_end() {
 	writes(2, "\n");
+	os_exit(1);
 }
 
 struct String {
