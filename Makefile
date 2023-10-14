@@ -2,16 +2,16 @@
 
 .NOTINTERMEDIATE: %.c %.h 
 
-all: bin/compiler0
+all: out/compiler0
 
 test: out/test/summary.txt
 
-bin/compiler0: compiler0.c
-	@mkdir -p bin
-	gcc -Wall -O0 -g -o bin/compiler0 compiler0.c
+out/compiler0: bootstrap/compiler0.c
+	@mkdir -p out
+	gcc -Wall -O0 -g -o out/compiler0 bootstrap/compiler0.c
 
-out/compiler.bin: compiler.spl bin/compiler0
-	./tools/compile0 compiler.spl
+out/compiler.bin: compiler.spl out/compiler0
+	./build/compile0 compiler.spl
 
 clean::
 	rm -rf bin out
@@ -21,18 +21,18 @@ clean::
 # fail to be compiled by the rule that depends on spl+log *or*
 # we fail to depend on the .log for tests with both...
 
-TESTDEPS := bin/compiler0 tools/runtest0 tools/compile0
-TESTDEPS += $(wildcard inc/*.h) $(wildcard inc/*.c)
+TESTDEPS := out/compiler0 build/runtest0 build/compile0
+TESTDEPS += $(wildcard bootstrap/inc/*.h) $(wildcard bootstrap/inc/*.c)
 
 out/test/%.txt: test/%.spl test/%.log $(TESTDEPS)
 	@mkdir -p out/test
 	@rm -f $@
-	@tools/runtest0 $< $@
+	@build/runtest0 $< $@
 
 out/test/%.txt: test/%.spl $(TESTDEPS)
 	@mkdir -p out/test
 	@rm -f $@
-	@tools/runtest0 $< $@
+	@build/runtest0 $< $@
 
 
 SRCTESTS := $(sort $(wildcard test/*.spl))

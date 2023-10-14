@@ -13,7 +13,7 @@ msg="${txt%.txt}.msg"
 gold="${src%.spl}.log"
 
 echo "RUNTEST: $src: compiling..."
-if tools/compile0 "$src" 2> "$msg"; then
+if build/compile0 "$src" 2> "$msg"; then
 	# success!
 	if [[ "$txt" == *"-err"* ]]; then
 		# but this was an error test, so...
