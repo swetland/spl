@@ -1,0 +1,11 @@
+#!/bin/bash -e
+
+src="$1"
+base="${src%.spl}"
+out="out/${base}"
+
+if [ ! -e "${src}" ] ; then echo error: cannot find "${src}" ; exit 1 ; fi
+
+make out/compiler.bin
+
+out/compiler.bin < ${src}
