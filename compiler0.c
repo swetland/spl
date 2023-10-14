@@ -1341,7 +1341,7 @@ void parse_var(void) {
 		if (type->kind == TYPE_ARRAY) {
 			emit_impl("t$%s $%s = { 0, };\n", type->name->text, name->text);
 		} else {
-			emit_impl("t$%s %s$%s = 0;", type->name->text,
+			emit_impl("t$%s %s$%s = 0;\n", type->name->text,
 				(type->kind == TYPE_STRUCT) ? "*" : "",
 				name->text);
 		}
