@@ -8,4 +8,4 @@ if [ ! -e "${src}" ] ; then echo error: cannot find "${src}" ; exit 1 ; fi
 
 mkdir -p $(dirname ${out})
 bin/compiler0 -o ${out} ${src}
-gcc -Wall -I. -Iinc -Iout -o ${out}.bin ${out}.impl.c
+gcc -g -O0 -Wall -I. -Iinc -Iout -o ${out}.bin ${out}.impl.c
