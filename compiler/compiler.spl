@@ -12,10 +12,34 @@ fn error_end() {
 	os_exit(1);
 }
 
+fn strneq(s1 str, s2 str, len u32) i32 {
+	var n u32 = 0;
+	while (n < len) {
+		if (s1[n] != s2[n]) {
+			return 0;
+		}
+		n++;
+	}
+	return 1;
+}
+
+fn strcpyn(dst str, src str, len u32) {
+	var n u32 = 0;
+	while (n < len) {
+		dst[n] = src[n];
+		n++;
+	}
+}
+
 struct String {
+	next *String,
+	len u32,
+	text [256]u8,
 };
 
 struct Context {
+	stringlist *String,	// intern table
+
 	linenumber u32,		// line number of most recent line
 	lineoffset u32,		// position of start of most recent line
 	byteoffset u32,		// position of the most recent character
@@ -26,9 +50,65 @@ struct Context {
 	num u32,		// for tNUM
 	tmp [256]u8,		// for tIDN, tSTR
 	ident *String,		// for tSTR
+
+	idn_if *String,		// identifier strings
+	idn_fn *String,
+	idn_for *String,
+	idn_var *String,
+	idn_nil *String,
+	idn_new *String,
+	idn_case *String,
+	idn_else *String,
+	idn_enum *String,
+	idn_true *String,
+	idn_break *String,
+	idn_while *String,
+	idn_false *String,
+	idn_switch *String,
+	idn_struct *String,
+	idn_return *String,
+	idn_continue *String,
 };
 
 var ctx Context;
+
+fn string_make(text str, len u32) String {
+	var s String = ctx.stringlist;
+	while (s != nil) {
+		if (s.len == len) && strneq(text, s.text, len) {
+			return s;
+		}
+		s = s.next;
+	}
+	s = new(String);
+	s.len = len;
+	strcpyn(s.text, text, len + 1);
+	s.next = ctx.stringlist;
+	ctx.stringlist = s;
+	return s;
+}
+
+fn ctx_init() {
+	ctx = new(Context);
+
+	ctx.idn_if       = string_make("if", 2);
+	ctx.idn_fn       = string_make("fn", 2);
+	ctx.idn_for      = string_make("for", 3);
+	ctx.idn_var      = string_make("var", 3);
+	ctx.idn_nil      = string_make("nil", 3);
+	ctx.idn_new      = string_make("new", 3);
+	ctx.idn_case     = string_make("case", 4);
+	ctx.idn_else     = string_make("else", 4);
+	ctx.idn_enum     = string_make("enum", 4);
+	ctx.idn_true     = string_make("true", 4);
+	ctx.idn_break    = string_make("break", 5);
+	ctx.idn_while    = string_make("while", 5);
+	ctx.idn_false    = string_make("false", 5);
+	ctx.idn_switch   = string_make("switch", 6);
+	ctx.idn_struct   = string_make("struct", 6);
+	ctx.idn_return   = string_make("return", 6);
+	ctx.idn_continue = string_make("continue", 8);
+}
 
 // ================================================================
 // lexical scanner
@@ -192,7 +272,33 @@ fn scan_string(cc u32, nc u32) u32 {
 
 fn scan_keyword(len u32) u32 {
 	ctx.tmp[len] = 0;
-	// TODO
+	var idn String = string_make(ctx.tmp, len);
+	ctx.ident = idn;
+
+	if (len == 2) {
+		if (idn == ctx.idn_if) { return tIF; };
+		if (idn == ctx.idn_fn) { return tFN; }
+	} else if (len == 3) {
+		if (idn == ctx.idn_for) { return tFOR; }
+		if (idn == ctx.idn_var) { return tVAR; }
+		if (idn == ctx.idn_nil) { return tNIL; }
+		if (idn == ctx.idn_new) { return tNEW; }
+	} else if (len == 4) {
+		if (idn == ctx.idn_case) { return tCASE; }
+		if (idn == ctx.idn_else) { return tELSE; }
+		if (idn == ctx.idn_enum) { return tENUM; }
+		if (idn == ctx.idn_true) { return tTRUE; }
+	} else if (len == 5) {
+		if (idn == ctx.idn_break) { return tBREAK; }
+		if (idn == ctx.idn_while) { return tWHILE; }
+		if (idn == ctx.idn_false) { return tFALSE; }
+	} else if (len == 6) {
+		if (idn == ctx.idn_switch) { return tSWITCH; }
+		if (idn == ctx.idn_struct) { return tSTRUCT; }
+		if (idn == ctx.idn_return) { return tRETURN; }
+	} else if (len == 8) {
+		if (idn == ctx.idn_continue) { return tCONTINUE; }
+	}
 	return tIDN;
 }
 
@@ -374,7 +480,7 @@ fn next() u32 {
 }
 
 fn start() i32 {
-	ctx = new(Context);
+	ctx_init();
 	scan();
 	
 	while(next() != tEOF) {
