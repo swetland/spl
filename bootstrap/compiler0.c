@@ -1450,8 +1450,10 @@ void parse_function(void) {
 		rtype = parse_type(false);
 	}
 
-	emit_decl("t$%s fn_%s(", rtype->name->text, fname->text);
-	emit_impl("t$%s fn_%s(", rtype->name->text, fname->text);
+	emit_decl("t$%s%s fn_%s(", rtype->name->text, 
+		rtype->kind == TYPE_STRUCT ? "*" : "", fname->text);
+	emit_impl("t$%s%s fn_%s(", rtype->name->text,
+		rtype->kind == TYPE_STRUCT ? "*" : "", fname->text);
 	for (Symbol *s = ctx.scope->first; s != nil; s = s->next) {
 		emit_decl("t$%s %s$%s%s",
 			s->type->name->text,
