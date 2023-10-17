@@ -319,7 +319,7 @@ void ctx_init() {
 	ctx.idn_continue = string_make("continue", 8);
 
 	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
-	ctx.type_u32     = type_make(string_make("str", 3), TYPE_STR, nil, nil, 0);
+	ctx.type_str     = type_make(string_make("str", 3), TYPE_STR, nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3), TYPE_U32, nil, nil, 0);
 	ctx.type_i32     = type_make(string_make("i32", 3), TYPE_U32, nil, nil, 0);
 	ctx.type_u8      = type_make(string_make("u8", 2), TYPE_U8, nil, nil, 0);
@@ -504,6 +504,7 @@ enum {
 	// Various, UnaryNot, LogicalOps,
 	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
+	tAT,
 	// Keywords
 	tNEW, tFN, tSTRUCT, tVAR, tENUM,
 	tIF, tELSE, tWHILE,
@@ -524,6 +525,7 @@ const char *tnames[] = {
 	"*=",    "/=",    "%=", "&=", "<<=", ">>=", "",    "",
 	";",     ":",     ".",  ",",  "~",   "&&",  "||",  "!",
 	"=",     "++",    "--",
+	"@",
 	"new", "fn", "struct", "var", "enum",
 	"if", "else", "while",
 	"break", "continue", "return",
@@ -542,7 +544,7 @@ u8 lextab[256] = {
 	tOPAREN, tCPAREN, tSTAR, tPLUS, tCOMMA, tMINUS, tDOT, tSLASH,
 	tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM,
 	tNUM, tNUM, tCOLON, tSEMI, tLT, tASSIGN, tGT, tMSC,
-	tMSC, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+	tAT,  tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 	tIDN, tIDN, tIDN, tOBRACK, tMSC, tCBRACK, tCARET, tIDN,
@@ -886,6 +888,12 @@ String *parse_name(const char* what) {
 
 void parse_expr(void);
 
+// fwd_ref_ok indicates that an undefined typename
+// may be treated as a forward reference.  This is
+// only used for pointers (because their size does
+// not depend on their target).
+Type *parse_type(bool fwd_ref_ok);
+
 int is_type(const char* typename) {
 	String *name = ctx.ident;
 	Symbol *sym = symbol_find(name);
@@ -899,7 +907,19 @@ int is_type(const char* typename) {
 void parse_va_call(const char* fn) {
 	emit_impl("({ int fd = fn_%s_begin();", fn);
 	while (ctx.tok != tCPAREN) {
-		if (ctx.tok == tSTR) {
+		if (ctx.tok == tAT) {
+			next();
+			Type *type = parse_type(false);
+			if (type == ctx.type_str) {
+				emit_impl(" fn_writes(fd,");
+			} else if (type == ctx.type_u32) {
+				emit_impl(" fn_writex(fd,");
+			} else if (type == ctx.type_i32) {
+				emit_impl(" fn_writei(fd,");
+			} else {
+				error("unsupported type '%s'", type->name->text);
+			}
+		} else if (ctx.tok == tSTR) {
 			emit_impl(" fn_writes(fd,");
 		} else if (ctx.tok == tIDN) {
 			emit_impl(" fn_write%s(fd,", is_type("str") ? "s" : "x");
@@ -1094,12 +1114,6 @@ void parse_expr(void) {
 	}
 	emit_impl_cparen(x);
 }
-
-// fwd_ref_ok indicates that an undefined typename
-// may be treated as a forward reference.  This is
-// only used for pointers (because their size does
-// not depend on their target).
-Type *parse_type(bool fwd_ref_ok);
 
 Type *parse_struct_type(String *name) {
 	Type *rectype = type_find(name);
