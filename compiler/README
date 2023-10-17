@@ -1,0 +1,9 @@
+
+This code needs to be able to be compiled by the bootstrap compiler,
+so it is restricted to a subset of language features, compared to the
+code that it will compile:
+
+- No type inference for variable declarations
+- Very limited support for forward references
+- Very limited support for variable arguments 
+

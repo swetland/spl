@@ -1,6 +1,8 @@
 // Copyright 2023, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
+// utility functions
+
 fn error_begin() i32 {
 	writes(2, "\n");
 	writes(2, "error: ");
@@ -30,6 +32,9 @@ fn strcpyn(dst str, src str, len u32) {
 		n++;
 	}
 }
+
+// ================================================================
+// data types
 
 struct String {
 	next *String,
@@ -116,6 +121,7 @@ enum Token {
 	// Various, UnaryNot, LogicalOps,
 	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
+	tAT,
 	// Keywords
 	tNEW, tFN, tSTRUCT, tVAR, tENUM,
 	tIF, tELSE, tWHILE,
@@ -136,6 +142,7 @@ var tnames []str = {
 	"*=",    "/=",    "%=", "&=", "<<=", ">>=", "",    "",
 	";",     ":",     ".",  ",",  "~",   "&&",  "||",  "!",
 	"=",     "++",    "--",
+	"@",
 	"new", "fn", "struct", "var", "enum",
 	"if", "else", "while",
 	"break", "continue", "return",
@@ -317,10 +324,10 @@ fn type_find_field(type Type, name String) Symbol {
 		}
 		s = s.next;
 	}
-	var x str = name.text; // TODO compiler0 type handling for va error
-	error("struct has no such field '", x, "'");
+	error("struct has no such field '", @str name.text, "'");
 	return nil;
 }
+
 
 fn ctx_init() {
 	ctx = new(Context);
@@ -350,22 +357,35 @@ fn ctx_init() {
 // ================================================================
 // lexical scanner
 
+// currently unrecognized: # $ ? \ `
 var lextab [256]u8 = {
 	tEOF, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tSPC, tEOL, tSPC, tINV, tSPC, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+//	      !     "     #     $     %     &     '
 	tSPC, tBANG, tDQT, tMSC, tMSC, tPERCENT, tAMP, tSQT,
+//	(     )     *     +     ,     -     .     /
 	tOPAREN, tCPAREN, tSTAR, tPLUS, tCOMMA, tMINUS, tDOT, tSLASH,
+//	0     1     2     3     4     5     6     7
 	tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM,
+//	8     9     :     ;     <     =     >     ?
 	tNUM, tNUM, tCOLON, tSEMI, tLT, tASSIGN, tGT, tMSC,
-	tMSC, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	@     A     B     C     D     E     F     G
+	tAT,  tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	H     I     J     K     L     M     N     O
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	P     Q     R     S     T     U     V     W
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	X     Y     Z     [     \     ]     ^     _
 	tIDN, tIDN, tIDN, tOBRACK, tMSC, tCBRACK, tCARET, tIDN,
+//	`     a     b     c     d     e     f     g
 	tMSC, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	h     i     j     k     l     m     n     o
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	p     q     r     s     t     u     v     w
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	x     y     z     {     |     }     ~
 	tIDN, tIDN, tIDN, tOBRACE, tPIPE, tCBRACE, tNOT, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
