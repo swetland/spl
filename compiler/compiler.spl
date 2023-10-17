@@ -163,6 +163,11 @@ struct Context {
 	tmp [256]u8,		// for tIDN, tSTR
 	ident *String,		// for tSTR
 
+	typelist *Type,		// all types
+	scope *Scope,		// top of Scope stack
+	cur_fn *Scope,		// args of fn being parsed
+	global *Scope,		// the global scope
+
 	idn_if *String,		// identifier strings
 	idn_fn *String,
 	idn_for *String,
@@ -200,6 +205,123 @@ fn string_make(text str, len u32) String {
 	return s;
 }
 
+fn scope_push(kind ScopeKind) Scope {
+	var scope Scope = new(Scope);
+	scope.first = nil;
+	scope.last = nil;
+	scope.parent = ctx.scope;
+	scope.kind = kind;
+	ctx.scope = scope;
+	return scope;
+}
+
+fn scope_pop() Scope {
+	var scope Scope = ctx.scope;
+	ctx.scope = scope.parent;
+	return scope;
+}
+
+fn scope_find(kind ScopeKind) Scope {
+	var scope Scope = ctx.scope;
+	while (scope != nil) {
+		if (scope.kind == kind) {
+			return scope;
+		}
+		scope = scope.parent;
+	}
+	return nil;
+}
+
+fn symbol_find_in(name String, scope Scope) Symbol {
+	var sym Symbol = scope.first;
+	while (sym != nil) {
+		if (sym.name == name) {
+			return sym;
+		}
+		sym = sym.next;
+	}
+	return nil;
+}
+
+// find the first surrounding scope of a specified kind
+fn symbol_find(name String) Symbol {
+	var scope Scope = ctx.scope;
+	while (scope != nil) {
+		var sym Symbol = symbol_find_in(name, scope);
+		if (sym != nil) {
+			return sym;
+		}
+		scope = scope.parent;
+	}
+	return nil;
+}
+
+fn symbol_make_in_scope(name String, type Type, scope Scope) Symbol {
+	var sym Symbol = new(Symbol);
+	sym.name = name;
+	sym.type = type;
+	sym.next = nil;
+	sym.kind = SYMBOL_VAR;
+	if (scope.first == nil) {
+		scope.first = sym;
+	} else {
+		scope.last.next = sym;
+	}
+	scope.last = sym;
+	return sym;
+}
+
+fn symbol_make_global(name String, type Type) Symbol {
+	return symbol_make_in_scope(name, type, ctx.global);
+}
+
+fn symbol_make(name String, type Type) Symbol {
+	return symbol_make_in_scope(name, type, ctx.scope);
+}
+
+fn type_make(name String, kind TypeKind, of Type, fields Symbol, count u32) Type {
+	var type Type = new(Type);
+	type.name = name;
+	type.of = of;
+	type.fields = fields;
+	type.kind = kind;
+	type.count = count;
+	if (name != nil) {
+		type.next = ctx.typelist;
+		ctx.typelist = type;
+	} else {
+		type.next = nil;
+	}
+	return type;
+}
+
+fn type_find(name String) Type {
+	var t Type = ctx.typelist;
+	while (t != nil) {
+		if (t.name == name) {
+			return t;
+		}
+		t = t.next;
+	}
+	return nil;
+}
+
+fn type_find_field(type Type, name String) Symbol {
+	if (type.kind != TYPE_STRUCT) {
+		error("not a struct");
+	}
+	var s Symbol = type.fields;
+	while(s != nil) {
+		if (s.name == name) {
+			return s;
+		}
+		s = s.next;
+	}
+	var x str = name.text; // TODO compiler0 type handling for va error
+	error("struct has no such field '", x, "'");
+	return nil;
+}
+
 fn ctx_init() {
 	ctx = new(Context);
 
@@ -220,6 +342,9 @@ fn ctx_init() {
 	ctx.idn_struct   = string_make("struct", 6);
 	ctx.idn_return   = string_make("return", 6);
 	ctx.idn_continue = string_make("continue", 8);
+
+	scope_push(SCOPE_GLOBAL);
+	ctx.global = ctx.scope;
 }
 
 // ================================================================
