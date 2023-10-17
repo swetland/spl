@@ -1494,6 +1494,12 @@ void parse_function(void) {
 }
 
 void parse_enum_def(void) {
+	if (ctx.tok == tIDN) {
+		String *name = parse_name("enum name");
+		type_make(name, TYPE_ENUM, nil, nil, 0);
+		emit_type("typedef t$u32 t$%s; // enum\n", name->text);
+	}
+
 	require(tOBRACE);
 	u32 val = 0;
 	while (ctx.tok != tCBRACE) {
