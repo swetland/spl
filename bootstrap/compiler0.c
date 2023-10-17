@@ -1102,7 +1102,18 @@ void parse_expr(void) {
 Type *parse_type(bool fwd_ref_ok);
 
 Type *parse_struct_type(String *name) {
-	Type *rectype = type_make(name, TYPE_STRUCT, nil, nil, 0);
+	Type *rectype = type_find(name);
+
+	if (rectype) {
+		if (rectype->kind == TYPE_UNDEFINED) {
+			// resolve forward ref
+			rectype->kind = TYPE_STRUCT;
+		} else {
+			error("Cannot redefine struct '%s'", name->text);
+		}
+	} else {
+		rectype = type_make(name, TYPE_STRUCT, nil, nil, 0);
+	};
 	scope_push(SCOPE_STRUCT);
 	require(tOBRACE);
 	emit_type("typedef struct t$%s t$%s;\n", name->text, name->text);
@@ -1115,7 +1126,7 @@ Type *parse_struct_type(String *name) {
 		String *fname = parse_name("field name");
 		bool ptr = (ctx.tok == tSTAR);
 		if (ptr) next();
-		Type *type = parse_type(false);
+		Type *type = parse_type(true);
 		emit_decl("    t$%s %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
 		Symbol *sym = symbol_make(fname, type);
 		sym->kind = ptr ? SYMBOL_PTR : SYMBOL_FLD;
