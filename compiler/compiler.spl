@@ -3,17 +3,6 @@
 
 // utility functions
 
-fn error_begin() i32 {
-	writes(2, "\n");
-	writes(2, "error: ");
-	return 2;
-}
-
-fn error_end() {
-	writes(2, "\n");
-	os_exit(1);
-}
-
 fn strneq(s1 str, s2 str, len u32) i32 {
 	var n u32 = 0;
 	while (n < len) {
@@ -77,6 +66,7 @@ enum TypeKind {
 	TYPE_BOOL,
 	TYPE_U8,
 	TYPE_U32,
+	TYPE_I32,
 	TYPE_NIL,
 	TYPE_POINTER,
 	TYPE_ARRAY,
@@ -157,7 +147,8 @@ var tnames []str = {
 // lexer / parser / compiler context
 
 struct Context {
-	stringlist *String,	// intern table
+	filename str,		// filename of active source
+	outname str,		// base name for output files
 
 	linenumber u32,		// line number of most recent line
 	lineoffset u32,		// position of start of most recent line
@@ -170,7 +161,9 @@ struct Context {
 	tmp [256]u8,		// for tIDN, tSTR
 	ident *String,		// for tSTR
 
+	stringlist *String,	// intern table
 	typelist *Type,		// all types
+
 	scope *Scope,		// top of Scope stack
 	cur_fn *Scope,		// args of fn being parsed
 	global *Scope,		// the global scope
@@ -192,6 +185,12 @@ struct Context {
 	idn_struct *String,
 	idn_return *String,
 	idn_continue *String,
+
+	type_void *Type,
+	type_str *Type,
+	type_u32 *Type,
+	type_i32 *Type,
+	type_u8 *Type,
 };
 
 var ctx Context;
@@ -350,8 +349,31 @@ fn ctx_init() {
 	ctx.idn_return   = string_make("return", 6);
 	ctx.idn_continue = string_make("continue", 8);
 
+	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
+	ctx.type_str     = type_make(string_make("str", 3),  TYPE_STR,  nil, nil, 0);
+	ctx.type_u32     = type_make(string_make("u32", 3),  TYPE_U32,  nil, nil, 0);
+	ctx.type_i32     = type_make(string_make("i32", 3),  TYPE_I32,  nil, nil, 0);
+	ctx.type_u8      = type_make(string_make("u8", 2),   TYPE_U8,   nil, nil, 0);
+
 	scope_push(SCOPE_GLOBAL);
 	ctx.global = ctx.scope;
+
+	ctx.linenumber = 1;
+	ctx.filename = "<stdin>";
+}
+
+fn error_begin() i32 {
+	writes(2, "\n");
+	writes(2, ctx.filename);
+	writes(2, ":");
+	writei(2, ctx.linenumber);
+	writes(2, ": error: ");
+	return 2;
+}
+
+fn error_end() {
+	writes(2, "\n");
+	os_exit(1);
 }
 
 // ================================================================
@@ -419,6 +441,7 @@ fn unhex(ch u32) i32 {
 }
 
 fn scan() Token {
+	ctx.byteoffset++;
 	var ch i32 = readc(0);
 	if (ch < 0) {
 		ctx.cc = 0;
