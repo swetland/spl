@@ -147,6 +147,7 @@ struct Ctx {
 	String *idn_continue;
 
 	Type *type_void;       // base types
+	Type *type_bool;
 	Type *type_str;
 	Type *type_u32;
 	Type *type_i32;
@@ -319,6 +320,7 @@ void ctx_init() {
 	ctx.idn_continue = string_make("continue", 8);
 
 	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
+	ctx.type_bool    = type_make(string_make("bool", 4), TYPE_BOOL, nil, nil, 0);
 	ctx.type_str     = type_make(string_make("str", 3), TYPE_STR, nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3), TYPE_U32, nil, nil, 0);
 	ctx.type_i32     = type_make(string_make("i32", 3), TYPE_U32, nil, nil, 0);

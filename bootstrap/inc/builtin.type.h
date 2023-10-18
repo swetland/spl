@@ -1,7 +1,9 @@
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef void t$void;
+typedef bool t$bool;
 
 typedef uint32_t t$u32;
 typedef int32_t t$i32;
