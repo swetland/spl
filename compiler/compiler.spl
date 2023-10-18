@@ -3,20 +3,20 @@
 
 // utility functions
 
-fn strneq(s1 str, s2 str, len u32) i32 {
+fn strneq(s1 str, s2 str, len u32) bool {
 	var n u32 = 0;
-	while (n < len) {
-		if (s1[n] != s2[n]) {
-			return 0;
+	while n < len {
+		if s1[n] != s2[n] {
+			return false;
 		}
 		n++;
 	}
-	return 1;
+	return true;
 }
 
 fn strcpyn(dst str, src str, len u32) {
 	var n u32 = 0;
-	while (n < len) {
+	while n < len {
 		dst[n] = src[n];
 		n++;
 	}
@@ -187,6 +187,7 @@ struct Context {
 	idn_continue *String,
 
 	type_void *Type,
+	type_bool *Type,
 	type_str *Type,
 	type_u32 *Type,
 	type_i32 *Type,
@@ -197,7 +198,7 @@ var ctx Context;
 
 fn string_make(text str, len u32) String {
 	var s String = ctx.stringlist;
-	while (s != nil) {
+	while s != nil {
 		if (s.len == len) && strneq(text, s.text, len) {
 			return s;
 		}
@@ -229,8 +230,8 @@ fn scope_pop() Scope {
 
 fn scope_find(kind ScopeKind) Scope {
 	var scope Scope = ctx.scope;
-	while (scope != nil) {
-		if (scope.kind == kind) {
+	while scope != nil {
+		if scope.kind == kind {
 			return scope;
 		}
 		scope = scope.parent;
@@ -240,8 +241,8 @@ fn scope_find(kind ScopeKind) Scope {
 
 fn symbol_find_in(name String, scope Scope) Symbol {
 	var sym Symbol = scope.first;
-	while (sym != nil) {
-		if (sym.name == name) {
+	while sym != nil {
+		if sym.name == name {
 			return sym;
 		}
 		sym = sym.next;
@@ -252,9 +253,9 @@ fn symbol_find_in(name String, scope Scope) Symbol {
 // find the first surrounding scope of a specified kind
 fn symbol_find(name String) Symbol {
 	var scope Scope = ctx.scope;
-	while (scope != nil) {
+	while scope != nil {
 		var sym Symbol = symbol_find_in(name, scope);
-		if (sym != nil) {
+		if sym != nil {
 			return sym;
 		}
 		scope = scope.parent;
@@ -268,7 +269,7 @@ fn symbol_make_in_scope(name String, type Type, scope Scope) Symbol {
 	sym.type = type;
 	sym.next = nil;
 	sym.kind = SYMBOL_VAR;
-	if (scope.first == nil) {
+	if scope.first == nil {
 		scope.first = sym;
 	} else {
 		scope.last.next = sym;
@@ -292,7 +293,7 @@ fn type_make(name String, kind TypeKind, of Type, fields Symbol, count u32) Type
 	type.fields = fields;
 	type.kind = kind;
 	type.count = count;
-	if (name != nil) {
+	if name != nil {
 		type.next = ctx.typelist;
 		ctx.typelist = type;
 	} else {
@@ -303,8 +304,8 @@ fn type_make(name String, kind TypeKind, of Type, fields Symbol, count u32) Type
 
 fn type_find(name String) Type {
 	var t Type = ctx.typelist;
-	while (t != nil) {
-		if (t.name == name) {
+	while t != nil {
+		if t.name == name {
 			return t;
 		}
 		t = t.next;
@@ -313,12 +314,12 @@ fn type_find(name String) Type {
 }
 
 fn type_find_field(type Type, name String) Symbol {
-	if (type.kind != TYPE_STRUCT) {
+	if type.kind != TYPE_STRUCT {
 		error("not a struct");
 	}
 	var s Symbol = type.fields;
-	while(s != nil) {
-		if (s.name == name) {
+	while s != nil {
+		if s.name == name {
 			return s;
 		}
 		s = s.next;
@@ -350,6 +351,7 @@ fn ctx_init() {
 	ctx.idn_continue = string_make("continue", 8);
 
 	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
+	ctx.type_bool    = type_make(string_make("bool", 4), TYPE_BOOL, nil, nil, 0);
 	ctx.type_str     = type_make(string_make("str", 3),  TYPE_STR,  nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3),  TYPE_U32,  nil, nil, 0);
 	ctx.type_i32     = type_make(string_make("i32", 3),  TYPE_I32,  nil, nil, 0);
@@ -428,13 +430,13 @@ var lextab [256]u8 = {
 };
 
 fn unhex(ch u32) i32 {
-	if ((ch >= '0') && (ch <= '9')) {
+	if (ch >= '0') && (ch <= '9') {
 		return ch - '0';
 	}
-	if ((ch >= 'a') && (ch <= 'f')) {
+	if (ch >= 'a') && (ch <= 'f') {
 		return ch - 'a' + 10;
 	}
-	if ((ch >= 'A') && (ch <= 'F')) {
+	if (ch >= 'A') && (ch <= 'F') {
 		return ch - 'A' + 10;
 	}
 	return -1;
@@ -443,7 +445,7 @@ fn unhex(ch u32) i32 {
 fn scan() Token {
 	ctx.byteoffset++;
 	var ch i32 = readc(0);
-	if (ch < 0) {
+	if ch < 0 {
 		ctx.cc = 0;
 	} else {
 		ctx.cc = ch;
@@ -452,22 +454,22 @@ fn scan() Token {
 }
 
 fn unescape(n u32) u32 {
-	if (n == 'n') {
+	if n == 'n' {
 		return 10;
-	} else if (n == 'r') {
+	} else if n == 'r' {
 		return 13;
-	} else if (n == 't') {
+	} else if n == 't' {
 		return 9;
-	} else if (n == '"') {
+	} else if n == '"' {
 		return '"';
-	} else if (n == '\'') {
+	} else if n == '\'' {
 		return '\'';
-	} else if (n == '\\') {
+	} else if n == '\\' {
 		return '\\';
-	} else if (n == 'x') {
+	} else if n == 'x' {
 		var x0 u32 = unhex(scan());
 		var x1 u32 = unhex(scan());
-		if ((x0 < 0) || (x1 < 0)) {
+		if (x0 < 0) || (x1 < 0) {
 			error("invalid hex escape");
 		}
 		return (x0 << 4) | x1;
@@ -479,20 +481,20 @@ fn unescape(n u32) u32 {
 
 fn scan_string(cc u32, nc u32) Token {
 	var n u32 = 0;
-	while (true) {
-		if (nc == '"') {
+	while true {
+		if nc == '"' {
 			nc = scan();
 			break;
-		} else if (nc == 0) {
+		} else if nc == 0 {
 			error("unterminated string");
-		} else if (nc == '\\') {
+		} else if nc == '\\' {
 			ctx.tmp[n] = unescape(scan());
 		} else {
 			ctx.tmp[n] = nc;
 		}
 		nc = scan();
 		n++;
-		if (n == 255) {
+		if n == 255 {
 			error("constant string too large");
 		}
 	}
@@ -505,29 +507,29 @@ fn scan_keyword(len u32) Token {
 	var idn String = string_make(ctx.tmp, len);
 	ctx.ident = idn;
 
-	if (len == 2) {
-		if (idn == ctx.idn_if) { return tIF; };
-		if (idn == ctx.idn_fn) { return tFN; }
-	} else if (len == 3) {
-		if (idn == ctx.idn_for) { return tFOR; }
-		if (idn == ctx.idn_var) { return tVAR; }
-		if (idn == ctx.idn_nil) { return tNIL; }
-		if (idn == ctx.idn_new) { return tNEW; }
-	} else if (len == 4) {
-		if (idn == ctx.idn_case) { return tCASE; }
-		if (idn == ctx.idn_else) { return tELSE; }
-		if (idn == ctx.idn_enum) { return tENUM; }
-		if (idn == ctx.idn_true) { return tTRUE; }
-	} else if (len == 5) {
-		if (idn == ctx.idn_break) { return tBREAK; }
-		if (idn == ctx.idn_while) { return tWHILE; }
-		if (idn == ctx.idn_false) { return tFALSE; }
-	} else if (len == 6) {
-		if (idn == ctx.idn_switch) { return tSWITCH; }
-		if (idn == ctx.idn_struct) { return tSTRUCT; }
-		if (idn == ctx.idn_return) { return tRETURN; }
-	} else if (len == 8) {
-		if (idn == ctx.idn_continue) { return tCONTINUE; }
+	if len == 2 {
+		if idn == ctx.idn_if { return tIF; };
+		if idn == ctx.idn_fn { return tFN; }
+	} else if len == 3 {
+		if idn == ctx.idn_for { return tFOR; }
+		if idn == ctx.idn_var { return tVAR; }
+		if idn == ctx.idn_nil { return tNIL; }
+		if idn == ctx.idn_new { return tNEW; }
+	} else if len == 4 {
+		if idn == ctx.idn_case { return tCASE; }
+		if idn == ctx.idn_else { return tELSE; }
+		if idn == ctx.idn_enum { return tENUM; }
+		if idn == ctx.idn_true { return tTRUE; }
+	} else if len == 5 {
+		if idn == ctx.idn_break { return tBREAK; }
+		if idn == ctx.idn_while { return tWHILE; }
+		if idn == ctx.idn_false { return tFALSE; }
+	} else if len == 6 {
+		if idn == ctx.idn_switch { return tSWITCH; }
+		if idn == ctx.idn_struct { return tSTRUCT; }
+		if idn == ctx.idn_return { return tRETURN; }
+	} else if len == 8 {
+		if idn == ctx.idn_continue { return tCONTINUE; }
 	}
 	return tIDN;
 }
@@ -536,9 +538,9 @@ fn scan_number(cc u32, nc u32) Token {
 	var n u32 = 1;
 	var val u32 = cc - '0';
 
-	if ((cc == '0') && (nc == 'b')) { // binary
+	if (cc == '0') && (nc == 'b') { // binary
 		nc = scan();
-		while ((nc == '0') || (nc == '1')) {
+		while (nc == '0') || (nc == '1') {
 			val = (val << 1) | (nc - '0');
 			nc = scan();
 			n++;
@@ -546,24 +548,24 @@ fn scan_number(cc u32, nc u32) Token {
 				error("binary constant too large");
 			}
 		}
-	} else if ((cc == '0') && (nc == 'x')) { // hex
+	} else if (cc == '0') && (nc == 'x') { // hex
 		nc = scan();
-		while (true) {
+		while true {
 			var tmp i32 = unhex(nc);
-			if (tmp == -1) {
+			if tmp == -1 {
 				break;
 			}
 			val = (val << 4) | tmp;
 			nc = scan();
 			n++;
-			if (n == 10) {
+			if n == 10 {
 				error("hex constant too large");
 			}
 		}
 	} else { // decimal
-		while (lextab[nc] == tNUM) {
+		while lextab[nc] == tNUM {
 			var tmp u32 = (val * 10) + (nc - '0');
-			if (tmp <= val) {
+			if tmp <= val {
 				error("decimal constant too large");
 			}
 			val = tmp;
@@ -579,9 +581,9 @@ fn scan_ident(cc u32, nc u32) Token {
 	ctx.tmp[0] = cc;
 	var n u32 = 1;
 
-	while (true) {
+	while true {
 		var tok Token = lextab[nc];
-		if ((tok == tIDN) || (tok == tNUM)) {
+		if (tok == tIDN) || (tok == tNUM) {
 			ctx.tmp[n] = nc;
 			n++;
 			if (n == 32) { error("identifier too large"); }
@@ -595,68 +597,68 @@ fn scan_ident(cc u32, nc u32) Token {
 
 fn _next() Token {
 	var nc u8 = ctx.cc;
-	while (1) {
+	while true {
 		var cc u8 = nc;
 		nc = scan();
 		var tok Token = lextab[cc];
-		if (tok == tNUM) { // 0..9
+		if tok == tNUM { // 0..9
 			return scan_number(cc, nc);
-		} else if (tok == tIDN) { // _ A..Z a..z
+		} else if tok == tIDN { // _ A..Z a..z
 			return scan_ident(cc, nc);
-		} else if (tok == tDQT) { // "
+		} else if tok == tDQT { // "
 			return scan_string(cc, nc);
-		} else if (tok == tSQT) { // '
+		} else if tok == tSQT { // '
 			ctx.num = nc;
-			if (nc == '\\') {
+			if nc == '\\' {
 				ctx.num = unescape(scan());
 			}
 			nc = scan();
-			if (nc != '\'') {
+			if nc != '\'' {
 				error("unterminated character constant");
 			}
 			nc = scan();
 			return tNUM;
-		} else if (tok == tPLUS) {
-			if (nc == '+') { tok = tINC; nc = scan(); }
-		} else if (tok == tMINUS) {
-			if (nc == '-') { tok = tDEC; nc = scan(); }
-		} else if (tok == tAMP) {
-			if (nc == '&') { tok = tAND; nc = scan(); }
-		} else if (tok == tPIPE) {
-			if (nc == '|') { tok = tOR; nc = scan(); }
-		} else if (tok == tGT) {
-			if (nc == '=') { tok = tGE; nc = scan(); }
-			else if (nc == '>') { tok = tRIGHT; nc = scan(); }
-		} else if (tok == tLT) {
-			if (nc == '=') { tok = tLE; nc = scan(); }
-			else if (nc == '<') { tok = tLEFT; nc = scan(); }
-		} else if (tok == tASSIGN) {
-			if (nc == '=') { tok = tEQ; nc = scan(); }
-		} else if (tok == tBANG) {
-			if (nc == '=') { tok = tNE; nc = scan(); }
-		} else if (tok == tSLASH) {
-			if (nc == '/') {
+		} else if tok == tPLUS {
+			if nc == '+' { tok = tINC; nc = scan(); }
+		} else if tok == tMINUS {
+			if nc == '-' { tok = tDEC; nc = scan(); }
+		} else if tok == tAMP {
+			if nc == '&' { tok = tAND; nc = scan(); }
+		} else if tok == tPIPE {
+			if nc == '|' { tok = tOR; nc = scan(); }
+		} else if tok == tGT {
+			if nc == '=' { tok = tGE; nc = scan(); }
+			else if nc == '>' { tok = tRIGHT; nc = scan(); }
+		} else if tok == tLT {
+			if nc == '=' { tok = tLE; nc = scan(); }
+			else if nc == '<' { tok = tLEFT; nc = scan(); }
+		} else if tok == tASSIGN {
+			if nc == '=' { tok = tEQ; nc = scan(); }
+		} else if tok == tBANG {
+			if nc == '=' { tok = tNE; nc = scan(); }
+		} else if tok == tSLASH {
+			if nc == '/' {
 				// comment -- consume until EOL or EOF
-				while ((nc != '\n') && (nc != 0)) {
+				while (nc != '\n') && (nc != 0) {
 					nc = scan();
 				}
 				continue;
 			}
-		} else if (tok == tEOL) {
+		} else if tok == tEOL {
 			ctx.linenumber++;
 			ctx.lineoffset = ctx.byteoffset;
-			//if (ctx.flags & cfVisibleEOL) {
+			//if ctx.flags & cfVisibleEOL {
 			//	return tEOL;
 			//}
 			continue;
-		} else if (tok == tSPC) {
+		} else if tok == tSPC {
 			continue;
-		} else if ((tok == tMSC) || (tok == tINV)) {
+		} else if (tok == tMSC) || (tok == tINV) {
 			error("unknown character 0x%02x", cc);
 		}
 
 		// if we're an AddOp or MulOp, followed by an '='
-		if (((tok & 0xF0) == 0x20) && (nc == '=')) {
+		if ((tok & 0xF0) == 0x20) && (nc == '=') {
 			nc = scan();
 			// transform us to a XEQ operation
 			tok = tok + 0x10;
@@ -669,13 +671,13 @@ fn _next() Token {
 fn token_printstr(fd i32) {
 	var n u32 = 0;
 	writec(fd, '"');
-	while (n < 256) {
+	while n < 256 {
 		var ch u32 = ctx.tmp[n];
-		if (ch == 0) {
+		if ch == 0 {
 			break;
-		} else if ((ch < ' ') || (ch > '~')) {
+		} else if (ch < ' ') || (ch > '~') {
 			writex(fd, ch);
-		} else if ((ch == '"') || (ch == '\\')) {
+		} else if (ch == '"') || (ch == '\\') {
 			writec(fd, '\\');
 			writec(fd, ch);
 		} else {
@@ -687,15 +689,15 @@ fn token_printstr(fd i32) {
 }
 
 fn token_print(fd i32) {
-	if (ctx.tok == tNUM) {
+	if ctx.tok == tNUM {
 		writec(fd, '#');
 		writex(fd, ctx.num);
-	} else if (ctx.tok == tIDN) {
+	} else if ctx.tok == tIDN {
 		writec(fd, '@');
 		writes(fd, ctx.tmp);
-	} else if (ctx.tok == tEOL) {
+	} else if ctx.tok == tEOL {
 		writec(fd, '\n');
-	} else if (ctx.tok == tSTR) {
+	} else if ctx.tok == tSTR {
 		token_printstr(fd);
 	} else {
 		writes(fd, tnames[ctx.tok]);
