@@ -88,6 +88,99 @@ struct Type {
 };
 
 // ================================================================
+// Abstract Syntax Tree
+
+enum AstKind {
+// top node
+	AST_PROGRAM,  // l=FUNC*
+// program components (chained into a list by next)
+	AST_FUNC,     // l=BLOCK
+// container of statements
+	AST_BLOCK,    // l=STMT*
+// statements (chained into a list by next)
+	AST_EXPR,     // l=EXPR
+	AST_WHILE,    // l=EXPR r=BLOCK
+	AST_BREAK,
+	AST_CONTINUE,
+	AST_RETURN,   // l=EXPR
+	AST_IF,       // l=EXPR r=THENELSE
+// sub-part of if
+	AST_THENELSE, // l=BLOCK r=BLOCK|IF
+// expressions
+	AST_SYMBOL,
+	AST_CONST,
+	AST_STRING,
+	AST_DEREF,    // l=EXPR type: pointer-to-...
+	AST_INDEX,    // l=EXPR type: array-of-...  c1=EXPR index
+	AST_FIELD,    // l=EXPR type: struct        c1=SYMBOL field
+	AST_ADDROF,   // l=EXPR type: lvalue
+	AST_CALL,     // l=NAME r=EXPR*
+	AST_ASSIGN,
+// binary expressions
+	// Rel Ops (maintain order matched w/ lexer)
+	AST_EQ, AST_NE, AST_LT, AST_LE, AST_GT, AST_GE,
+	// Add Ops (maintain order matched w/ lexer)
+	AST_ADD, AST_SUB, AST_OR, AST_XOR,
+	// Mul Ops (maintain order matched w/ lexer)
+	AST_MUL, AST_DIV, AST_MOD, AST_AND, AST_LSL, AST_LSR,
+	// uncategorized ops
+	AST_NOT, AST_BOOL_AND, AST_BOOL_OR, AST_BOOL_NOT, AST_NEG,
+	AST_KIND_COUNT,
+};
+
+var ast_kind []str = {
+	"PROGRAM", "FUNC",
+	"BLOCK", "EXPR", "WHILE", "BREAK", "CONTINUE",
+	"RETURN", "IF", "THENELSE",
+	"SYMBOL", "CONST", "STRING",
+	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN",
+	"EQ", "NE", "LT", "LE", "GT", "GE",
+	"ADD", "SUB", "OR", "XOR",
+	"MUL", "DIV", "MOD", "AND", "LSL", "LSR",
+	"NOT", "BOOL AND", "BOOL OR", "BOOL NOT", "NEG",
+};
+
+fn ast_is_relop(kind AstKind) bool {
+	return (kind >= AST_EQ) && (kind <= AST_GE);
+}
+
+fn ast_is_addop(kind AstKind) bool {
+	return (kind >= AST_ADD) && (kind <= AST_XOR);
+}
+
+fn ast_is_mulop(kind AstKind) bool {
+	return (kind >= AST_MUL) && (kind <= AST_LSR);
+}
+
+fn ast_is_binop(kind AstKind) bool {
+	return (kind >= AST_EQ) && (kind <= AST_LSR);
+}
+
+fn ast_is_expr(kind AstKind) bool {
+	return (kind >= AST_SYMBOL);
+}
+
+fn ast_is_stmt(kind AstKind) bool {
+	return (kind >= AST_EXPR) && (kind <= AST_THENELSE);
+}
+
+struct Ast {
+	kind AstKind,
+
+	left *Ast,
+	right *Ast,
+	next *Ast, // intrusive list
+
+	ival u32,
+	name *String,
+	sym *Symbol,
+	type *Type,
+
+	srcloc u32, // linenumber for now
+};
+
+
+// ================================================================
 // lexical scanner tokens
 
 // token classes (tok & tcMASK)
@@ -328,6 +421,41 @@ fn type_find_field(type Type, name String) Symbol {
 	return nil;
 }
 
+fn ast_make(kind AstKind, ival u32, name String, sym Symbol, type Type) Ast {
+	var node Ast = new(Ast);
+	node.kind = kind;
+	node.ival = ival;
+	node.name = name;
+	node.sym = sym;
+	node.type = type;
+	node.srcloc = ctx.linenumber;
+	return node;
+}
+
+fn ast_make_binop(kind AstKind, left Ast, right Ast) Ast {
+	var node Ast = ast_make(kind, 0, nil, nil, nil);
+	node.left = left;
+	node.right = right;
+	return node;
+}
+
+fn ast_make_unop(kind AstKind, child Ast) Ast {
+	var node Ast = ast_make(kind, 0, nil, nil, nil);
+	node.left = child;
+	return node;
+}
+
+fn ast_make_simple(kind AstKind, x u32) Ast {
+	return ast_make(kind, x, nil, nil, nil);
+}
+
+fn ast_make_const(value u32, type Type) Ast {
+	return ast_make(AST_CONST, value, nil, nil, type);
+}
+
+fn ast_make_symbol(name String, sym Symbol) Ast {
+	return ast_make(AST_SYMBOL, 0, name, sym, sym.type);
+}
 
 fn ctx_init() {
 	ctx = new(Context);
