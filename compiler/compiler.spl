@@ -708,14 +708,561 @@ fn next() Token {
 	return ctx.tok;
 }
 
+// ================================================================
+// parser
+
+fn expected(what str) {
+	error("expected ", what, ", found ", @str tnames[ctx.tok]);
+}
+
+fn expect(tok Token) {
+	if ctx.tok != tok {
+		expected(tnames[tok]);
+	}
+}
+
+fn require(tok Token) {
+	expect(tok);
+	next();
+}
+
+fn parse_name(what str) String {
+	if ctx.tok != tIDN {
+		expected(what);
+	}
+	var s String = ctx.ident;
+	next();
+	return s;
+}
+
+fn parse_ident() {
+	var name String = ctx.ident;
+	var sym Symbol = symbol_find(name);
+	next();
+
+	if (sym == nil) && (ctx.tok != tOPAREN) {
+		error("undefined identifier '", @str name.text, "'");
+	}
+
+	if ctx.tok == tOPAREN {
+		// function call
+		next();
+		while ctx.tok != tCPAREN {
+			if ctx.tok == tAT {
+				// type annotation for varargs hack
+				next();
+				parse_type(false);
+			}
+			parse_expr();
+			if ctx.tok != tCPAREN {
+				require(tCOMMA);
+			}
+		}
+		next();
+	} else {
+		if sym.kind == SYMBOL_DEF {
+			// constant
+		} else {
+			// variable
+		}
+	}
+
+	while true {
+		if ctx.tok == tDOT {
+			// field access
+			next();
+			parse_name("field name");
+		} else if ctx.tok == tOBRACK {
+			// array access
+			next();
+			parse_expr();
+			require(tCBRACK);
+		} else {
+			return;
+		}
+	}
+}
+
+fn parse_primary_expr() {
+	if ctx.tok == tNUM {
+		// number
+	} else if ctx.tok == tSTR {
+		// string
+	} else if ctx.tok == tTRUE {
+		// 1
+	} else if ctx.tok == tFALSE {
+		// 0
+	} else if ctx.tok == tNIL {
+		// 0
+	} else if ctx.tok == tOPAREN {
+		next();
+		parse_expr();
+		require(tCPAREN);
+		return;
+	} else if ctx.tok == tNEW {
+		next();
+		require(tOPAREN);
+		parse_name("type name");
+		require(tCPAREN);
+		return;
+	} else if ctx.tok == tIDN {
+		parse_ident();
+		return;
+	} else {
+		error("invalid expression");
+	}
+	next();
+}
+
+fn parse_unary_expr() {
+	var op u32 = ctx.tok;
+	if op == tPLUS {
+		next();
+		parse_unary_expr();
+	} else if op == tMINUS {
+		next();
+		parse_unary_expr();
+	} else if op == tBANG {
+		next();
+		parse_unary_expr();
+	} else if op == tNOT {
+		next();
+		parse_unary_expr();
+	} else if op == tAMP {
+		error("dereference not supported");
+		next();
+		parse_unary_expr();
+	} else {
+		parse_primary_expr();
+	}
+}
+
+fn parse_mul_expr() {
+	parse_unary_expr();
+	while ctx.tok & tcMASK == tcMULOP {
+		next();
+		parse_unary_expr();
+	}
+}
+
+fn parse_add_expr() {
+	parse_mul_expr();
+	while ctx.tok & tcMASK == tcADDOP {
+		next();
+		parse_mul_expr();
+	}
+}
+
+fn parse_rel_expr() {
+	parse_add_expr();
+	if ctx.tok & tcMASK == tcRELOP {
+		next();
+		parse_add_expr();
+	}
+}
+
+fn parse_and_expr() {
+	parse_rel_expr();
+	if ctx.tok == tAND {
+		while ctx.tok == tAND {
+			next();
+			parse_rel_expr();
+		}
+	}
+}
+
+fn parse_expr() {
+	parse_and_expr();
+	if ctx.tok == tOR {
+		while ctx.tok == tOR {
+			next();
+			parse_and_expr();
+		}
+	}
+}
+
+
+fn parse_struct_type(name String) Type {
+	var type Type = type_find(name);
+
+	if type == nil {
+		type = type_make(name, TYPE_STRUCT, nil, nil, 0);
+	} else {
+		if type.kind == TYPE_UNDEFINED {
+			// resolve forward ref
+			type.kind = TYPE_STRUCT;
+		} else {
+			error("cannot redefine struct '", @str name.text, "'");
+		}
+	};
+	scope_push(SCOPE_STRUCT);
+	require(tOBRACE);
+	while true {
+		if ctx.tok == tCBRACE {
+			next();
+			break;
+		}
+		var fname String = parse_name("field name");
+		var kind SymbolKind = SYMBOL_FLD;
+		if ctx.tok == tSTAR {
+			next();
+			kind = SYMBOL_PTR;
+		}
+		var ftype Type = parse_type(true);
+		var sym Symbol = symbol_make(fname, ftype);
+		sym.kind = kind;
+		if ctx.tok != tCBRACE {
+			require(tCOMMA);
+		}
+	}
+	type.fields = scope_pop().first;
+	return type;
+}
+
+
+fn parse_array_type() Type {
+	var type Type;
+	var nelem u32 = 0;
+	if ctx.tok == tCBRACK {
+		// TODO: slices
+		next();
+		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, 0);
+	} else {
+		if ctx.tok != tNUM {
+			error("array size must be numeric");
+		}
+		nelem = ctx.num;
+		next();
+		require(tCBRACK);
+		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, nelem);
+	}
+	// TODO: type.name?
+	return type;
+}
+
+fn parse_type(fwd_ref_ok u32) Type {
+	if ctx.tok == tSTAR { // pointer-to
+		error("pointer types not supported");
+		//next();
+		//return type_make(nil, TYPE_POINTER, parse_type(true), nil, 0);
+	} else if ctx.tok == tOBRACK { // array-of
+		next();
+		return parse_array_type();
+	} else if ctx.tok == tFN {
+		error("func types not supported");
+		//next();
+		//return parse_func_type();
+	} else if ctx.tok == tSTRUCT {
+		error ("anonymous struct types not supported");
+		//next();
+		//return parse_struct_type(nil);
+	} else if ctx.tok == tIDN {
+		var name String = ctx.ident;
+		next();
+		var type Type = type_find(name);
+		if type == nil {
+			if fwd_ref_ok {
+				type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
+			} else {
+				error("undefined type '", @str name.text, "' not usable here");
+			}
+		}
+		return type;
+	} else {
+		expected("type");
+	}
+	return nil;
+}
+
+fn parse_while() {
+	// while expr { block }
+	parse_expr();
+	require(tOBRACE);
+	scope_push(SCOPE_LOOP);
+	parse_block();
+	scope_pop();
+}
+
+fn parse_if() {
+	// if expr { block }
+	parse_expr();
+	require(tOBRACE);
+	scope_push(SCOPE_BLOCK);
+	parse_block();
+	scope_pop();
+	while ctx.tok == tELSE {
+		// ... else ...
+		next();
+		if ctx.tok == tIF {
+			// ... if expr { block }
+			next();
+			parse_expr();
+			require(tOBRACE);
+			scope_push(SCOPE_BLOCK);
+			parse_block();
+			scope_pop();
+		} else {
+			// ... { block }
+			require(tOBRACE);
+			scope_push(SCOPE_BLOCK);
+			parse_block();
+			scope_pop();
+			break;
+		}
+	}
+}
+
+fn parse_return() {
+	// TODO check for return required/type
+	if ctx.tok == tSEMI {
+		next();
+	} else {
+		//	error("return types do not match");
+		parse_expr();
+		require(tSEMI);
+	}
+}
+
+fn parse_break() {
+	// TODO: break-to-labeled-loop support
+	var scope Scope = scope_find(SCOPE_LOOP);
+	if scope == nil {
+		error("break must be used from inside a looping construct");
+	}
+	require(tSEMI);
+}
+
+fn parse_continue() {
+	// TODO: continue-to-labeled-loop support
+	var scope Scope = scope_find(SCOPE_LOOP);
+	if scope == nil {
+		error("continue must be used from inside a looping construct");
+	}
+	require(tSEMI);
+}
+
+fn parse_struct_init(sym Symbol) {
+	while true {
+		if ctx.tok == tCBRACE {
+			next();
+			break;
+		}
+		var name String = parse_name("field name");
+		var field Symbol = sym.type.fields;
+		while true { // TODO: field_find
+			if field == nil {
+				error("structure has no '", @str name.text, "' field");
+			}
+			if field.name == name {
+				break;
+			}
+			field = field.next;
+		}
+		require(tCOLON);
+		if ctx.tok == tOBRACE {
+			next();
+			parse_struct_init(field);
+		} else {
+			parse_expr();
+		}
+		if ctx.tok != tCBRACE {
+			require(tCOMMA);
+		}
+	}
+}
+
+fn parse_array_init(sym Symbol) {
+	while true {
+		if ctx.tok == tCBRACE {
+			next();
+			break;
+		}
+		parse_expr();
+		if ctx.tok != tCBRACE {
+			require(tCOMMA);
+		}
+	}
+}
+
+fn parse_var() {
+	var name String = parse_name("variable name");
+	var type Type = parse_type(false);
+	var sym Symbol = symbol_make(name, type);
+
+	if ctx.tok == tASSIGN {
+		next();
+		if ctx.tok == tOBRACE {
+			next();
+			if type.kind == TYPE_STRUCT {
+				parse_struct_init(sym);
+			} else if type.kind == TYPE_ARRAY {
+				parse_array_init(sym);
+			} else {
+				error("type ", @str type.name.text,
+					" cannot be initialized with {} expr");
+			}
+		} else {
+			parse_expr();
+		}
+	} else {
+		// default init
+	}
+	require(tSEMI);
+}
+
+fn parse_expr_statement() {
+	parse_expr();
+	if ctx.tok == tASSIGN {
+		next();
+		parse_expr();
+	} else if (ctx.tok & tcMASK) == tcAEQOP {
+		next();
+		parse_expr();
+	} else if (ctx.tok & tcMASK) == tcMEQOP {
+		next();
+		parse_expr();
+	} else if (ctx.tok == tINC) || (ctx.tok == tDEC) {
+		next();
+	}
+	require(tSEMI);
+}
+
+fn parse_block() {
+	while true {
+		if ctx.tok == tCBRACE {
+			next();
+			break;
+		} else if ctx.tok == tRETURN {
+			next();
+			parse_return();
+		} else if ctx.tok == tBREAK {
+			next();
+			parse_break();
+		} else if ctx.tok == tCONTINUE {
+			next();
+			parse_continue();
+		} else if ctx.tok == tWHILE {
+			next();
+			parse_while();
+		} else if ctx.tok == tIF {
+			next();
+			parse_if();
+		} else if ctx.tok == tVAR {
+			next();
+			parse_var();
+		} else if ctx.tok == tSEMI {
+			next();
+			// empty statement
+			continue;
+		} else {
+			parse_expr_statement();
+		}
+	}
+}
+
+fn parse_param(fname String) Symbol {
+	var pname String = parse_name("parameter name");
+	var ptype Type = parse_type(false);
+	if symbol_find(pname) != nil {
+		error("duplicate parameter name '", @str pname.text, "'");
+	}
+	return symbol_make(pname, ptype);
+}
+
+fn parse_fn() {
+	var fname String = parse_name("function name");
+	var rtype Type = ctx.type_void;
+
+	scope_push(SCOPE_FUNC);
+
+	require(tOPAREN);
+	if ctx.tok != tCPAREN {
+		parse_param(fname);
+		while ctx.tok == tCOMMA {
+			next();
+			parse_param(fname);
+		}
+	}
+	require(tCPAREN);
+
+	if ctx.tok != tOBRACE {
+		rtype = parse_type(false);
+	}
+
+	var sym Symbol = symbol_make_global(fname, rtype);
+	sym.kind = SYMBOL_FN;
+
+	require(tOBRACE);
+	scope_push(SCOPE_BLOCK);
+	parse_block();
+	scope_pop();
+
+	scope_pop();
+}
+
+fn parse_enum_def() {
+	if ctx.tok == tIDN {
+		var name String = parse_name("enum name");
+		type_make(name, TYPE_ENUM, nil, nil, 0);
+	}
+
+	require(tOBRACE);
+	var val u32 = 0;
+	while ctx.tok != tCBRACE {
+		var name String = parse_name("enum tag name");
+		var sym Symbol = symbol_find(name);
+		if sym != nil {
+			error("cannot redfine '", @str name.text, "' as enum tag");
+		}
+		sym = symbol_make_global(name, ctx.type_u32);
+		sym.kind = SYMBOL_DEF;
+		if ctx.tok == tASSIGN {
+			next();
+			parse_expr();
+		} else {
+			val++;
+		}
+		require(tCOMMA);
+	}
+	require(tCBRACE);
+	require(tSEMI);
+}
+
+fn parse_program() {
+	while true {
+		if ctx.tok == tENUM {
+			next();
+			parse_enum_def();
+		} else if ctx.tok == tSTRUCT {
+			next();
+			var name String = parse_name("struct name");
+			parse_struct_type(name);
+			require(tSEMI);
+		} else if ctx.tok == tFN {
+			next();
+			parse_fn();
+		} else if ctx.tok == tVAR {
+			next();
+			parse_var();
+		} else if ctx.tok == tEOF {
+			return;
+		} else {
+			expected("function, variable, or type definition");
+		}
+	}
+}
+
 fn start() i32 {
 	ctx_init();
 	scan();
+
+	next();
+	parse_program();
 	
-	while(next() != tEOF) {
-		token_print(1);
-	}
-	writec(1, '\n');
+	//while(next() != tEOF) {
+	//	token_print(1);
+	//}
+	//writec(1, '\n');
 	return 0;
 }
 
