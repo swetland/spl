@@ -59,3 +59,7 @@ t$i32 fn_os_arg_count(void) {
 void fn_os_exit(int n) {
 	exit(n);
 }
+
+void fn_abort(void) {
+	abort();
+}
