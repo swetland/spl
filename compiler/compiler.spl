@@ -442,14 +442,14 @@ fn ast_make(kind AstKind, ival u32, name String, sym Symbol, type Type) Ast {
 	return node;
 }
 
-fn ast_make_binop(kind AstKind, left Ast, right Ast) Ast {
+fn ast_make_lr(kind AstKind, left Ast, right Ast) Ast {
 	var node Ast = ast_make(kind, 0, nil, nil, nil);
 	node.left = left;
 	node.right = right;
 	return node;
 }
 
-fn ast_make_unop(kind AstKind, child Ast) Ast {
+fn ast_make_l(kind AstKind, child Ast) Ast {
 	var node Ast = ast_make(kind, 0, nil, nil, nil);
 	node.left = child;
 	return node;
@@ -897,7 +897,7 @@ fn parse_ident() Ast {
 	if ctx.tok == tOPAREN {
 		// function call
 		next();
-		node = ast_make_unop(AST_CALL, node);
+		node = ast_make_l(AST_CALL, node);
 		var last Ast = nil;
 
 		while ctx.tok != tCPAREN {
@@ -926,11 +926,11 @@ fn parse_ident() Ast {
 		if ctx.tok == tDOT {
 			// field access
 			next();
-			node = ast_make_binop(AST_FIELD, node, parse_symbol("field name"));
+			node = ast_make_lr(AST_FIELD, node, parse_symbol("field name"));
 		} else if ctx.tok == tOBRACK {
 			// array access
 			next();
-			node = ast_make_binop(AST_INDEX, node, parse_expr());
+			node = ast_make_lr(AST_INDEX, node, parse_expr());
 			require(tCBRACK);
 		} else {
 			return node;
@@ -983,13 +983,13 @@ fn parse_unary_expr() Ast {
 		return parse_unary_expr();
 	} else if op == tMINUS {
 		next();
-		return ast_make_unop(AST_NEG, parse_unary_expr());
+		return ast_make_l(AST_NEG, parse_unary_expr());
 	} else if op == tBANG {
 		next();
-		return ast_make_unop(AST_BOOL_NOT, parse_unary_expr());
+		return ast_make_l(AST_BOOL_NOT, parse_unary_expr());
 	} else if op == tNOT {
 		next();
-		return ast_make_unop(AST_NOT, parse_unary_expr());
+		return ast_make_l(AST_NOT, parse_unary_expr());
 	} else if op == tAMP {
 		error("dereference not supported");
 		//next();
@@ -1005,7 +1005,7 @@ fn parse_mul_expr() Ast {
 	while ctx.tok & tcMASK == tcMULOP {
 		var op u32 = (ctx.tok - tSTAR) + AST_MUL;
 		next();
-		node = ast_make_binop(op, node, parse_unary_expr());
+		node = ast_make_lr(op, node, parse_unary_expr());
 	}
 	return node;
 }
@@ -1015,7 +1015,7 @@ fn parse_add_expr() Ast {
 	while ctx.tok & tcMASK == tcADDOP {
 		var op u32 = (ctx.tok - tPLUS) + AST_ADD;
 		next();
-		node = ast_make_binop(op, node, parse_mul_expr());
+		node = ast_make_lr(op, node, parse_mul_expr());
 	}
 	return node;
 }
@@ -1025,7 +1025,7 @@ fn parse_rel_expr() Ast {
 	if ctx.tok & tcMASK == tcRELOP {
 		var op u32 = (ctx.tok - tEQ) + AST_EQ;
 		next();
-		node = ast_make_binop(op, node, parse_add_expr());
+		node = ast_make_lr(op, node, parse_add_expr());
 	}
 	return node;
 }
@@ -1035,7 +1035,7 @@ fn parse_and_expr() Ast {
 	if ctx.tok == tAND {
 		while ctx.tok == tAND {
 			next();
-			node = ast_make_binop(AST_BOOL_AND, node, parse_rel_expr());
+			node = ast_make_lr(AST_BOOL_AND, node, parse_rel_expr());
 		}
 	}
 	return node;
@@ -1046,7 +1046,7 @@ fn parse_expr() Ast {
 	if ctx.tok == tOR {
 		while ctx.tok == tOR {
 			next();
-			node = ast_make_binop(AST_BOOL_OR, node, parse_and_expr());
+			node = ast_make_lr(AST_BOOL_OR, node, parse_and_expr());
 		}
 	}
 	return node;
@@ -1151,7 +1151,7 @@ fn parse_while() Ast {
 	scope_push(SCOPE_LOOP);
 	var block Ast = parse_block();
 	scope_pop();
-	return ast_make_binop(AST_WHILE, expr, block);
+	return ast_make_lr(AST_WHILE, expr, block);
 }
 
 fn parse_if() Ast {
@@ -1163,8 +1163,8 @@ fn parse_if() Ast {
 	var block Ast = parse_block();
 	scope_pop();
 
-	var last Ast = ast_make_binop(AST_CASE, expr, block);
-	var stmt Ast = ast_make_unop(AST_IF, last);
+	var last Ast = ast_make_lr(AST_CASE, expr, block);
+	var stmt Ast = ast_make_l(AST_IF, last);
 
 	while ctx.tok == tELSE {
 		// ... else ...
@@ -1177,7 +1177,7 @@ fn parse_if() Ast {
 			scope_push(SCOPE_BLOCK);
 			block = parse_block();
 			scope_pop();
-			last.next = ast_make_binop(AST_CASE, expr, block);
+			last.next = ast_make_lr(AST_CASE, expr, block);
 			last = last.next;
 		} else {
 			// ... { block }
@@ -1185,7 +1185,7 @@ fn parse_if() Ast {
 			scope_push(SCOPE_BLOCK);
 			block = parse_block();
 			scope_pop();
-			last.next = ast_make_binop(AST_CASE, nil, block);
+			last.next = ast_make_lr(AST_CASE, nil, block);
 			break;
 		}
 	}
@@ -1304,7 +1304,7 @@ fn _parse_expr_statement() Ast {
 	if ctx.tok == tASSIGN {
 		// basic assignment
 		next();
-		return ast_make_binop(AST_ASSIGN, node, parse_expr());
+		return ast_make_lr(AST_ASSIGN, node, parse_expr());
 	} else if (ctx.tok & tcMASK) == tcAEQOP {
 		// +=, etc
 		op = (ctx.tok - tADDEQ) + AST_ADD;
@@ -1328,12 +1328,12 @@ fn _parse_expr_statement() Ast {
 	}
 
 	// TODO duplicate node instead of sharing it
-	expr = ast_make_binop(op, node, expr);
-	return ast_make_binop(AST_ASSIGN, node, expr);
+	expr = ast_make_lr(op, node, expr);
+	return ast_make_lr(AST_ASSIGN, node, expr);
 }
 
 fn parse_expr_statement() Ast {
-	var stmt Ast = ast_make_unop(AST_EXPR, _parse_expr_statement());
+	var stmt Ast = ast_make_l(AST_EXPR, _parse_expr_statement());
 	require(tSEMI);
 	return stmt;
 }
