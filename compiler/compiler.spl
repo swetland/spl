@@ -81,7 +81,7 @@ enum TypeKind {
 	TYPE_SLICE,
 	TYPE_STR,
 	TYPE_STRUCT,
-	TYPE_FUNC,
+	TYPE_FN,
 	TYPE_ENUM,
 	TYPE_UNDEFINED,
 };
@@ -89,8 +89,8 @@ enum TypeKind {
 struct Type {
 	next *Type,
 	name *String,
-	of *Type,        // for slice, array, ptr
-	fields *Symbol,  // for struct
+	of *Type,      // for slice, array, ptr, fn (return type)
+	list *Symbol,  // for struct (fields), fn (params)
 	kind TypeKind,
 	count u32,
 };
@@ -326,10 +326,11 @@ fn scope_push(kind ScopeKind) Scope {
 	return scope;
 }
 
-fn scope_pop() Scope {
+// returns symbol list for the popped scope
+fn scope_pop() Symbol {
 	var scope Scope = ctx.scope;
 	ctx.scope = scope.parent;
-	return scope;
+	return scope.first;
 }
 
 fn scope_find(kind ScopeKind) Scope {
@@ -390,11 +391,11 @@ fn symbol_make(name String, type Type) Symbol {
 	return symbol_make_in_scope(name, type, ctx.scope);
 }
 
-fn type_make(name String, kind TypeKind, of Type, fields Symbol, count u32) Type {
+fn type_make(name String, kind TypeKind, of Type, list Symbol, count u32) Type {
 	var type Type = new(Type);
 	type.name = name;
 	type.of = of;
-	type.fields = fields;
+	type.list = list;
 	type.kind = kind;
 	type.count = count;
 	if name != nil {
@@ -421,7 +422,7 @@ fn type_find_field(type Type, name String) Symbol {
 	if type.kind != TYPE_STRUCT {
 		error("not a struct");
 	}
-	var s Symbol = type.fields;
+	var s Symbol = type.list;
 	while s != nil {
 		if s.name == name {
 			return s;
@@ -1086,7 +1087,7 @@ fn parse_struct_type(name String) Type {
 			require(tCOMMA);
 		}
 	}
-	type.fields = scope_pop().first;
+	type.list = scope_pop();
 	return type;
 }
 
@@ -1233,7 +1234,7 @@ fn parse_struct_init(sym Symbol) {
 			break;
 		}
 		var name String = parse_name("field name");
-		var field Symbol = sym.type.fields;
+		var field Symbol = sym.type.list;
 		while true { // TODO: field_find
 			if field == nil {
 				error("structure has no '", @str name.text, "' field");
@@ -1410,12 +1411,14 @@ fn parse_fn() Ast {
 	scope_push(SCOPE_FUNC);
 
 	require(tOPAREN);
+	var n u32 = 0;
 	if ctx.tok != tCPAREN {
 		parse_param(fname);
 		while ctx.tok == tCOMMA {
 			next();
 			parse_param(fname);
 		}
+		n++;
 	}
 	require(tCPAREN);
 
@@ -1425,13 +1428,15 @@ fn parse_fn() Ast {
 
 	var sym Symbol = symbol_make_global(fname, rtype);
 	sym.kind = SYMBOL_FN;
+	sym.type = type_make(fname, TYPE_FN, rtype, nil, n);
 
 	var node Ast = ast_make_simple(AST_FUNC, 0);
 	node.name = fname;
 	node.sym = sym;
-	node.left = parse_fn_body(sym);
+	node.right = parse_fn_body(sym);
 
-	scope_pop();
+	// save parameters
+	sym.type.list = scope_pop();
 
 	return node;
 }
@@ -1521,6 +1526,17 @@ fn _dump_ast_node(fd i32, node Ast) {
 		writex(fd, node.ival);
 	} else if kind == AST_FUNC {
 		writes(fd, node.name.text);
+		writes(fd, "(");
+		var param Symbol = node.sym.type.list;
+		while param != nil {
+			writes(fd, param.name.text);
+			if param.next != nil {
+				writes(fd, ", ");
+			}
+			param = param.next;
+		}
+		writes(fd, ") ");
+		writes(fd, node.sym.type.of.name.text);
 	} else if kind == AST_STRING {
 		printstr(fd, node.name.text);
 	} else if kind == AST_SYMBOL {
