@@ -22,6 +22,14 @@ fn strcpyn(dst str, src str, len u32) {
 	}
 }
 
+fn strlen(s str) u32 {
+	var n u32 = 0;
+	while s[n] != 0 {
+		n++;
+	}
+	return n;
+}
+
 // ================================================================
 // data types
 
@@ -103,19 +111,20 @@ enum AstKind {
 	AST_BREAK,
 	AST_CONTINUE,
 	AST_RETURN,   // l=EXPR
-	AST_IF,       // l=EXPR r=THENELSE
+	AST_IF,       // l=CASE*
 // sub-part of if
-	AST_THENELSE, // l=BLOCK r=BLOCK|IF
+	AST_CASE,     // l=EXPR|nil r=BLOCK
 // expressions
 	AST_SYMBOL,
-	AST_CONST,
-	AST_STRING,
+	AST_CONST,    // numeric constant
+	AST_STRING,   // string constant
 	AST_DEREF,    // l=EXPR type: pointer-to-...
-	AST_INDEX,    // l=EXPR type: array-of-...  c1=EXPR index
-	AST_FIELD,    // l=EXPR type: struct        c1=SYMBOL field
+	AST_INDEX,    // l=EXPR type: array-of-...  r=EXPR index
+	AST_FIELD,    // l=EXPR type: struct        r=SYMBOL field
 	AST_ADDROF,   // l=EXPR type: lvalue
 	AST_CALL,     // l=NAME r=EXPR*
-	AST_ASSIGN,
+	AST_ASSIGN,   // l=lhsEXPR r=rhsEXPR
+	AST_NEW,      // l=TYPE
 // binary expressions
 	// Rel Ops (maintain order matched w/ lexer)
 	AST_EQ, AST_NE, AST_LT, AST_LE, AST_GT, AST_GE,
@@ -131,9 +140,9 @@ enum AstKind {
 var ast_kind []str = {
 	"PROGRAM", "FUNC",
 	"BLOCK", "EXPR", "WHILE", "BREAK", "CONTINUE",
-	"RETURN", "IF", "THENELSE",
+	"RETURN", "IF", "CASE",
 	"SYMBOL", "CONST", "STRING",
-	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN",
+	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN", "NEW",
 	"EQ", "NE", "LT", "LE", "GT", "GE",
 	"ADD", "SUB", "OR", "XOR",
 	"MUL", "DIV", "MOD", "AND", "LSL", "LSR",
@@ -161,7 +170,7 @@ fn ast_is_expr(kind AstKind) bool {
 }
 
 fn ast_is_stmt(kind AstKind) bool {
-	return (kind >= AST_EXPR) && (kind <= AST_THENELSE);
+	return (kind >= AST_EXPR) && (kind <= AST_CASE);
 }
 
 struct Ast {
@@ -258,8 +267,8 @@ struct Context {
 	typelist *Type,		// all types
 
 	scope *Scope,		// top of Scope stack
-	cur_fn *Scope,		// args of fn being parsed
 	global *Scope,		// the global scope
+	cur_fn *Symbol,		// fn being parsed
 
 	idn_if *String,		// identifier strings
 	idn_fn *String,
@@ -282,6 +291,7 @@ struct Context {
 	type_void *Type,
 	type_bool *Type,
 	type_str *Type,
+	type_nil *Type,
 	type_u32 *Type,
 	type_i32 *Type,
 	type_u8 *Type,
@@ -454,7 +464,12 @@ fn ast_make_const(value u32, type Type) Ast {
 }
 
 fn ast_make_symbol(name String, sym Symbol) Ast {
-	return ast_make(AST_SYMBOL, 0, name, sym, sym.type);
+	// TODO maybe handle nil sym differently?
+	var type Type = nil;
+	if sym != nil {
+		type = sym.type;
+	}
+	return ast_make(AST_SYMBOL, 0, name, sym, type);
 }
 
 fn ctx_init() {
@@ -480,6 +495,7 @@ fn ctx_init() {
 
 	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
 	ctx.type_bool    = type_make(string_make("bool", 4), TYPE_BOOL, nil, nil, 0);
+	ctx.type_nil     = type_make(string_make("nil", 3),  TYPE_NIL,  nil, nil, 0);
 	ctx.type_str     = type_make(string_make("str", 3),  TYPE_STR,  nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3),  TYPE_U32,  nil, nil, 0);
 	ctx.type_i32     = type_make(string_make("i32", 3),  TYPE_I32,  nil, nil, 0);
@@ -796,11 +812,11 @@ fn _next() Token {
 	}
 }
 
-fn token_printstr(fd i32) {
+fn printstr(fd i32, s str) {
 	var n u32 = 0;
 	writec(fd, '"');
-	while n < 256 {
-		var ch u32 = ctx.tmp[n];
+	while true {
+		var ch u32 = s[n];
 		if ch == 0 {
 			break;
 		} else if (ch < ' ') || (ch > '~') {
@@ -826,7 +842,7 @@ fn token_print(fd i32) {
 	} else if ctx.tok == tEOL {
 		writec(fd, '\n');
 	} else if ctx.tok == tSTR {
-		token_printstr(fd);
+		printstr(fd, ctx.tmp);
 	} else {
 		writes(fd, tnames[ctx.tok]);
 	}
@@ -865,152 +881,176 @@ fn parse_name(what str) String {
 	return s;
 }
 
-fn parse_ident() {
-	var name String = ctx.ident;
+fn parse_symbol(what str) Ast {
+	var name String = parse_name(what);
 	var sym Symbol = symbol_find(name);
-	next();
+	return ast_make_symbol(name, sym);
+}
 
-	if (sym == nil) && (ctx.tok != tOPAREN) {
-		error("undefined identifier '", @str name.text, "'");
+fn parse_ident() Ast {
+	var node Ast = parse_symbol("identifier");
+
+	if (node.sym == nil) && (ctx.tok != tOPAREN) {
+		error("undefined identifier '", @str node.name.text, "'");
 	}
 
 	if ctx.tok == tOPAREN {
 		// function call
 		next();
+		node = ast_make_unop(AST_CALL, node);
+		var last Ast = nil;
+
 		while ctx.tok != tCPAREN {
 			if ctx.tok == tAT {
 				// type annotation for varargs hack
 				next();
 				parse_type(false);
 			}
-			parse_expr();
+
+			var expr Ast = parse_expr();
+			if last != nil {
+				last.next = expr;
+			} else {
+				node.right = expr;
+			}
+			last = expr;
+
 			if ctx.tok != tCPAREN {
 				require(tCOMMA);
 			}
 		}
 		next();
-	} else {
-		if sym.kind == SYMBOL_DEF {
-			// constant
-		} else {
-			// variable
-		}
 	}
 
 	while true {
 		if ctx.tok == tDOT {
 			// field access
 			next();
-			parse_name("field name");
+			node = ast_make_binop(AST_FIELD, node, parse_symbol("field name"));
 		} else if ctx.tok == tOBRACK {
 			// array access
 			next();
-			parse_expr();
+			node = ast_make_binop(AST_INDEX, node, parse_expr());
 			require(tCBRACK);
 		} else {
-			return;
+			return node;
 		}
 	}
+
+	return nil; // unreachable
 }
 
-fn parse_primary_expr() {
+fn parse_primary_expr() Ast {
+	var node Ast;
 	if ctx.tok == tNUM {
-		// number
+		node = ast_make_const(ctx.num, ctx.type_i32);
+		next();
 	} else if ctx.tok == tSTR {
-		// string
+		node = ast_make_simple(AST_STRING, 0);
+		node.name = string_make(ctx.tmp, strlen(ctx.tmp));
+		next();
 	} else if ctx.tok == tTRUE {
-		// 1
+		node = ast_make_const(1, ctx.type_bool);
+		next();
 	} else if ctx.tok == tFALSE {
-		// 0
+		node = ast_make_const(0, ctx.type_bool);
+		next();
 	} else if ctx.tok == tNIL {
-		// 0
+		node = ast_make_const(0, ctx.type_nil);
+		next();
 	} else if ctx.tok == tOPAREN {
 		next();
-		parse_expr();
+		node = parse_expr();
 		require(tCPAREN);
-		return;
 	} else if ctx.tok == tNEW {
 		next();
 		require(tOPAREN);
-		parse_name("type name");
+		node = ast_make_simple(AST_NEW, 0);
+		node.name = parse_name("type name");
 		require(tCPAREN);
-		return;
 	} else if ctx.tok == tIDN {
-		parse_ident();
-		return;
+		node = parse_ident();
 	} else {
 		error("invalid expression");
 	}
-	next();
+	return node;
 }
 
-fn parse_unary_expr() {
+fn parse_unary_expr() Ast {
 	var op u32 = ctx.tok;
 	if op == tPLUS {
 		next();
-		parse_unary_expr();
+		return parse_unary_expr();
 	} else if op == tMINUS {
 		next();
-		parse_unary_expr();
+		return ast_make_unop(AST_NEG, parse_unary_expr());
 	} else if op == tBANG {
 		next();
-		parse_unary_expr();
+		return ast_make_unop(AST_BOOL_NOT, parse_unary_expr());
 	} else if op == tNOT {
 		next();
-		parse_unary_expr();
+		return ast_make_unop(AST_NOT, parse_unary_expr());
 	} else if op == tAMP {
 		error("dereference not supported");
-		next();
-		parse_unary_expr();
+		//next();
+		//parse_unary_expr();
 	} else {
-		parse_primary_expr();
+		return parse_primary_expr();
 	}
+	return nil; // unreachable
 }
 
-fn parse_mul_expr() {
-	parse_unary_expr();
+fn parse_mul_expr() Ast {
+	var node Ast = parse_unary_expr();
 	while ctx.tok & tcMASK == tcMULOP {
+		var op u32 = (ctx.tok - tSTAR) + AST_MUL;
 		next();
-		parse_unary_expr();
+		node = ast_make_binop(op, node, parse_unary_expr());
 	}
+	return node;
 }
 
-fn parse_add_expr() {
-	parse_mul_expr();
+fn parse_add_expr() Ast {
+	var node Ast = parse_mul_expr();
 	while ctx.tok & tcMASK == tcADDOP {
+		var op u32 = (ctx.tok - tPLUS) + AST_ADD;
 		next();
-		parse_mul_expr();
+		node = ast_make_binop(op, node, parse_mul_expr());
 	}
+	return node;
 }
 
-fn parse_rel_expr() {
-	parse_add_expr();
+fn parse_rel_expr() Ast {
+	var node Ast = parse_add_expr();
 	if ctx.tok & tcMASK == tcRELOP {
+		var op u32 = (ctx.tok - tEQ) + AST_EQ;
 		next();
-		parse_add_expr();
+		node = ast_make_binop(op, node, parse_add_expr());
 	}
+	return node;
 }
 
-fn parse_and_expr() {
-	parse_rel_expr();
+fn parse_and_expr() Ast {
+	var node Ast = parse_rel_expr();
 	if ctx.tok == tAND {
 		while ctx.tok == tAND {
 			next();
-			parse_rel_expr();
+			node = ast_make_binop(AST_BOOL_AND, node, parse_rel_expr());
 		}
 	}
+	return node;
 }
 
-fn parse_expr() {
-	parse_and_expr();
+fn parse_expr() Ast {
+	var node Ast = parse_and_expr();
 	if ctx.tok == tOR {
 		while ctx.tok == tOR {
 			next();
-			parse_and_expr();
+			node = ast_make_binop(AST_BOOL_OR, node, parse_and_expr());
 		}
 	}
+	return node;
 }
-
 
 fn parse_struct_type(name String) Type {
 	var type Type = type_find(name);
@@ -1104,71 +1144,85 @@ fn parse_type(fwd_ref_ok u32) Type {
 	return nil;
 }
 
-fn parse_while() {
+fn parse_while() Ast {
 	// while expr { block }
-	parse_expr();
+	var expr Ast = parse_expr();
 	require(tOBRACE);
 	scope_push(SCOPE_LOOP);
-	parse_block();
+	var block Ast = parse_block();
 	scope_pop();
+	return ast_make_binop(AST_WHILE, expr, block);
 }
 
-fn parse_if() {
+fn parse_if() Ast {
 	// if expr { block }
-	parse_expr();
+
+	var expr Ast = parse_expr();
 	require(tOBRACE);
 	scope_push(SCOPE_BLOCK);
-	parse_block();
+	var block Ast = parse_block();
 	scope_pop();
+
+	var last Ast = ast_make_binop(AST_CASE, expr, block);
+	var stmt Ast = ast_make_unop(AST_IF, last);
+
 	while ctx.tok == tELSE {
 		// ... else ...
 		next();
 		if ctx.tok == tIF {
 			// ... if expr { block }
 			next();
-			parse_expr();
+			expr = parse_expr();
 			require(tOBRACE);
 			scope_push(SCOPE_BLOCK);
-			parse_block();
+			block = parse_block();
 			scope_pop();
+			last.next = ast_make_binop(AST_CASE, expr, block);
+			last = last.next;
 		} else {
 			// ... { block }
 			require(tOBRACE);
 			scope_push(SCOPE_BLOCK);
-			parse_block();
+			block = parse_block();
 			scope_pop();
+			last.next = ast_make_binop(AST_CASE, nil, block);
 			break;
 		}
 	}
+	return stmt;
 }
 
-fn parse_return() {
+fn parse_return() Ast {
 	// TODO check for return required/type
+	var node Ast = ast_make_simple(AST_RETURN, 0);
 	if ctx.tok == tSEMI {
 		next();
 	} else {
 		//	error("return types do not match");
-		parse_expr();
+		node.left = parse_expr();
 		require(tSEMI);
 	}
+	return node;
 }
 
-fn parse_break() {
+fn parse_break() Ast {
 	// TODO: break-to-labeled-loop support
 	var scope Scope = scope_find(SCOPE_LOOP);
 	if scope == nil {
 		error("break must be used from inside a looping construct");
 	}
 	require(tSEMI);
+	return ast_make_simple(AST_BREAK, 0);
 }
 
-fn parse_continue() {
+fn parse_continue() Ast {
 	// TODO: continue-to-labeled-loop support
 	var scope Scope = scope_find(SCOPE_LOOP);
 	if scope == nil {
 		error("continue must be used from inside a looping construct");
 	}
 	require(tSEMI);
+	return ast_make_simple(AST_CONTINUE, 0);
 }
 
 fn parse_struct_init(sym Symbol) {
@@ -1215,6 +1269,8 @@ fn parse_array_init(sym Symbol) {
 }
 
 fn parse_var() {
+	// TODO: global vs local
+	// TODO: generate assignment/initialization
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false);
 	var sym Symbol = symbol_make(name, type);
@@ -1240,43 +1296,71 @@ fn parse_var() {
 	require(tSEMI);
 }
 
-fn parse_expr_statement() {
-	parse_expr();
+fn _parse_expr_statement() Ast {
+	var node Ast = parse_expr();
+	var expr Ast = nil;
+	var op u32;
+
 	if ctx.tok == tASSIGN {
+		// basic assignment
 		next();
-		parse_expr();
+		return ast_make_binop(AST_ASSIGN, node, parse_expr());
 	} else if (ctx.tok & tcMASK) == tcAEQOP {
+		// +=, etc
+		op = (ctx.tok - tADDEQ) + AST_ADD;
 		next();
-		parse_expr();
+		expr = parse_expr();
 	} else if (ctx.tok & tcMASK) == tcMEQOP {
+		// *=, etc
+		op = (ctx.tok - tMULEQ) + AST_MUL;
 		next();
-		parse_expr();
-	} else if (ctx.tok == tINC) || (ctx.tok == tDEC) {
+		expr = parse_expr();
+	} else if (ctx.tok == tINC) {
+		op = AST_ADD;
 		next();
+		expr = ast_make_const(1, ctx.type_i32);
+	} else if (ctx.tok == tDEC) {
+		op = AST_SUB;
+		expr = ast_make_const(1, ctx.type_i32);
+	} else {
+		// simple expression
+		return node;
 	}
-	require(tSEMI);
+
+	// TODO duplicate node instead of sharing it
+	expr = ast_make_binop(op, node, expr);
+	return ast_make_binop(AST_ASSIGN, node, expr);
 }
 
-fn parse_block() {
+fn parse_expr_statement() Ast {
+	var stmt Ast = ast_make_unop(AST_EXPR, _parse_expr_statement());
+	require(tSEMI);
+	return stmt;
+}
+
+fn parse_block() Ast {
+	var block Ast = ast_make_simple(AST_BLOCK, 0);
+	var last Ast = nil;
+	var node Ast;
 	while true {
 		if ctx.tok == tCBRACE {
 			next();
 			break;
 		} else if ctx.tok == tRETURN {
 			next();
-			parse_return();
+			node = parse_return();
 		} else if ctx.tok == tBREAK {
 			next();
-			parse_break();
+			node = parse_break();
 		} else if ctx.tok == tCONTINUE {
 			next();
-			parse_continue();
+			node = parse_continue();
 		} else if ctx.tok == tWHILE {
 			next();
-			parse_while();
+			node = parse_while();
 		} else if ctx.tok == tIF {
 			next();
-			parse_if();
+			node = parse_if();
 		} else if ctx.tok == tVAR {
 			next();
 			parse_var();
@@ -1285,9 +1369,16 @@ fn parse_block() {
 			// empty statement
 			continue;
 		} else {
-			parse_expr_statement();
+			node = parse_expr_statement();
 		}
+		if last == nil {
+			block.left = node;
+		} else {
+			last.next = node;
+		}
+		last = node;
 	}
+	return block;
 }
 
 fn parse_param(fname String) Symbol {
@@ -1299,7 +1390,19 @@ fn parse_param(fname String) Symbol {
 	return symbol_make(pname, ptype);
 }
 
-fn parse_fn() {
+fn parse_fn_body(sym Symbol) Ast {
+	ctx.cur_fn = sym;
+	require(tOBRACE);
+	scope_push(SCOPE_FUNC); // parameters, from fn
+	scope_push(SCOPE_BLOCK);
+	var node Ast = parse_block();
+	scope_pop(); // stow in node?
+	scope_pop();
+	ctx.cur_fn = nil;
+	return node;
+}
+
+fn parse_fn() Ast {
 	var fname String = parse_name("function name");
 	var rtype Type = ctx.type_void;
 
@@ -1322,12 +1425,14 @@ fn parse_fn() {
 	var sym Symbol = symbol_make_global(fname, rtype);
 	sym.kind = SYMBOL_FN;
 
-	require(tOBRACE);
-	scope_push(SCOPE_BLOCK);
-	parse_block();
-	scope_pop();
+	var node Ast = ast_make_simple(AST_FUNC, 0);
+	node.name = fname;
+	node.sym = sym;
+	node.left = parse_fn_body(sym);
 
 	scope_pop();
+
+	return node;
 }
 
 fn parse_enum_def() {
@@ -1349,6 +1454,7 @@ fn parse_enum_def() {
 		if ctx.tok == tASSIGN {
 			next();
 			parse_expr();
+			// TODO val <- expr
 		} else {
 			val++;
 		}
@@ -1358,7 +1464,10 @@ fn parse_enum_def() {
 	require(tSEMI);
 }
 
-fn parse_program() {
+fn parse_program() Ast {
+	var program Ast = ast_make_simple(AST_PROGRAM, 0);
+	var last Ast = nil;
+
 	while true {
 		if ctx.tok == tENUM {
 			next();
@@ -1370,16 +1479,87 @@ fn parse_program() {
 			require(tSEMI);
 		} else if ctx.tok == tFN {
 			next();
-			parse_fn();
+			var node Ast = parse_fn();
+			if last == nil {
+				program.left = node;
+			} else {
+				last.next = node;
+			}
+			last = node;
 		} else if ctx.tok == tVAR {
 			next();
 			parse_var();
 		} else if ctx.tok == tEOF {
-			return;
+			break;
 		} else {
 			expected("function, variable, or type definition");
 		}
 	}
+	return program;
+}
+
+var indent u32 = 0;
+
+fn print_indent(fd i32) {
+	var n u32 = 0;
+	while n < indent {
+		writes(fd, "   ");
+		n++;
+	}
+}
+
+fn dump_ast_node(fd i32, node Ast) {
+	var kind AstKind = node.kind;
+	var child Ast = nil;
+
+	print_indent(fd);
+	writes(fd, ast_kind[kind]);
+	writes(fd, " ");
+	indent++;
+	if kind == AST_CONST {
+		writex(fd, node.ival);
+	} else if kind == AST_FUNC {
+		writes(fd, node.name.text);
+	} else if kind == AST_STRING {
+		printstr(fd, node.name.text);
+	} else if kind == AST_SYMBOL {
+		writes(fd, node.name.text);
+	}
+	writes(fd, "\n");
+	
+	if kind == AST_CALL {
+		dump_ast_node(fd, node.left);
+		child = node.right;
+	} else if kind == AST_CASE {
+		if node.left == nil {
+			print_indent(fd);
+			writes(fd, "ELSE\n");
+		} else {
+			dump_ast_node(fd, node.left);
+		}
+		child = node.right;
+	} else if (kind == AST_PROGRAM) || (kind == AST_BLOCK) || (kind == AST_IF) {
+		child = node.left;
+	}
+
+	if child != nil {
+		while child != nil {
+			dump_ast_node(fd, child);
+			child = child.next;
+		}
+	} else {
+		if node.left != nil {
+			dump_ast_node(fd, node.left);
+		}
+		if node.right != nil {
+			dump_ast_node(fd, node.right);
+		}
+	}
+	indent = indent - 1;
+}
+
+fn dump_ast(node Ast) {
+	dump_ast_node(1, node);
 }
 
 fn start() i32 {
@@ -1387,7 +1567,9 @@ fn start() i32 {
 	scan();
 
 	next();
-	parse_program();
+	var ast Ast = parse_program();
+
+	dump_ast(ast);
 	
 	//while(next() != tEOF) {
 	//	token_print(1);
