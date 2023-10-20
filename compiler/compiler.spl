@@ -112,8 +112,9 @@ enum AstKind {
 	AST_CONTINUE,
 	AST_RETURN,   // l=EXPR
 	AST_IF,       // l=CASE*
-// sub-part of if
-	AST_CASE,     // l=EXPR|nil r=BLOCK
+// sub-parts of if
+	AST_CASE,     // l=EXPR r=BLOCK
+	AST_ELSE,     // l=BLOCK
 // expressions
 	AST_SYMBOL,
 	AST_CONST,    // numeric constant
@@ -140,7 +141,7 @@ enum AstKind {
 var ast_kind []str = {
 	"PROGRAM", "FUNC",
 	"BLOCK", "EXPR", "WHILE", "BREAK", "CONTINUE",
-	"RETURN", "IF", "CASE",
+	"RETURN", "IF", "CASE", "ELSE",
 	"SYMBOL", "CONST", "STRING",
 	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN", "NEW",
 	"EQ", "NE", "LT", "LE", "GT", "GE",
@@ -170,7 +171,7 @@ fn ast_is_expr(kind AstKind) bool {
 }
 
 fn ast_is_stmt(kind AstKind) bool {
-	return (kind >= AST_EXPR) && (kind <= AST_CASE);
+	return (kind >= AST_EXPR) && (kind <= AST_ELSE);
 }
 
 struct Ast {
@@ -1185,7 +1186,7 @@ fn parse_if() Ast {
 			scope_push(SCOPE_BLOCK);
 			block = parse_block();
 			scope_pop();
-			last.next = ast_make_lr(AST_CASE, nil, block);
+			last.next = ast_make_l(AST_ELSE, block);
 			break;
 		}
 	}
@@ -1508,7 +1509,7 @@ fn print_indent(fd i32) {
 	}
 }
 
-fn dump_ast_node(fd i32, node Ast) {
+fn _dump_ast_node(fd i32, node Ast) {
 	var kind AstKind = node.kind;
 	var child Ast = nil;
 
@@ -1527,35 +1528,21 @@ fn dump_ast_node(fd i32, node Ast) {
 	}
 	writes(fd, "\n");
 	
-	if kind == AST_CALL {
-		dump_ast_node(fd, node.left);
-		child = node.right;
-	} else if kind == AST_CASE {
-		if node.left == nil {
-			print_indent(fd);
-			writes(fd, "ELSE\n");
-		} else {
-			dump_ast_node(fd, node.left);
-		}
-		child = node.right;
-	} else if (kind == AST_PROGRAM) || (kind == AST_BLOCK) || (kind == AST_IF) {
-		child = node.left;
-	}
-
-	if child != nil {
-		while child != nil {
-			dump_ast_node(fd, child);
-			child = child.next;
-		}
-	} else {
-		if node.left != nil {
-			dump_ast_node(fd, node.left);
-		}
-		if node.right != nil {
-			dump_ast_node(fd, node.right);
-		}
-	}
+	dump_ast_node(fd, node.left);
+	dump_ast_node(fd, node.right);
 	indent = indent - 1;
+}
+
+fn dump_ast_node(fd i32, node Ast) {
+	if node != nil {
+		while true {
+			_dump_ast_node(fd, node);
+			node = node.next;
+			if node == nil {
+				break;
+			}
+		}
+	}
 }
 
 fn dump_ast(node Ast) {
