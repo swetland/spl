@@ -1540,8 +1540,11 @@ void parse_enum_def(void) {
 	require(tSEMI);
 }
 
-void parse_program() {
+void parse_begin() {
 	emit_impl("\n#include <library.impl.h>\n");
+}
+
+void parse_program() {
 	next();
 	for (;;) {
 		if (ctx.tok == tENUM) {
@@ -1559,7 +1562,6 @@ void parse_program() {
 			next();
 			parse_var();
 		} else if (ctx.tok == tEOF) {
-			emit_impl("\n#include <library.impl.c>\n");
 			return;
 		} else {
 			expected("function, variable, or type definition");
@@ -1568,11 +1570,14 @@ void parse_program() {
 
 }
 
+void parse_end() {
+	emit_impl("\n#include <library.impl.c>\n");
+}
+
 // ================================================================
 
 int main(int argc, char **argv) {
-	char *srcname = nil;
-	bool scan_only = false;
+	bool first = true;
 
 	ctx_init();
 	ctx.filename = "<commandline>";
@@ -1586,57 +1591,44 @@ int main(int argc, char **argv) {
 			ctx.outname = argv[2];
 			argc--;
 			argv++;
-		} else if (!strcmp(argv[1], "-s")) {
-			scan_only = true;
 		} else if (!strcmp(argv[1], "-A")) {
 			ctx.flags |= cfAbortOnError;
 		} else if (argv[1][0] == '-') {
 			error("unknown option: %s", argv[1]);
 		} else {
-			if (srcname != nil) {
-				error("multiple source files disallowed");
-			} else {
-				srcname = argv[1];
+			ctx.filename = argv[1];
+			if (ctx.outname == nil) {
+				ctx.outname = ctx.filename;
 			}
+
+			ctx_open_source(ctx.filename);
+			ctx.linenumber = 1;
+			ctx.lineoffset = 0;
+
+			// prime the lexer
+			scan();
+
+			if (first) {
+				first = false;
+				ctx_open_output();
+				parse_begin();
+			}
+			parse_program();
 		}
 		argc--;
 		argv++;
 	}
 
-	if (srcname == nil) {
+	if (ctx.filename == nil) {
 		printf(
 "usage:    compiler [ <option> | <sourcefilename> ]*\n"
 "\n"
 "options:  -o <filename>    output base name (default source name)\n"
-"          -s               scan only\n"
 "          -A               abort on error\n");
 		return 0;
 	}
-	ctx.filename = srcname;
-	if (ctx.outname == nil) {
-		ctx.outname = srcname;
-	}
 
-	ctx_open_source(srcname);
-	ctx.linenumber = 1;
-	ctx.lineoffset = 0;
+	parse_end();
 
-	ctx_open_output();
-	// prime the lexer
-	scan();
-
-	if (scan_only) {
-		ctx.flags |= 1;
-		while (true) {
-			next();
-			token_print(stdout);
-			if (ctx.tok == tEOF) {
-				printf("\n");
-				return 0;
-			}
-		}
-	}
-
-	parse_program();
 	return 0;
 }
