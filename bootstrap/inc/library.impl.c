@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 void fn__hexout_(int x) {
 	printf("D %08x\n", x);
@@ -60,6 +61,27 @@ void fn_os_exit(int n) {
 	exit(n);
 }
 
+int fn_fd_open(t$str s) {
+	return open((void*)s, O_RDONLY, 0644);
+}
+int fn_fd_create(t$str s) {
+	return open((void*)s, O_RDWR | O_CREAT | O_TRUNC, 0644);
+}
+void fn_fd_close(int fd) {
+	close(fd);
+}
+int fn_fd_set_pos(int fd, unsigned pos) {
+	if (lseek(fd, pos, SEEK_SET) == ((off_t) -1)) {
+		return -1;
+	} else {
+		return 0;
+	}
+}
+unsigned fn_fd_get_pos(int fd) {
+	return lseek(fd, 0, SEEK_CUR);
+}
+
 void fn_abort(void) {
 	abort();
 }
+
