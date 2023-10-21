@@ -1,21 +1,36 @@
+.PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-
-.NOTINTERMEDIATE: %.c %.h 
-
-all: out/compiler0
+all: out/compiler0 out/compiler1
 
 test: out/test/summary.txt
 
+# compiler0: bootstrap SPL->C transpiler
+#
 out/compiler0: bootstrap/compiler0.c
 	@mkdir -p out
 	gcc -Wall -O0 -g -o out/compiler0 bootstrap/compiler0.c
 
-out/compiler/compiler.bin: compiler/compiler.spl out/compiler0
-	./build/compile0 compiler/compiler.spl
+
+# compiler1: SPL compiler written in SPL
+#
+COMPILER_SRC := compiler/stdlib.spl compiler/types.spl compiler/lexer.spl compiler/parser.spl compiler/main.spl
+
+out/compiler1: $(COMPILER_SRC) ./out/compiler0
+	@mkdir -p out/ out/compiler
+	./out/compiler0 -o out/compiler/compiler $(COMPILER_SRC)
+	gcc -g -O0 -Wall -I. -Ibootstrap/inc -Iout -o $@ out/compiler/compiler.impl.c	
+
+# rules for building out/.../foo.bin from .../foo.spl
+#
+out/%.impl.c out/%.type.h out/%.decl.h: %.spl ./out/compiler0
+	@mkdir -p $(dir $(patsubst %.spl,out/%.impl.c,$<))
+	./out/compiler0 -o $(patsubst %.spl,out/%,$<) $<
+
+out/%.bin: out/%.impl.c out/%.type.h out/%.decl.h
+	gcc -g -O0 -Wall -I. -Ibootstrap/inc -Iout -o $@ $<
 
 clean::
 	rm -rf bin out
-
 
 # have to have two rules here otherwise tests without .log files
 # fail to be compiled by the rule that depends on spl+log *or*
