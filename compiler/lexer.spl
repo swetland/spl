@@ -295,7 +295,7 @@ fn _next() Token {
 		}
 
 		// if we're an AddOp or MulOp, followed by an '='
-		if ((tok & 0xF0) == 0x20) && (nc == '=') {
+		if ((tok & 0xF0) == 0x10) && (nc == '=') {
 			nc = scan();
 			// transform us to a XEQ operation
 			tok = tok + 0x10;
