@@ -1,0 +1,75 @@
+// Copyright 2023, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+var indent u32 = 0;
+
+fn print_indent(fd i32) {
+	var n u32 = 0;
+	while n < indent {
+		writes(fd, "   ");
+		n++;
+	}
+}
+
+fn _dump_ast_node(fd i32, node Ast) {
+	var kind AstKind = node.kind;
+
+	print_indent(fd);
+	writes(fd, ast_kind[kind]);
+	writes(fd, " ");
+	indent++;
+	if kind == AST_CONST {
+		writex(fd, node.ival);
+	} else if kind == AST_FUNC {
+		writes(fd, node.name.text);
+		writes(fd, "(");
+		var param Symbol = node.sym.type.list;
+		while param != nil {
+			writes(fd, param.name.text);
+			if param.next != nil {
+				writes(fd, ", ");
+			}
+			param = param.next;
+		}
+		writes(fd, ") ");
+		writes(fd, node.sym.type.of.name.text);
+	} else if kind == AST_STRING {
+		printstr(fd, node.name.text);
+	} else if kind == AST_SYMBOL {
+		writes(fd, node.name.text);
+	}
+	writes(fd, "\n");
+	
+	dump_ast_node(fd, node.left);
+	dump_ast_node(fd, node.right);
+	indent = indent - 1;
+}
+
+fn dump_ast_node(fd i32, node Ast) {
+	if node != nil {
+		while true {
+			_dump_ast_node(fd, node);
+			node = node.next;
+			if node == nil {
+				break;
+			}
+		}
+	}
+}
+
+fn dump_ast(node Ast) {
+	dump_ast_node(1, node);
+}
+
+fn start() i32 {
+	ctx_init();
+	scan();
+
+	next();
+	var ast Ast = parse_program();
+
+	dump_ast(ast);
+	
+	return 0;
+}
+

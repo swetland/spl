@@ -1,0 +1,29 @@
+// Copyright 2023, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+fn strneq(s1 str, s2 str, len u32) bool {
+	var n u32 = 0;
+	while n < len {
+		if s1[n] != s2[n] {
+			return false;
+		}
+		n++;
+	}
+	return true;
+}
+
+fn strcpyn(dst str, src str, len u32) {
+	var n u32 = 0;
+	while n < len {
+		dst[n] = src[n];
+		n++;
+	}
+}
+
+fn strlen(s str) u32 {
+	var n u32 = 0;
+	while s[n] != 0 {
+		n++;
+	}
+	return n;
+}

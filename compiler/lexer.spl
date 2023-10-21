@@ -1,0 +1,349 @@
+// Copyright 2023, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+fn error_begin() i32 {
+	writes(2, "\n");
+	writes(2, ctx.filename);
+	writes(2, ":");
+	writei(2, ctx.linenumber);
+	writes(2, ": error: ");
+	return 2;
+}
+
+fn error_end() {
+	writes(2, "\n");
+	os_exit(1);
+}
+
+// ================================================================
+// lexical scanner
+
+// currently unrecognized: # $ ? \ `
+var lextab [256]u8 = {
+	tEOF, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tSPC, tEOL, tSPC, tINV, tSPC, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+//	      !     "     #     $     %     &     '
+	tSPC, tBANG, tDQT, tMSC, tMSC, tPERCENT, tAMP, tSQT,
+//	(     )     *     +     ,     -     .     /
+	tOPAREN, tCPAREN, tSTAR, tPLUS, tCOMMA, tMINUS, tDOT, tSLASH,
+//	0     1     2     3     4     5     6     7
+	tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM,
+//	8     9     :     ;     <     =     >     ?
+	tNUM, tNUM, tCOLON, tSEMI, tLT, tASSIGN, tGT, tMSC,
+//	@     A     B     C     D     E     F     G
+	tAT,  tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	H     I     J     K     L     M     N     O
+	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	P     Q     R     S     T     U     V     W
+	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	X     Y     Z     [     \     ]     ^     _
+	tIDN, tIDN, tIDN, tOBRACK, tMSC, tCBRACK, tCARET, tIDN,
+//	`     a     b     c     d     e     f     g
+	tMSC, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	h     i     j     k     l     m     n     o
+	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	p     q     r     s     t     u     v     w
+	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+//	x     y     z     {     |     }     ~
+	tIDN, tIDN, tIDN, tOBRACE, tPIPE, tCBRACE, tNOT, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
+};
+
+fn unhex(ch u32) i32 {
+	if (ch >= '0') && (ch <= '9') {
+		return ch - '0';
+	}
+	if (ch >= 'a') && (ch <= 'f') {
+		return ch - 'a' + 10;
+	}
+	if (ch >= 'A') && (ch <= 'F') {
+		return ch - 'A' + 10;
+	}
+	return -1;
+}
+
+fn scan() Token {
+	ctx.byteoffset++;
+	var ch i32 = readc(0);
+	if ch < 0 {
+		ctx.cc = 0;
+	} else {
+		ctx.cc = ch;
+	}
+	return ctx.cc;
+}
+
+fn unescape(n u32) u32 {
+	if n == 'n' {
+		return 10;
+	} else if n == 'r' {
+		return 13;
+	} else if n == 't' {
+		return 9;
+	} else if n == '"' {
+		return '"';
+	} else if n == '\'' {
+		return '\'';
+	} else if n == '\\' {
+		return '\\';
+	} else if n == 'x' {
+		var x0 u32 = unhex(scan());
+		var x1 u32 = unhex(scan());
+		if (x0 < 0) || (x1 < 0) {
+			error("invalid hex escape");
+		}
+		return (x0 << 4) | x1;
+	} else {
+		error("invalid escape ", n);
+		return 0;
+	}
+}
+
+fn scan_string(cc u32, nc u32) Token {
+	var n u32 = 0;
+	while true {
+		if nc == '"' {
+			nc = scan();
+			break;
+		} else if nc == 0 {
+			error("unterminated string");
+		} else if nc == '\\' {
+			ctx.tmp[n] = unescape(scan());
+		} else {
+			ctx.tmp[n] = nc;
+		}
+		nc = scan();
+		n++;
+		if n == 255 {
+			error("constant string too large");
+		}
+	}
+	ctx.tmp[n] = 0;
+	return tSTR;
+}
+
+fn scan_keyword(len u32) Token {
+	ctx.tmp[len] = 0;
+	var idn String = string_make(ctx.tmp, len);
+	ctx.ident = idn;
+
+	if len == 2 {
+		if idn == ctx.idn_if { return tIF; };
+		if idn == ctx.idn_fn { return tFN; }
+	} else if len == 3 {
+		if idn == ctx.idn_for { return tFOR; }
+		if idn == ctx.idn_var { return tVAR; }
+		if idn == ctx.idn_nil { return tNIL; }
+		if idn == ctx.idn_new { return tNEW; }
+	} else if len == 4 {
+		if idn == ctx.idn_case { return tCASE; }
+		if idn == ctx.idn_else { return tELSE; }
+		if idn == ctx.idn_enum { return tENUM; }
+		if idn == ctx.idn_true { return tTRUE; }
+	} else if len == 5 {
+		if idn == ctx.idn_break { return tBREAK; }
+		if idn == ctx.idn_while { return tWHILE; }
+		if idn == ctx.idn_false { return tFALSE; }
+	} else if len == 6 {
+		if idn == ctx.idn_switch { return tSWITCH; }
+		if idn == ctx.idn_struct { return tSTRUCT; }
+		if idn == ctx.idn_return { return tRETURN; }
+	} else if len == 8 {
+		if idn == ctx.idn_continue { return tCONTINUE; }
+	}
+	return tIDN;
+}
+
+fn scan_number(cc u32, nc u32) Token {
+	var n u32 = 1;
+	var val u32 = cc - '0';
+
+	if (cc == '0') && (nc == 'b') { // binary
+		nc = scan();
+		while (nc == '0') || (nc == '1') {
+			val = (val << 1) | (nc - '0');
+			nc = scan();
+			n++;
+			if (n == 34) {
+				error("binary constant too large");
+			}
+		}
+	} else if (cc == '0') && (nc == 'x') { // hex
+		nc = scan();
+		while true {
+			var tmp i32 = unhex(nc);
+			if tmp == -1 {
+				break;
+			}
+			val = (val << 4) | tmp;
+			nc = scan();
+			n++;
+			if n == 10 {
+				error("hex constant too large");
+			}
+		}
+	} else { // decimal
+		while lextab[nc] == tNUM {
+			var tmp u32 = (val * 10) + (nc - '0');
+			if tmp <= val {
+				error("decimal constant too large");
+			}
+			val = tmp;
+			nc = scan();
+			n++;
+		}
+	}
+	ctx.num = val;
+	return tNUM;
+}
+
+fn scan_ident(cc u32, nc u32) Token {
+	ctx.tmp[0] = cc;
+	var n u32 = 1;
+
+	while true {
+		var tok Token = lextab[nc];
+		if (tok == tIDN) || (tok == tNUM) {
+			ctx.tmp[n] = nc;
+			n++;
+			if (n == 32) { error("identifier too large"); }
+			nc = scan();
+		} else {
+			break;
+		}
+	}
+	return scan_keyword(n);
+}
+
+fn _next() Token {
+	var nc u8 = ctx.cc;
+	while true {
+		var cc u8 = nc;
+		nc = scan();
+		var tok Token = lextab[cc];
+		if tok == tNUM { // 0..9
+			return scan_number(cc, nc);
+		} else if tok == tIDN { // _ A..Z a..z
+			return scan_ident(cc, nc);
+		} else if tok == tDQT { // "
+			return scan_string(cc, nc);
+		} else if tok == tSQT { // '
+			ctx.num = nc;
+			if nc == '\\' {
+				ctx.num = unescape(scan());
+			}
+			nc = scan();
+			if nc != '\'' {
+				error("unterminated character constant");
+			}
+			nc = scan();
+			return tNUM;
+		} else if tok == tPLUS {
+			if nc == '+' { tok = tINC; nc = scan(); }
+		} else if tok == tMINUS {
+			if nc == '-' { tok = tDEC; nc = scan(); }
+		} else if tok == tAMP {
+			if nc == '&' { tok = tAND; nc = scan(); }
+		} else if tok == tPIPE {
+			if nc == '|' { tok = tOR; nc = scan(); }
+		} else if tok == tGT {
+			if nc == '=' { tok = tGE; nc = scan(); }
+			else if nc == '>' { tok = tRIGHT; nc = scan(); }
+		} else if tok == tLT {
+			if nc == '=' { tok = tLE; nc = scan(); }
+			else if nc == '<' { tok = tLEFT; nc = scan(); }
+		} else if tok == tASSIGN {
+			if nc == '=' { tok = tEQ; nc = scan(); }
+		} else if tok == tBANG {
+			if nc == '=' { tok = tNE; nc = scan(); }
+		} else if tok == tSLASH {
+			if nc == '/' {
+				// comment -- consume until EOL or EOF
+				while (nc != '\n') && (nc != 0) {
+					nc = scan();
+				}
+				continue;
+			}
+		} else if tok == tEOL {
+			ctx.linenumber++;
+			ctx.lineoffset = ctx.byteoffset;
+			//if ctx.flags & cfVisibleEOL {
+			//	return tEOL;
+			//}
+			continue;
+		} else if tok == tSPC {
+			continue;
+		} else if (tok == tMSC) || (tok == tINV) {
+			error("unknown character 0x%02x", cc);
+		}
+
+		// if we're an AddOp or MulOp, followed by an '='
+		if ((tok & 0xF0) == 0x20) && (nc == '=') {
+			nc = scan();
+			// transform us to a XEQ operation
+			tok = tok + 0x10;
+		}
+
+		return tok;
+	}
+}
+
+fn printstr(fd i32, s str) {
+	var n u32 = 0;
+	writec(fd, '"');
+	while true {
+		var ch u32 = s[n];
+		if ch == 0 {
+			break;
+		} else if (ch < ' ') || (ch > '~') {
+			writex(fd, ch);
+		} else if (ch == '"') || (ch == '\\') {
+			writec(fd, '\\');
+			writec(fd, ch);
+		} else {
+			writec(fd, ch);
+		}
+		n++;
+	}
+	writec(fd, '"');
+}
+
+fn token_print(fd i32) {
+	if ctx.tok == tNUM {
+		writec(fd, '#');
+		writex(fd, ctx.num);
+	} else if ctx.tok == tIDN {
+		writec(fd, '@');
+		writes(fd, ctx.tmp);
+	} else if ctx.tok == tEOL {
+		writec(fd, '\n');
+	} else if ctx.tok == tSTR {
+		printstr(fd, ctx.tmp);
+	} else {
+		writes(fd, tnames[ctx.tok]);
+	}
+	writec(fd, ' ');
+}
+
+fn next() Token {
+	ctx.tok = _next();
+	return ctx.tok;
+}
+
