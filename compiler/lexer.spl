@@ -81,7 +81,7 @@ fn unhex(ch u32) i32 {
 
 fn scan() Token {
 	ctx.byteoffset++;
-	var ch i32 = readc(0);
+	var ch i32 = readc(ctx.fd_in);
 	if ch < 0 {
 		ctx.cc = 0;
 	} else {
@@ -291,7 +291,7 @@ fn _next() Token {
 		} else if tok == tSPC {
 			continue;
 		} else if (tok == tMSC) || (tok == tINV) {
-			error("unknown character 0x%02x", cc);
+			error("unknown character ", @u32 cc);
 		}
 
 		// if we're an AddOp or MulOp, followed by an '='

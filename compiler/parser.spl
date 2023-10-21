@@ -615,10 +615,12 @@ fn parse_enum_def() {
 	require(tSEMI);
 }
 
-fn parse_program() Ast {
-	var program Ast = ast_make_simple(AST_PROGRAM, 0);
-	var last Ast = nil;
+fn parse_init() {
+	ctx.program = ast_make_simple(AST_PROGRAM, 0);
+	ctx.last = nil;
+}
 
+fn parse_program() Ast {
 	while true {
 		if ctx.tok == tENUM {
 			next();
@@ -631,12 +633,12 @@ fn parse_program() Ast {
 		} else if ctx.tok == tFN {
 			next();
 			var node Ast = parse_fn();
-			if last == nil {
-				program.left = node;
+			if ctx.last == nil {
+				ctx.program.left = node;
 			} else {
-				last.next = node;
+				ctx.last.next = node;
 			}
-			last = node;
+			ctx.last = node;
 		} else if ctx.tok == tVAR {
 			next();
 			parse_var();
@@ -646,6 +648,6 @@ fn parse_program() Ast {
 			expected("function, variable, or type definition");
 		}
 	}
-	return program;
+	return ctx.program;
 }
 

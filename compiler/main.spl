@@ -63,13 +63,33 @@ fn dump_ast(node Ast) {
 
 fn start() i32 {
 	ctx_init();
-	scan();
+	parse_init();
+	ctx.filename = os_arg(0);
 
-	next();
-	var ast Ast = parse_program();
+	var n u32 = 1;
+	while n < os_arg_count() {
+		var arg str = os_arg(n);
+		if arg[0] == '-' {
+			error("unsupported option '", arg, "'");
+		}
+		ctx.fd_in = fd_open(arg);
+		if ctx.fd_in == -1 {
+			error("cannot open '", arg, "'");
+		}
+		ctx.linenumber = 1;
+		ctx.filename = arg;
 
-	dump_ast(ast);
-	
+		scan();
+		next();
+		parse_program();
+
+		fd_close(ctx.fd_in);
+		ctx.fd_in = -1;
+
+		n++;
+	}
+
+	dump_ast(ctx.program);
 	return 0;
 }
 

@@ -29,6 +29,9 @@ out/%.impl.c out/%.type.h out/%.decl.h: %.spl ./out/compiler0
 out/%.bin: out/%.impl.c out/%.type.h out/%.decl.h
 	gcc -g -O0 -Wall -I. -Ibootstrap/inc -Iout -o $@ $<
 
+out/compiler2: out/compiler1 $(COMPILER_SRC)
+	out/compiler1 $(COMPILER_SRC)
+
 clean::
 	rm -rf bin out
 

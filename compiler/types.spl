@@ -224,6 +224,7 @@ struct Context {
 	filename str,		// filename of active source
 	outname str,		// base name for output files
 
+	fd_in i32,		// current input file
 	linenumber u32,		// line number of most recent line
 	lineoffset u32,		// position of start of most recent line
 	byteoffset u32,		// position of the most recent character
@@ -241,6 +242,9 @@ struct Context {
 	scope *Scope,		// top of Scope stack
 	global *Scope,		// the global scope
 	cur_fn *Symbol,		// fn being parsed
+
+	program *Ast,
+	last *Ast,
 
 	idn_if *String,		// identifier strings
 	idn_fn *String,
