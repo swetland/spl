@@ -109,12 +109,24 @@ void load_test_data(const char *fn) {
 		char *x;
 		uint32_t n;
 		if ((x = strstr(line, "//>"))) {
-			n = strtoul(x + 3, 0, 0);
-			outdata[outcount++] = n;
+			x += 3;
+			for (;;) {
+				n = strtoul(x, &x, 0);
+				outdata[outcount++] = n;
+				x = strchr(x, ',');
+				if (x == NULL) break;
+				x++;
+			}
 		}
 		if ((x = strstr(line, "//<"))) {
-			n = strtoul(x + 3, 0, 0);
-			indata[incount++] = n;
+			x += 3;
+			for (;;) {
+				n = strtoul(x, &x, 0);
+				indata[incount++] = n;
+				x = strchr(x, ',');
+				if (x == NULL) break;
+				x++;
+			}
 		}
 	}
 	fclose(fp);
