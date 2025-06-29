@@ -588,13 +588,16 @@ int parse_line(State *s) {
 		emit(ins_r(0, 0, a, t, IR_ADD));
 		break;
 	case tLI:
-		// todo: edge case for bit15 set in lsh
 		expect_r_c(s, &t);
 		i = expect_num(s);
 		if (is_signed16(i)) {
 			emit(ins_i(i, 0, t, IR_ADD));
 		} else {
-			emit(ins_l(i >> 16, 0, t, L_LUI));
+			uint32_t hi = i >> 16;
+			if (i & 0x8000) {
+				hi += 1;
+			}
+			emit(ins_l(hi, 0, t, L_LUI));
 			if (i & 0xFFFF) {
 				emit(ins_i(i & 0xFFFF, t, t, IR_ADD));
 			}
