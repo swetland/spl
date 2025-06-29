@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "sr32emu.h"
+#include <emulator-sr32.h>
 
 #define MAXDATA 1024
 uint32_t indata[MAXDATA];

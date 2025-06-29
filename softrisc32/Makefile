@@ -11,13 +11,13 @@ bin/mkinstab: src/mkinstab.c
 	@mkdir -p bin
 	gcc $(CFLAGS) -o $@ src/mkinstab.c
 
-bin/asm: src/sr32asm.c src/sr32dis.c src/sr32.h gen/instab.h
+bin/asm: src/assemble-sr32.c src/disassemble-sr32.c src/sr32.h gen/instab.h
 	@mkdir -p bin
-	gcc $(CFLAGS) -o $@ src/sr32asm.c src/sr32dis.c
+	gcc $(CFLAGS) -o $@ src/assemble-sr32.c src/disassemble-sr32.c
 
-bin/emu: src/sr32emu.c src/sr32cpu.c src/sr32emu.h src/sr32.h
+bin/emu: src/emulator-sr32.c src/cpu-sr32.c src/emulator-sr32.h src/sr32.h
 	@mkdir -p bin
-	gcc $(CFLAGS) -o $@ src/sr32emu.c src/sr32cpu.c
+	gcc $(CFLAGS) -o $@ src/emulator-sr32.c src/cpu-sr32.c
 
 clean:
 	rm -rf gen bin

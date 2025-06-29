@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "sr32emu.h"
+#include <emulator-sr32.h>
 
 #define WITH_TRACE 1
 
