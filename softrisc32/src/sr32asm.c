@@ -422,139 +422,138 @@ unsigned next(State *state) {
 	return state->tok;
 }
 
-void require(State *s, unsigned expected) {
+void expect(State *s, unsigned expected) {
 	if (expected != s->tok) {
 		die("expected %s, got %s", tnames[expected], tnames[s->tok]);
 	}
 }
 
-void expect(State *s, unsigned expected) {
-	if (expected != next(s)) {
-		die("expected %s, got %s", tnames[expected], tnames[s->tok]);
-	}
+void require(State *s, unsigned expected) {
+	expect(s, expected);
+	next(s);
 }
 
-unsigned expect_reg(State *s) {
-	if (next(s) != tREGISTER) {
-		die("expected register, got %s", tnames[s->tok]);
-	}
-	return s->num;
+void parse_reg(State *s, uint32_t *r) {
+	expect(s, tREGISTER);
+	*r = s->num;
+	next(s);
 }
 
-uint32_t expect_num(State *s) {
-	if (next(s) != tNUMBER) {
-		die("expected number, got %s", tnames[s->tok]);
-	}
-	return s->num;
+void parse_num(State *s, uint32_t *n) {
+	expect(s, tNUMBER);
+	*n = s->num;
+	next(s);
 }
 
-// next()        advance to next token
-// expect...()   advance to next token and fail if wrong kind
-// require...()  fail if current token is wrong kind
-// allow...()    advance to next token and consume if it matches
-
-void expect_memref(State *s, uint32_t *r, uint32_t *i) {
-	if (next(s) == tNUMBER) {
+void parse_memref(State *s, uint32_t *r, uint32_t *i) {
+	if (s->tok == tNUMBER) {
 		*i = s->num;
-		next(s);
+		if (next(s) != tOPAREN) {
+			*r = 0;
+			return;
+		}
 	} else {
 		*i = 0;
 	}
 	require(s, tOPAREN);
-	*r = expect_reg(s);
-	expect(s, tCPAREN);
+	parse_reg(s, r);
+	require(s, tCPAREN);
 }
 
-uint32_t expect_rel(State *s, unsigned type) {
-	switch (next(s)) {
+void parse_rel(State *s, unsigned type, uint32_t *i) {
+	switch (s->tok) {
 	case tIDENT:
-		return uselabel(s->str, PC, type);
+		*i = uselabel(s->str, PC, type);
+		break;
 	case tDOT:
-		return -4;
+		*i = -4;
+		break;
 	default:
 		die("expected address");
-		return 0;
 	}
+	next(s);
 }
 
-void expect_r_c(State *s, uint32_t *one) {
-	*one = expect_reg(s);
-	expect(s, tCOMMA);
+void parse_r_c(State *s, uint32_t *one) {
+	parse_reg(s, one);
+	require(s, tCOMMA);
 }
-void expect_2r(State *s, uint32_t *one, uint32_t *two) {
-	expect_r_c(s, one);
-	*two = expect_reg(s);
+void parse_2r(State *s, uint32_t *one, uint32_t *two) {
+	parse_r_c(s, one);
+	parse_reg(s, two);
 }
-void expect_2r_c(State *s, uint32_t *one, uint32_t *two) {
-	expect_2r(s, one, two);
-	expect(s, tCOMMA);
+void parse_2r_c(State *s, uint32_t *one, uint32_t *two) {
+	parse_2r(s, one, two);
+	require(s, tCOMMA);
 }
 
 int parse_line(State *s) {
 	uint32_t a, b, t, i, o;
 	char *name;
-
-	unsigned tok = next(s);
-	if (tok == tIDENT) {
+	if (s->tok == tIDENT) {
 		name = strdup(s->str);
 		setlabel(name, PC);
 		if (next(s) != tCOLON) {
 			die("unexpected '%s'\n", name);
 		}
-		tok = next(s);
+		next(s);
 	}
+
+	unsigned tok = s->tok;
+	next(s);
+
 	switch (tok) {
 	case tADD: case tSUB: case tAND: case tOR:
 	case tXOR: case tSLL: case tSRL: case tSRA:
 	case tSLT: case tSLTU:
 		o = tok - tADD;
-		expect_2r_c(s, &t, &a);
-		b = expect_reg(s);
+		parse_2r_c(s, &t, &a);
+		parse_reg(s, &b);
 		emit(ins_r(0, b, a, t, o));
 		break;
 	case tADDI: case tSUBI: case tANDI: case tORI:
 	case tXORI: case tSLLI: case tSRLI: case tSRAI:
 	case tSLTI: case tSLTUI:
 		o = tok - tADDI;
-		expect_2r_c(s, &t, &a);
-		b = expect_num(s);
+		parse_2r_c(s, &t, &a);
+		parse_num(s, &b);
 		emit(ins_i(b, a, t, o));
 		break;
 	// todo: mul div
 	case tBEQ: case tBNE: case tBLT:
 	case tBLTU: case tBGE: case tBGEU:
 		o = tok - tBEQ;
-		expect_2r_c(s, &a, &b);
-		i = expect_rel(s, TYPE_PCREL_S16);
+		parse_2r_c(s, &a, &b);
+		parse_rel(s, TYPE_PCREL_S16, &i);
 		emit(ins_b(i, a, b, o));
 		break;
 	case tLDW: case tLDH: case tLDB: case tLDX:
 	case tLDHU: case tLDBU:
 		o = tok - tLDW;
-		expect_r_c(s, &t);
-		expect_memref(s, &a, &i);
+		parse_r_c(s, &t);
+		parse_memref(s, &a, &i);
 		emit(ins_l(i, a, t, o));
 		break;
 	case tLUI:
  	case tAUIPC:
 		o = tok - tLDW;
-		expect_r_c(s, &t);
-		i = expect_num(s);
+		parse_r_c(s, &t);
+		parse_num(s, &i);
 		emit(ins_l(i >> 16, 0, t, o));
 		break;
 	case tSTW: case tSTH: case tSTB: case tSTX:
 		o = tok - tSTW;
-		expect_r_c(s, &b);
-		expect_memref(s, &a, &i);
+		parse_r_c(s, &b);
+		parse_memref(s, &a, &i);
 		emit(ins_s(i, a, b, o));
 		break;
 	case tJAL:
-		expect_r_c(s, &t);
-		i = expect_rel(s, TYPE_PCREL_S21);
+		parse_r_c(s, &t);
+		parse_rel(s, TYPE_PCREL_S21, &i);
 		emit(ins_j(i, t, J_JAL));
 		break;
 	case tSYSCALL:
-		i = expect_num(s);
+		parse_num(s, &i);
 		emit(ins_j(i, 0, J_SYSCALL));
 		break;
 	case tBREAK:
@@ -564,7 +563,7 @@ int parse_line(State *s) {
 		emit(ins_j(0, 0, J_SYSRET));
 		break;
 	case tJALR:
-		expect_2r_c(s, &t, &a);
+		parse_2r_c(s, &t, &a);
 		if (s->tok == tNUMBER) {
 			emit(ins_i(s->num, a, t, IR_JALR));
 		} else if (s->tok == tREGISTER) {
@@ -574,7 +573,7 @@ int parse_line(State *s) {
 		}
 		break;
 	case tJR:
-		a = expect_reg(s);
+		parse_reg(s, &a);
 		emit(ins_r(0, 0, a, 0, IR_JALR));
 		break;
 	case tRET:
@@ -584,12 +583,12 @@ int parse_line(State *s) {
 		emit(ins_i(0, 0, 0, IR_ADD));
 		break;
 	case tMV:
-		expect_2r(s, &t, &a);
+		parse_2r(s, &t, &a);
 		emit(ins_r(0, 0, a, t, IR_ADD));
 		break;
 	case tLI:
-		expect_r_c(s, &t);
-		i = expect_num(s);
+		parse_r_c(s, &t);
+		parse_num(s, &i);
 		if (is_signed16(i)) {
 			emit(ins_i(i, 0, t, IR_ADD));
 		} else {
@@ -604,18 +603,19 @@ int parse_line(State *s) {
 		}
 		break;
 	case tJ:
-		i = expect_rel(s, TYPE_PCREL_S21);
+		parse_rel(s, TYPE_PCREL_S21, &i);
 		emit(ins_j(i, 0, J_JAL));
 		break;
 	case tEQU:
-		expect(s, tIDENT);
+		require(s, tIDENT);
 		name = strdup(s->str);
-		setlabel(name, expect_num(s));
+		parse_num(s, &i);
+		setlabel(name, i);
 		break;
 
 	case tWORD:
-		do {
-			switch (next(s)) {
+		for (;;) {
+			switch (s->tok) {
 			case tNUMBER:
 				emit(s->num);
 				break;
@@ -626,25 +626,20 @@ int parse_line(State *s) {
 			default:
 				die("expected constant or symbol");
 			}
-		} while (next(s) == tCOMMA);
-		goto end_of_line;
+			if (next(s) != tCOMMA) break;
+			next(s);
+		}
+		break;
 
 	// todo: BYTE, HALF, string data
 	case tEOL:
 		return 1;
-	}
-
-	next(s);
-end_of_line:
-	switch (s->tok) {
 	case tEOF:
 		return 0;
-	case tEOL:
-		return 1;
-	default:
-		die("unexpected %s\n", tnames[tok]);
-		return 0;
 	}
+
+	require(s, tEOL);
+	return 1;
 }
 
 void assemble(const char *fn) {
@@ -656,6 +651,7 @@ void assemble(const char *fn) {
 	}
 	state.next = state.sbuf;
 	linenumber = 1;
+	next(&state);
 	while (parse_line(&state)) ;
 }
 
