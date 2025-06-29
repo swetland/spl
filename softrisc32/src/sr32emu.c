@@ -9,6 +9,15 @@
 
 #include "sr32emu.h"
 
+#define MAXDATA 1024
+uint32_t indata[MAXDATA];
+uint32_t incount = 0;
+uint32_t innext = 0;
+
+uint32_t outdata[MAXDATA];
+uint32_t outcount = 0;
+uint32_t outnext = 0;
+
 #define RAMSIZE   (8*1024*1024)
 #define RAMMASK8  (RAMSIZE - 1)
 #define RAMMASK32 (RAMMASK8 & (~3))
@@ -36,11 +45,29 @@ void mem_wr8(uint32_t addr, uint32_t val) {
 }
 
 uint32_t io_rd32(uint32_t addr) {
+	if (addr == -1) {
+		if (innext == incount) {
+			fprintf(stderr, "FAIL: input data exhausted\n");
+			exit(1);
+		}
+		return indata[innext++];
+	}
 	return 0;
 }
 
 void io_wr32(uint32_t addr, uint32_t val) {
-	fprintf(stderr,"IO %08x -> %08x\n", val, addr);
+	if (addr == -1) {
+		if (outnext == outcount) {
+			fprintf(stderr, "FAIL: output data overrun\n");
+			exit(1);
+		}
+		uint32_t data = outdata[outnext++];
+		if (data != val) {
+			fprintf(stderr, "FAIL: output data %08x should be %08x\n", val, data);
+			exit(1);
+		}
+	}
+	//fprintf(stderr,"IO %08x -> %08x\n", val, addr);
 }
 
 void do_syscall(CpuState *s, uint32_t n) {
@@ -52,13 +79,13 @@ void do_undef(CpuState *s, uint32_t ins) {
 }
 
 void load_hex_image(const char* fn) {
+	char line[1024];
 	FILE *fp = fopen(fn, "r");
 	if (fp == NULL) {
 		fprintf(stderr, "emu: cannot open: %s\n", fn);
 		exit(1);
 	}
-	char line[256];
-	while (fgets(line, 256, fp) != NULL) {
+	while (fgets(line, sizeof(line), fp) != NULL) {
 		if ((line[0] == '#') || (line[0] == '/')) {
 			continue;
 		}
@@ -71,15 +98,48 @@ void load_hex_image(const char* fn) {
 	fclose(fp);
 }
 
+void load_test_data(const char *fn) {
+	char line[1024];
+	FILE *fp = fopen(fn, "r");
+	if (fp == NULL) {
+		fprintf(stderr, "emu: cannot open: %s\n", fn);
+		exit(1);
+	}
+	while (fgets(line, sizeof(line), fp) != NULL) {
+		char *x;
+		uint32_t n;
+		if ((x = strstr(line, "//>"))) {
+			n = strtoul(x + 3, 0, 0);
+			outdata[outcount++] = n;
+		}
+		if ((x = strstr(line, "//<"))) {
+			n = strtoul(x + 3, 0, 0);
+			indata[incount++] = n;
+		}
+	}
+	fclose(fp);
+}
+
+void usage(int status) {
+	fprintf(stderr,
+		"usage:    emu <options> <image.hex> <arguments>\n"
+		"options: -x <testdata>\n");
+	exit(status);
+}
+
 int main(int argc, char** argv) {
 	CpuState cs;
 	uint32_t entry = 0x100000;
 	const char* fn = NULL;
 	int args = 0;
 
-
 	while (argc > 1) {
-		if (argv[1][0] == '-') {
+		if (!strcmp(argv[1], "-x")) {
+			if (argc < 3) usage(1);
+			load_test_data(argv[2]);
+			argc--;
+			argv++;
+		} else if (argv[1][0] == '-') {
 			fprintf(stderr, "emu: unknown option: %s\n", argv[1]);
 			return -1;
 		} else {
@@ -93,8 +153,7 @@ int main(int argc, char** argv) {
 		argv++;
 	}
 	if (fn == NULL) {
-		fprintf(stderr, "usage: emu <options> <image.hex> <arguments>\n");
-		return -1;
+		usage(1);
 	}
 
 	memset(&cs, 0, sizeof(cs));
