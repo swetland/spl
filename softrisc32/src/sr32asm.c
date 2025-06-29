@@ -16,10 +16,7 @@
 #define SMAXSIZE 1024
 
 static unsigned linenumber = 0;
-static char linestring[256];
 static char *filename;
-
-FILE *ofp = 0;
 
 void die(const char *fmt, ...) {
 	va_list ap;
@@ -28,8 +25,6 @@ void die(const char *fmt, ...) {
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
 	fprintf(stderr,"\n");
-	if (linestring[0])
-		fprintf(stderr,"%s:%d: >> %s <<\n", filename, linenumber, linestring);
 	exit(1);
 }
 
@@ -42,29 +37,38 @@ int is_signed21(uint32_t n) {
 	return ((n == 0) || (n == 0xFFFFF800));
 }
 
-uint32_t image[1*1024*1024];
+uint8_t image[1*1024*1024];
 uint32_t image_base = 0;
 uint32_t image_size = 0;
 uint32_t PC = 0;
 
 void wr32(uint32_t addr, uint32_t val) {
+	addr &= ~3;
 	addr -= image_base;
 	if (addr < image_size) {
-		image[addr >> 2] = val;
+		*((uint32_t*) (image + addr)) = val;
 	}
 }
 uint32_t rd32(uint32_t addr) {
+	addr &= ~3;
 	addr -= image_base;
 	if (addr < image_size) {
-		return image[addr >> 2];
+		return *((uint32_t*) (image + addr));
 	}
 	return 0;
+}
+void wr8(uint32_t addr, uint32_t val) {
+	addr -= image_base;
+	if (addr < image_size) {
+		image[addr] = val;
+	}
 }
 
 #define TYPE_PCREL_S16	1
 #define TYPE_PCREL_S21	2
 #define TYPE_ABS_U32	3
-#define TYPE_LI_U32     4
+#define TYPE_ABS_HILO   4
+#define TYPE_PCREL_HILO 5
 
 struct fixup {
 	struct fixup *next;
@@ -85,7 +89,6 @@ struct fixup *fixups;
 
 uint32_t do_fixup(const char *name, uint32_t addr, uint32_t tgt, int type) {
 	uint32_t n = tgt;
-	//fprintf(stderr,"FIXUP '%s' @%08x val=%08x typ=%d\n", name, addr, n, type);
 	switch(type) {
 	case TYPE_PCREL_S16:
 		n = n - (addr + 4);
@@ -100,14 +103,19 @@ uint32_t do_fixup(const char *name, uint32_t addr, uint32_t tgt, int type) {
 	case TYPE_ABS_U32:
 		wr32(addr, n);
 		break;
-	case TYPE_LI_U32:
-		wr32((addr + 0), rd32(addr + 0) | (n & 0xffff0000));
-		wr32((addr + 4), rd32(addr + 4) | (n & 0x0000ffff) << 16);
+	case TYPE_PCREL_HILO:
+		n = n - (addr + 4);
+	case TYPE_ABS_HILO:
+		uint32_t hi = n >> 16;
+		uint32_t lo = n & 0xffff;
+		if (lo & 0x8000) hi += 1;
+		n = (hi << 16) | lo;
+		wr32(addr + 0, rd32(addr + 0) | (hi << 16));
+		wr32(addr + 4, rd32(addr + 4) | (lo << 16));
 		break;
 	default:
 		die("unknown branch type %d\n", type);
 	}
-	//fprintf(stderr,"FIXUP %08x (%d)\n", n, n);
 	return n;
 oops:
 	die("label '%s' at %08x is out of range of %08x\n", name, tgt, addr);
@@ -187,7 +195,10 @@ void checklabels(void) {
 void sr32dis(uint32_t pc, uint32_t ins, char *out);
 
 void emit(uint32_t instr) {
-	//fprintf(stderr,"{%08x:%08x} ", PC,instr);
+	if (PC & 3) {
+		PC = (PC + 3) & ~3;
+	}
+	//fprintf(stderr,"{%08x:%08x} ", PC, instr);
 	wr32(PC, instr);
 	PC += 4;
 }
@@ -228,7 +239,7 @@ enum tokens {
 	tLDW, tLDH, tLDB, tLDX, tLUI, tLDHU, tLDBU, tAUIPC,
 	tSTW, tSTH, tSTB, tSTX,
 	tJAL, tSYSCALL, tBREAK, tSYSRET,
-	tNOP, tMV, tLI, tJ, tJR, tRET,
+	tNOP, tMV, tLI, tLA, tJ, tJR, tRET,
 	tEQU, tBYTE, tHALF, tWORD,
 	NUMTOKENS,
 };
@@ -244,7 +255,7 @@ char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
 	"LDW", "LDH", "LDB", "LDX", "LUI", "LDHU", "LDBU", "AUIPC",
 	"STW", "STH", "STB", "STX",
 	"JAL", "SYSCALL", "BREAK", "SYSRET",
-	"NOP", "MV", "LI", "J", "JR", "RET",
+	"NOP", "MV", "LI", "LA", "J", "JR", "RET",
 	"EQU", "BYTE", "HALF", "WORD",
 };
 
@@ -357,7 +368,7 @@ unsigned tokenize(State *state) {
 			}
 			*s++ = 0;
 			state->str = sbuf;
-			return tIDENT;
+			return tSTRING;
 		}
 		*s++ = x;
 		while (!is_stopchar(x = nextchar(state))) {
@@ -427,7 +438,6 @@ void expect(State *s, unsigned expected) {
 		die("expected %s, got %s", tnames[expected], tnames[s->tok]);
 	}
 }
-
 void require(State *s, unsigned expected) {
 	expect(s, expected);
 	next(s);
@@ -438,13 +448,11 @@ void parse_reg(State *s, uint32_t *r) {
 	*r = s->num;
 	next(s);
 }
-
 void parse_num(State *s, uint32_t *n) {
 	expect(s, tNUMBER);
 	*n = s->num;
 	next(s);
 }
-
 void parse_memref(State *s, uint32_t *r, uint32_t *i) {
 	if (s->tok == tNUMBER) {
 		*i = s->num;
@@ -459,7 +467,6 @@ void parse_memref(State *s, uint32_t *r, uint32_t *i) {
 	parse_reg(s, r);
 	require(s, tCPAREN);
 }
-
 void parse_rel(State *s, unsigned type, uint32_t *i) {
 	switch (s->tok) {
 	case tIDENT:
@@ -588,19 +595,26 @@ int parse_line(State *s) {
 		break;
 	case tLI:
 		parse_r_c(s, &t);
-		parse_num(s, &i);
-		if (is_signed16(i)) {
-			emit(ins_i(i, 0, t, IR_ADD));
+		if (s->tok == tIDENT) {
+			parse_rel(s, TYPE_ABS_HILO, &i);
 		} else {
-			uint32_t hi = i >> 16;
-			if (i & 0x8000) {
-				hi += 1;
-			}
-			emit(ins_l(hi, 0, t, L_LUI));
-			if (i & 0xFFFF) {
-				emit(ins_i(i & 0xFFFF, t, t, IR_ADD));
+			parse_num(s, &i);
+			if (is_signed16(i)) {
+				emit(ins_i(i, 0, t, IR_ADD));
+			} else {
+				uint32_t hi = i >> 16;
+				uint32_t lo = i & 0xffff;
+				if (lo & 0x8000) hi += 1;
+				emit(ins_l(hi, 0, t, L_LUI));
+				emit(ins_i(lo, t, t, IR_ADD));
 			}
 		}
+		break;
+	case tLA:
+		parse_r_c(s, &t);
+		parse_rel(s, TYPE_PCREL_HILO, &i);
+		emit(ins_l(i >> 16, 0, t, L_AUIPC));
+		emit(ins_i(i & 0xFFFF, t, t, IR_ADD));
 		break;
 	case tJ:
 		parse_rel(s, TYPE_PCREL_S21, &i);
@@ -612,7 +626,6 @@ int parse_line(State *s) {
 		parse_num(s, &i);
 		setlabel(name, i);
 		break;
-
 	case tWORD:
 		for (;;) {
 			switch (s->tok) {
@@ -630,8 +643,26 @@ int parse_line(State *s) {
 			next(s);
 		}
 		break;
+	case tBYTE:
+		for (;;) {
+			switch (s->tok) {
+			case tNUMBER:
+				wr8(PC++, s->num);
+				break;
+			case tSTRING:
+				for (char *p = s->str; *p != 0; p++) {
+					wr8(PC++, *p);
+				}
+				break;
+			default:
+				die("expected numeric or string data");
+			}
+			if (next(s) != tCOMMA) break;
+			next(s);
+		}
+		break;
 
-	// todo: BYTE, HALF, string data
+	// todo: HALF
 	case tEOL:
 		return 1;
 	case tEOF:
@@ -663,13 +694,14 @@ int main(int argc, char **argv) {
 	image_size = sizeof(image);
 	PC = image_base;
 
-	if (argc < 2)
+	if (argc < 2) {
 		die("no file specified");
-	if (argc == 3)
+	}
+	if (argc == 3) {
 		outname = argv[2];
+	}
 
 	assemble(filename);
-	linestring[0] = 0;
 	checklabels();
 	save(outname);
 	return 0;
