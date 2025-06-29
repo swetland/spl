@@ -1,0 +1,88 @@
+
+softrisc32 emulator-friendly 32bit integer ISA
+==============================================
+
+   3         2         1
+  10987654321098765432109876543210
+  --------------------------------
+I iiiiiiiiiiiiiiiiaaaaattttt00oooo  i16
+R 00000000nnnbbbbbaaaaattttt01oooo  i0
+L iiiiiiiiiiiiiiiiaaaaattttt100ooo  i16
+S iiiiiiiiiiiiiiiiaaaaabbbbb101ooo  i16
+B iiiiiiiiiiiiiiiiaaaaabbbbb110ooo  i16
+J iiiiiiiiiiiiiiiiiiiiittttt111ooo  i21
+
+I(mmediate)/R(egister)
+----------------------
+0 addi  / add  Rt = Ra + b
+1 subi  / sub  Rt = Ra - b
+2 andi  / and  Rt = Ra & b
+3 ori   / or   Rt = Ra | b
+4 xori  / xor  Rt = Ra ^ b
+5 slli  / sll  Rt = Ra << (b & 31)
+6 srli  / srl  Rt = Ra >> (b & 31)    (unsigned)
+7 srai  / sra  Rt = Ra >> (b & 31)    (signed)
+8 slti  / slt  Rt = (Ra < b) ? 1 : 0
+9 sltui / sltu Rt = (Ra < b) ? 1 : 0  (unsigned)
+a muli  / mul  Rt = Ra mulop* b
+b divi  / div  Rt = Ra divop* b
+c -
+d -
+e -
+f -       jalr Rt = pc + 4, pc = Ra + b
+* mul/divop (n) is 0 for imm variants
+
+B(ranch)
+--------
+0 beq        Ra == Rb ? pc = pc + 4 + i
+1 bne        Ra != Rb ? pc = pc + 4 + i
+2 blt        Ra < Rb  ? pc = pc + 4 + i
+3 bltu       Ra < Rb  ? pc = pc + 4 + i  (unsigned)
+4 bge        Ra >= Rb ? pc = pc + 4 + i
+5 bgeu       Ra >= Rb ? pc = pc + 4 + i  (unsigned)
+6 -
+7 -
+
+L(oad)
+------
+0 ldw        Rt = (u32*)[Ra + i]
+1 ldh        Rt = (u16*)[Ra + i]  (sign extended)
+2 ldb        Rt =  (u8*)[Ra + i]  (sign extended)
+3 ldx        Rt = io_read(Ra + i)
+4 lui        Rt = i << 16
+5 ldhu       Rt = (u16*)[Ra + i]
+6 ldbu       Rt =  (u8*)[Ra + i]
+7 auipc      Rt = pc + 4 + (i << 16)
+
+S(store)
+--------
+0 stw        (u32*)[Ra + i] = Rb
+1 sth        (u16*)[Ra + i] = Rb
+2 stb         (u8*)[Ra + i] = Rb
+3 stx        io_write(Ra + i, Rb)
+4 -
+5 -
+6 -
+7 -
+
+J(ump)
+------
+0 jal        Rt  = pc + 4, pc = pc + 4 + i
+1 syscall    XPC = pc + 4, pc = SYSCALL_VECTOR  (Rt = 0, i = sysno)
+2 break      XPC = pc + 4, pc = BREAK_VECTOR    (Rt = 0, i = 0)
+3 sysret     pc  = XPC                          (Rt = 0, i = 0)
+4 -
+5 -
+6 -
+7 -
+
+undefined  XPC = pc + 4, pc = UNDEFINED_VECTOR
+
+- in I/R encodings, b is Rb for R, and i16 for I
+- integer constants are arithmetic right shifted by 32 - width.
+- reads from r0 always return 0
+- writes to r0 have no effect
+- writes to pc force the low two bits to 0
+- 32 bit loads and stores force the two low address bits to 0
+- 16 bit loads and stores force the low address bit to 0
+
