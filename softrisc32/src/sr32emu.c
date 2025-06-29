@@ -1,0 +1,139 @@
+// Copyright 2025, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+#include "sr32emu.h"
+
+#define RAMSIZE   (8*1024*1024)
+#define RAMMASK8  (RAMSIZE - 1)
+#define RAMMASK32 (RAMMASK8 & (~3))
+#define RAMMASK16 (RAMMASK8 & (~1))
+uint8_t emu_ram[RAMSIZE];
+
+uint32_t mem_rd32(uint32_t addr) {
+	return *((uint32_t*) (emu_ram + (addr & RAMMASK32)));
+}
+uint32_t mem_rd16(uint32_t addr) {
+	return *((uint16_t*) (emu_ram + (addr & RAMMASK16)));
+}
+uint32_t mem_rd8(uint32_t addr) {
+	return *((uint8_t*) (emu_ram + (addr & RAMMASK8)));
+}
+
+void mem_wr32(uint32_t addr, uint32_t val) {
+	*((uint32_t*) (emu_ram + (addr & RAMMASK32))) = val;
+}
+void mem_wr16(uint32_t addr, uint32_t val) {
+	*((uint16_t*) (emu_ram + (addr & RAMMASK16))) = val;
+}
+void mem_wr8(uint32_t addr, uint32_t val) {
+	*((uint8_t*) (emu_ram + (addr & RAMMASK8))) = val;
+}
+
+uint32_t io_rd32(uint32_t addr) {
+	return 0;
+}
+
+void io_wr32(uint32_t addr, uint32_t val) {
+	fprintf(stderr,"IO %08x -> %08x\n", val, addr);
+}
+
+void do_syscall(CpuState *s, uint32_t n) {
+}
+
+void do_undef(CpuState *s, uint32_t ins) {
+	fprintf(stderr, "UNDEF INSTR (PC=%08x INS=%08x)\n", s->pc, ins);
+	exit(1);
+}
+
+void load_hex_image(const char* fn) {
+	FILE *fp = fopen(fn, "r");
+	if (fp == NULL) {
+		fprintf(stderr, "emu: cannot open: %s\n", fn);
+		exit(1);
+	}
+	char line[256];
+	while (fgets(line, 256, fp) != NULL) {
+		if ((line[0] == '#') || (line[0] == '/')) {
+			continue;
+		}
+		if ((strlen(line) > 18) && (line[8] == ':')) {
+			uint32_t addr = strtoul(line, 0, 16);
+			uint32_t val = strtoul(line + 10, 0, 16);
+			mem_wr32(addr, val);
+		}
+	}
+	fclose(fp);
+}
+
+int main(int argc, char** argv) {
+	CpuState cs;
+	uint32_t entry = 0x100000;
+	const char* fn = NULL;
+	int args = 0;
+
+
+	while (argc > 1) {
+		if (argv[1][0] == '-') {
+			fprintf(stderr, "emu: unknown option: %s\n", argv[1]);
+			return -1;
+		} else {
+			fn = argv[1];
+			// arguments after the image file belong to the guest
+			args = argc - 2;
+			argv += 2;
+			break;
+		}
+		argc--;
+		argv++;
+	}
+	if (fn == NULL) {
+		fprintf(stderr, "usage: emu <options> <image.hex> <arguments>\n");
+		return -1;
+	}
+
+	memset(&cs, 0, sizeof(cs));
+	memset(emu_ram, 0, sizeof(emu_ram));
+	load_hex_image(fn);
+
+	uint32_t sp = entry - 16;
+	uint32_t lr = sp;
+	mem_wr32(lr + 0, 0xffffffff);
+
+	uint32_t guest_argc = args;
+	uint32_t guest_argv = 0;
+	if (args) {
+		sp -= (args + 1) * 4;
+		uint32_t p = sp;
+		guest_argv = p;
+		while (args > 0) {
+			uint32_t n = strlen(argv[0]) + 1;
+			sp -= (n + 3) & (~3);
+			for (uint32_t i = 0; i < n; i++) {
+				mem_wr8(sp + i, argv[0][i]);
+			}
+			mem_wr32(p, sp);
+			p += 4;
+			args--;
+			argv++;
+		}
+		mem_wr32(p, 0);
+	}
+
+	cs.pc = entry;
+	cs.r[1] = lr;
+	cs.r[2] = sp;
+	cs.r[4] = guest_argc;
+	cs.r[5] = guest_argv;
+
+	fprintf(stderr, "%08x %08x %08x %08x %08x\n",
+		entry, lr, sp, guest_argc, guest_argv);
+	sr32core(&cs);
+
+	return 0;
+}
