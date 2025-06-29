@@ -9,7 +9,12 @@ typedef struct {
 	int32_t r[32];
 	uint32_t pc;
 	uint32_t xpc;
+	uint32_t flags;
 } CpuState;
+
+#define F_TRACE_FETCH 1
+#define F_TRACE_REGS  2
+#define F_TRACE_BRANCH 4
 
 uint32_t mem_rd32(uint32_t addr);
 uint32_t mem_rd16(uint32_t addr);

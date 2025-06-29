@@ -44,6 +44,12 @@ void mem_wr8(uint32_t addr, uint32_t val) {
 	*((uint8_t*) (emu_ram + (addr & RAMMASK8))) = val;
 }
 
+void *mem_dma(uint32_t addr, uint32_t len) {
+	if (addr >= RAMSIZE) return 0;
+	if ((RAMSIZE - addr) < len) return 0;
+	return emu_ram + addr;
+}
+
 uint32_t io_rd32(uint32_t addr) {
 	if (addr == -1) {
 		if (innext == incount) {
@@ -56,7 +62,8 @@ uint32_t io_rd32(uint32_t addr) {
 }
 
 void io_wr32(uint32_t addr, uint32_t val) {
-	if (addr == -1) {
+	switch (addr) {
+	case -1:
 		if (outnext == outcount) {
 			fprintf(stderr, "FAIL: output data overrun\n");
 			exit(1);
@@ -66,8 +73,15 @@ void io_wr32(uint32_t addr, uint32_t val) {
 			fprintf(stderr, "FAIL: output data %08x should be %08x\n", val, data);
 			exit(1);
 		}
+		break;
+	case -2: {
+		uint8_t x = val;
+		if (write(2, &x, 1) != 1) ;
+		break;
 	}
-	//fprintf(stderr,"IO %08x -> %08x\n", val, addr);
+	case -3:
+		exit(0);
+	}
 }
 
 void do_syscall(CpuState *s, uint32_t n) {
@@ -135,15 +149,21 @@ void load_test_data(const char *fn) {
 void usage(int status) {
 	fprintf(stderr,
 		"usage:    emu <options> <image.hex> <arguments>\n"
-		"options: -x <testdata>\n");
+		"options: -x <datafile>     Load Test Vector Data\n"
+		"         -tf               Trace Instruction Fetches\n"
+		"         -tr               Trace Register Writes\n"
+		"         -tb               Trace Branches\n");
 	exit(status);
 }
 
 int main(int argc, char** argv) {
-	CpuState cs;
 	uint32_t entry = 0x100000;
 	const char* fn = NULL;
 	int args = 0;
+
+	CpuState cs;
+	memset(&cs, 0, sizeof(cs));
+	memset(emu_ram, 0, sizeof(emu_ram));
 
 	while (argc > 1) {
 		if (!strcmp(argv[1], "-x")) {
@@ -151,6 +171,12 @@ int main(int argc, char** argv) {
 			load_test_data(argv[2]);
 			argc--;
 			argv++;
+		} else if (!strcmp(argv[1], "-tf")) {
+			cs.flags |= F_TRACE_FETCH;
+		} else if (!strcmp(argv[1], "-tr")) {
+			cs.flags |= F_TRACE_REGS;
+		} else if (!strcmp(argv[1], "-tb")) {
+			cs.flags |= F_TRACE_BRANCH;
 		} else if (argv[1][0] == '-') {
 			fprintf(stderr, "emu: unknown option: %s\n", argv[1]);
 			return -1;
@@ -168,13 +194,11 @@ int main(int argc, char** argv) {
 		usage(1);
 	}
 
-	memset(&cs, 0, sizeof(cs));
-	memset(emu_ram, 0, sizeof(emu_ram));
 	load_hex_image(fn);
 
 	uint32_t sp = entry - 16;
 	uint32_t lr = sp;
-	mem_wr32(lr + 0, 0xffffffff);
+	mem_wr32(lr + 0, 0xfffd006b);
 
 	uint32_t guest_argc = args;
 	uint32_t guest_argv = 0;
@@ -202,9 +226,6 @@ int main(int argc, char** argv) {
 	cs.r[4] = guest_argc;
 	cs.r[5] = guest_argv;
 
-	fprintf(stderr, "%08x %08x %08x %08x %08x\n",
-		entry, lr, sp, guest_argc, guest_argv);
 	sr32core(&cs);
-
 	return 0;
 }

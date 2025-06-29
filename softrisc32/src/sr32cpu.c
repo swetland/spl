@@ -6,12 +6,18 @@
 
 #include "sr32emu.h"
 
+#define WITH_TRACE 1
+
 void sr32core(CpuState *s) {
 	int32_t a, b, n;
 	uint32_t pc = s->pc;
 	for (;;) {
 	int32_t ins = mem_rd32(pc);
-	//fprintf(stderr,"%08x %08x\n", pc, ins);
+#if WITH_TRACE
+	if (s->flags & F_TRACE_FETCH) {
+		fprintf(stderr,"%08x %08x\n", pc, ins);
+	}
+#endif
 	pc += 4;
 	switch ((ins >> 3) & 7) {
 	case 0b000:
@@ -38,8 +44,14 @@ void sr32core(CpuState *s) {
 		default: goto undef;
 		}
 		b = (ins >> 6) & 31;
-		if (b) s->r[b] = n;
-		if (b) fprintf(stderr,"%08x -> X%d\n", n, b);
+		if (b) {
+			s->r[b] = n;
+#if WITH_TRACE
+			if (s->flags & F_TRACE_REGS) {
+				fprintf(stderr,"%08x -> X%d\n", n, b);
+			}
+#endif
+		}
 		break;
 	case 0b100: // L
 		a = s->r[(ins >> 11) & 31] + (ins >> 16);
@@ -54,8 +66,14 @@ void sr32core(CpuState *s) {
 		case 7: n = pc + (ins & 0xFFFF0000); break;
 		}
 		b = (ins >> 6) & 31;
-		if (b) s->r[b] = n;
-		if (b) fprintf(stderr,"%08x -> X%d\n", n, b);
+		if (b) {
+			s->r[b] = n;
+#if WITH_TRACE
+			if (s->flags & F_TRACE_REGS) {
+				fprintf(stderr,"%08x -> X%d\n", n, b);
+			}
+#endif
+		}
 		break;
 	case 0b101: // S
 		a = s->r[(ins >> 11) & 31] + (ins >> 16);
