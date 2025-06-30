@@ -36,6 +36,10 @@ int is_signed21(uint32_t n) {
 	n &= 0xFFFFF800;
 	return ((n == 0) || (n == 0xFFFFF800));
 }
+int fits_in_signed16(uint32_t n) {
+	n &= 0xFFFF8000;
+	return ((n == 0) || (n == 0xFFFF8000));
+}
 
 uint8_t image[1*1024*1024];
 uint32_t image_base = 0;
@@ -229,7 +233,7 @@ void save(const char *fn) {
 
 enum tokens {
 	tEOF, tEOL, tIDENT, tREGISTER, tNUMBER, tSTRING,
-	tCOMMA, tCOLON, tOPAREN, tCPAREN, tHASH, tAT, tDOT,
+	tCOMMA, tCOLON, tOPAREN, tCPAREN, tAT, tDOT,
 	tADD, tSUB, tAND, tOR, tXOR, tSLL, tSRL, tSRA,
 	tSLT, tSLTU, tMUL, tDIV,
 	tADDI, tSUBI, tANDI, tORI, tXORI, tSLLI, tSRLI, tSRAI,
@@ -248,7 +252,7 @@ enum tokens {
 };
 
 char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
-	",", ":", "(", ")", "#", "@", ".",
+	",", ":", "(", ")", "@", ".",
 	"ADD", "SUB", "AND", "OR", "XOR", "SLL", "SRL", "SRA",
 	"SLT", "SLTU", "MUL", "DIV",
 	"ADDI", "SUBI", "ANDI", "ORI", "XORI", "SLLI", "SRLI", "SRAI",
@@ -346,6 +350,7 @@ unsigned tokenize(State *state) {
 			if (nextchar(state) != '/') {
 				die("stray /");
 			}
+		case '#':
 			for (;;) {
 				x = nextchar(state);
 				if ((x == '\n') || (x == 0)) break;
@@ -358,7 +363,6 @@ unsigned tokenize(State *state) {
 		case ':': return tCOLON;
 		case '(': return tOPAREN;
 		case ')': return tCPAREN;
-		case '#': return tHASH;
 		case '@': return tAT;
 		case '"':
 			while ((x = nextchar(state)) != '"') {
@@ -684,7 +688,7 @@ int parse_line(State *s) {
 			parse_rel(s, TYPE_ABS_HILO, &i);
 		} else {
 			parse_num(s, &i);
-			if (is_signed16(i)) {
+			if (fits_in_signed16(i)) {
 				emit(ins_i(IR_ADD, t, 0, i));
 			} else {
 				uint32_t hi = i >> 16;
