@@ -53,7 +53,7 @@ void sr32dis(uint32_t pc, uint32_t ins, char *out) {
 		case 'j': out = append_i32(out, get_i21(ins)); break;
 		case 's': out = append_i32(out, get_rb(ins)); break;
 		case 'J': out = append_u32(out, pc + 4 + get_i21(ins)); break;
-		case 'B': out = append_u32(out, pc + get_i16(ins)); break;
+		case 'B': out = append_u32(out, pc + 4 + get_i16(ins)); break;
 		case 'U': out = append_u32(out, get_i16(ins) << 16); break;
 		}
 	}
