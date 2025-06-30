@@ -229,7 +229,7 @@ void save(const char *fn) {
 
 enum tokens {
 	tEOF, tEOL, tIDENT, tREGISTER, tNUMBER, tSTRING,
-	tCOMMA, tCOLON, tOPAREN, tCPAREN, tDOT, tHASH,
+	tCOMMA, tCOLON, tOPAREN, tCPAREN, tHASH, tAT, tDOT,
 	tADD, tSUB, tAND, tOR, tXOR, tSLL, tSRL, tSRA,
 	tSLT, tSLTU, tMUL, tDIV,
 	tADDI, tSUBI, tANDI, tORI, tXORI, tSLLI, tSRLI, tSRAI,
@@ -248,7 +248,7 @@ enum tokens {
 };
 
 char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
-	",", ":", "(", ")", ".", "#",
+	",", ":", "(", ")", "#", "@", ".",
 	"ADD", "SUB", "AND", "OR", "XOR", "SLL", "SRL", "SRA",
 	"SLT", "SLTU", "MUL", "DIV",
 	"ADDI", "SUBI", "ANDI", "ORI", "XORI", "SLLI", "SRLI", "SRAI",
@@ -263,18 +263,18 @@ char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
 	"NOT", "NEG", "SEQZ", "SNEZ", "SLTZ", "SGTZ",
 	"BEQZ", "BNEZ", "BLEZ", "BGEZ", "BLTZ", "BGTZ",
 	"BGT", "BLE", "BGTU", "BLEU",
-	"EQU", "BYTE", "HALF", "WORD",
+	".EQU", ".BYTE", ".HALF", ".WORD",
 };
 
 static_assert(NUMTOKENS == (sizeof(tnames) / sizeof(tnames[0])),
 	"length of tokens and tnames must be equal");
 
-#define FIRSTKEYWORD tADD
+#define FIRSTKEYWORD tDOT
 
 int is_stopchar(unsigned x) {
 	switch (x) {
 	case 0: case ' ': case '\t': case '\r': case '\n':
-	case '.': case ',': case ':': case ';':
+	case '.': case ',': case ':': case ';': case '@':
 	case '#': case '"': case '/': case '(': case ')':
 		return 1;
 	default:
@@ -342,20 +342,24 @@ unsigned tokenize(State *state) {
 			return tEOF;
 		case ' ': case '\t': case '\r':
 			continue;
-		case '\n':
-			linenumber++;
-			return tEOL;
 		case '/':
 			if (nextchar(state) != '/') {
 				die("stray /");
 			}
+			for (;;) {
+				x = nextchar(state);
+				if ((x == '\n') || (x == 0)) break;
+			}
+		case '\n':
+			linenumber++;
+			return tEOL;
 		case ';': return tEOL;
 		case ',': return tCOMMA;
 		case ':': return tCOLON;
 		case '(': return tOPAREN;
 		case ')': return tCPAREN;
-		case '.': return tDOT;
 		case '#': return tHASH;
+		case '@': return tAT;
 		case '"':
 			while ((x = nextchar(state)) != '"') {
 				if ((x == '\n') || (x == 0)) {
@@ -394,13 +398,13 @@ unsigned tokenize(State *state) {
 				return tREGISTER;
 			}
 		}
-		if (isalpha(sbuf[0])) {
-			s = sbuf;
+		if (isalpha(sbuf[0]) || (sbuf[0] == '.') || (sbuf[0] == '_')) {
 			for (n = FIRSTKEYWORD; n < NUMTOKENS; n++) {
-				if (!strcasecmp(s, tnames[n])) {
+				if (!strcasecmp(sbuf, tnames[n])) {
 					return n;
 				}
 			}
+			s = sbuf + 1;
 			while (*s) {
 				if (!isalnum(*s) && (*s != '_')) {
 					die("invalid character '%c' (%d) in identifier", *s, *s);
