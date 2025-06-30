@@ -59,7 +59,7 @@ void sr32core(CpuState *s) {
 		case 0: n = mem_rd32(a); break;
 		case 1: n = mem_rd16(a); if (n & 0x8000) n |= 0xFFFF0000; break;
 		case 2: n = mem_rd8(a); if (n & 0x80) n |= 0xFFFFFF00; break;
-		case 3: n = io_rd32(a); break;
+		case 3: n = io_rd32(s, a); break;
 		case 4: n = ins & 0xFFFF0000; break;
 		case 5: n = mem_rd16(a); break;
 		case 6: n = mem_rd8(a); break;
@@ -82,7 +82,7 @@ void sr32core(CpuState *s) {
 		case 0: mem_wr32(a, b); break;
 		case 1: mem_wr16(a, b); break;
 		case 2: mem_wr8(a, b); break;
-		case 3:	io_wr32(a, b); break;
+		case 3:	io_wr32(s, a, b); break;
 		default: goto undef;
 		}
 		break;

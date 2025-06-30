@@ -50,27 +50,33 @@ void *mem_dma(uint32_t addr, uint32_t len) {
 	return emu_ram + addr;
 }
 
-uint32_t io_rd32(uint32_t addr) {
+uint32_t io_rd32(CpuState *cs, uint32_t addr) {
 	if (addr == -1) {
 		if (innext == incount) {
-			fprintf(stderr, "FAIL: input data exhausted\n");
+			fprintf(stderr, "FAIL: PC=%08x: input data exhausted\n", cs->pc);
 			exit(1);
+		}
+		if (cs->flags & F_TRACE_IO) {
+			fprintf(stderr, "< %08x\n", indata[innext]);
 		}
 		return indata[innext++];
 	}
 	return 0;
 }
 
-void io_wr32(uint32_t addr, uint32_t val) {
+void io_wr32(CpuState *cs, uint32_t addr, uint32_t val) {
 	switch (addr) {
 	case -1:
+		if (cs->flags & F_TRACE_IO) {
+			fprintf(stderr, "> %08x\n", val);
+		}
 		if (outnext == outcount) {
 			fprintf(stderr, "FAIL: output data overrun\n");
 			exit(1);
 		}
 		uint32_t data = outdata[outnext++];
 		if (data != val) {
-			fprintf(stderr, "FAIL: output data %08x should be %08x\n", val, data);
+			fprintf(stderr, "FAIL: PC=%08x: output data %08x should be %08x\n", cs->pc, val, data);
 			exit(1);
 		}
 		break;
@@ -152,7 +158,8 @@ void usage(int status) {
 		"options: -x <datafile>     Load Test Vector Data\n"
 		"         -tf               Trace Instruction Fetches\n"
 		"         -tr               Trace Register Writes\n"
-		"         -tb               Trace Branches\n");
+		"         -tb               Trace Branches\n"
+		"         -ti               Trace IO Reads & Writes\n");
 	exit(status);
 }
 
@@ -177,6 +184,8 @@ int main(int argc, char** argv) {
 			cs.flags |= F_TRACE_REGS;
 		} else if (!strcmp(argv[1], "-tb")) {
 			cs.flags |= F_TRACE_BRANCH;
+		} else if (!strcmp(argv[1], "-ti")) {
+			cs.flags |= F_TRACE_IO;
 		} else if (argv[1][0] == '-') {
 			fprintf(stderr, "emu: unknown option: %s\n", argv[1]);
 			return -1;
