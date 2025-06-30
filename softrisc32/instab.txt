@@ -2,64 +2,71 @@
 # Licensed under the Apache License, Version 2.0.
 
 00000000000000000000000000000000 nop
-----------------00000-----000000 li      %d, %i
-0000000000000000----------000000 mv      %d, %a
---------------------------000000 addi    %d, %a, %i
-000000000000--------------010000 add     %d, %a, %b
-0000000000000000----------000001 neg     %d, %a
---------------------------000001 subi    %d, %a, %i
-000000000000--------------010001 sub     %d, %a, %b
---------------------------000010 andi    %d, %a, %i
-000000000000--------------010010 and     %d, %a, %b
---------------------------000011 ori     %d, %a, %i
-000000000000--------------010011 or      %d, %a, %b
-1111111111111111----------000100 not     %d, %a
---------------------------000100 xori    %d, %a, %i
-000000000000--------------010100 xor     %d, %a, %b
---------------------------000101 slli    %d, %a, %i
-000000000000--------------010101 sll     %d, %a, %b
---------------------------000110 srli    %d, %a, %i
-000000000000--------------010110 srl     %d, %a, %b
---------------------------000111 srai    %d, %a, %i
-000000000000--------------010111 sra     %d, %a, %b
---------------------------001000 slti    %d, %a, %i
-000000000000--------------011000 slt     %d, %a, %b
-0000000000000001----------001001 seqz    %d, %a
---------------------------001001 sltui   %d, %a, %i
-000000000000--------------011001 sltu    %d, %a, %b
---------------------------001010 muli    %d, %a, %i
-000000000000--------------011010 mul     %d, %a, %b
---------------------------001011 divi    %d, %a, %i
-000000000000--------------011011 div     %d, %a, %b
-0000000000000000-----00000011111 jr      %a
-0000000000000000----------011111 jalr    %d, %a
---------------------------011111 jalr    %d, %a, %i
---------------------------100000 ldw     %d, %i(%a)
---------------------------100001 ldh     %d, %i(%a)
---------------------------100010 ldb     %d, %i(%a)
-----------------00000-----100011 ldx     %d, %i
---------------------------100011 ldx     %d, %i(%a)
---------------------------100100 lui     %d, %U
---------------------------100101 ldhu    %d, %i(%a)
---------------------------100110 ldbu    %d, %i(%a)
---------------------------100111 auipc   %d, %U
---------------------------101000 stw     %d, %i(%a)
---------------------------101001 sth     %d, %i(%a)
---------------------------101010 stb     %d, %i(%a)
-----------------00000-----101011 stx     %d, %i
---------------------------101011 stx     %d, %i(%a)
----------------------00000110000 bz      %a, %B
---------------------------110000 beq     %a, %d, %B
----------------------00000110001 bnz     %a, %B
---------------------------110001 bne     %a, %d, %B
---------------------------110010 blt     %a, %d, %B
---------------------------110011 bltu    %a, %d, %B
---------------------------110100 bge     %a, %d, %B
---------------------------110101 bgeu    %a, %d, %B
----------------------00000111000 j       %d, %J
----------------------00001111000 call    %d, %J
---------------------------111000 jal     %d, %J
---------------------------111001 syscall %i
---------------------------111010 break
---------------------------111011 sysret
+iiiiiiiiiiiiiiii00000ttttt000000 li      %d, %i
+0000000000000000aaaaattttt000000 mv      %d, %a
+iiiiiiiiiiiiiiiiaaaaattttt000000 addi    %d, %a, %i
+0000000000000000aaaaattttt000001 neg     %d, %a
+iiiiiiiiiiiiiiiiaaaaattttt000001 subi    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000010 andi    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000011 ori     %d, %a, %i
+1111111111111111aaaaattttt000100 not     %d, %a
+iiiiiiiiiiiiiiiiaaaaattttt000100 xori    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000101 slli    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000110 srli    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000111 srai    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt001000 slti    %d, %a, %i
+0000000000000001aaaaattttt001001 seqz    %d, %a
+iiiiiiiiiiiiiiiiaaaaattttt001001 sltui   %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt001010 muli    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt001011 divi    %d, %a, %i
+00000000000bbbbbaaaaattttt010000 add     %d, %a, %b
+00000000000bbbbbaaaaattttt010001 sub     %d, %a, %b
+00000000000bbbbbaaaaattttt010010 and     %d, %a, %b
+00000000000bbbbbaaaaattttt010011 or      %d, %a, %b
+00000000000bbbbbaaaaattttt010100 xor     %d, %a, %b
+00000000000bbbbbaaaaattttt010101 sll     %d, %a, %b
+00000000000bbbbbaaaaattttt010110 srl     %d, %a, %b
+00000000000bbbbbaaaaattttt010111 sra     %d, %a, %b
+0000000000000000aaaaattttt011000 sltz    %d, %a
+00000000000bbbbb00000ttttt011000 sgtz    %d, %b
+00000000000bbbbbaaaaattttt011000 slt     %d, %a, %b
+00000000000bbbbb00000ttttt011001 snez    %d, %b
+00000000000bbbbbaaaaattttt011001 sltu    %d, %a, %b
+00000000000bbbbbaaaaattttt011010 mul     %d, %a, %b
+00000000000bbbbbaaaaattttt011011 div     %d, %a, %b
+0000000000000000aaaaa00000011111 jr      %a
+0000000000000000aaaaattttt011111 jalr    %d, %a
+iiiiiiiiiiibbbbbaaaaattttt011111 jalr    %d, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt100000 ldw     %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100001 ldh     %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100010 ldb     %d, %i(%a)
+iiiiiiiiiiiiiiii00000ttttt100011 ldx     %d, %i
+iiiiiiiiiiiiiiiiaaaaattttt100011 ldx     %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100100 lui     %d, %U
+iiiiiiiiiiiiiiiiaaaaattttt100101 ldhu    %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100110 ldbu    %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100111 auipc   %d, %U
+iiiiiiiiiiiiiiiiaaaaattttt101000 stw     %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt101001 sth     %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt101010 stb     %d, %i(%a)
+iiiiiiiiiiiiiiii00000ttttt101011 stx     %d, %i
+iiiiiiiiiiiiiiiiaaaaattttt101011 stx     %d, %i(%a)
+iiiiiiiiiiiiiiiiaaaaa00000110000 beqz    %a, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110000 beq     %a, %d, %B
+iiiiiiiiiiiiiiiiaaaaa00000110001 bnez    %a, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110001 bne     %a, %d, %B
+iiiiiiiiiiiiiiiiaaaaa00000110010 bltz    %a, %B
+iiiiiiiiiiiiiiii00000bbbbb110010 bgtz    %d, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110010 blt     %a, %d, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110011 bltu    %a, %d, %B
+iiiiiiiiiiiiiiii00000bbbbb110100 blez    %d, %B
+iiiiiiiiiiiiiiiiaaaaa00000110100 bgez    %a, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110100 bge     %a, %d, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110101 bgeu    %a, %d, %B
+iiiiiiiiiiiiiiiiiiiii00000111000 j       %d, %J
+iiiiiiiiiiiiiiiiiiiii00001111000 call    %d, %J
+iiiiiiiiiiiiiiiiiiiiittttt111000 jal     %d, %J
+iiiiiiiiiiiiiiiiiiiiittttt111001 syscall %i
+iiiiiiiiiiiiiiiiiiiiittttt111010 break
+iiiiiiiiiiiiiiiiiiiiittttt111011 sysret
 -------------------------------- unknown
