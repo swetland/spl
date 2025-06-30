@@ -240,6 +240,9 @@ enum tokens {
 	tSTW, tSTH, tSTB, tSTX,
 	tJAL, tSYSCALL, tBREAK, tSYSRET,
 	tNOP, tMV, tLI, tLA, tJ, tJR, tRET,
+	tNOT, tNEG, tSEQZ, tSNEZ, tSLTZ, tSGTZ,
+	tBEQZ, tBNEZ, tBLEZ, tBGEZ, tBLTZ, tBGTZ,
+	tBGT, tBLE, tBGTU, tBLEU,
 	tEQU, tBYTE, tHALF, tWORD,
 	NUMTOKENS,
 };
@@ -255,7 +258,11 @@ char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
 	"LDW", "LDH", "LDB", "LDX", "LUI", "LDHU", "LDBU", "AUIPC",
 	"STW", "STH", "STB", "STX",
 	"JAL", "SYSCALL", "BREAK", "SYSRET",
+	// pseudo instructions
 	"NOP", "MV", "LI", "LA", "J", "JR", "RET",
+	"NOT", "NEG", "SEQZ", "SNEZ", "SLTZ", "SGTZ",
+	"BEQZ", "BNEZ", "BLEZ", "BGEZ", "BLTZ", "BGTZ",
+	"BGT", "BLE", "BGTU", "BLEU",
 	"EQU", "BYTE", "HALF", "WORD",
 };
 
@@ -516,15 +523,15 @@ int parse_line(State *s) {
 		o = tok - tADD;
 		parse_2r_c(s, &t, &a);
 		parse_reg(s, &b);
-		emit(ins_r(0, b, a, t, o));
+		emit(ins_r(o, t, a, b, 0));
 		break;
 	case tADDI: case tSUBI: case tANDI: case tORI:
 	case tXORI: case tSLLI: case tSRLI: case tSRAI:
 	case tSLTI: case tSLTUI:
 		o = tok - tADDI;
 		parse_2r_c(s, &t, &a);
-		parse_num(s, &b);
-		emit(ins_i(b, a, t, o));
+		parse_num(s, &i);
+		emit(ins_i(o, t, a, i));
 		break;
 	// todo: mul div
 	case tBEQ: case tBNE: case tBLT:
@@ -532,66 +539,140 @@ int parse_line(State *s) {
 		o = tok - tBEQ;
 		parse_2r_c(s, &a, &b);
 		parse_rel(s, TYPE_PCREL_S16, &i);
-		emit(ins_b(i, a, b, o));
+		emit(ins_b(o, a, b, i));
 		break;
 	case tLDW: case tLDH: case tLDB: case tLDX:
 	case tLDHU: case tLDBU:
 		o = tok - tLDW;
 		parse_r_c(s, &t);
 		parse_memref(s, &a, &i);
-		emit(ins_l(i, a, t, o));
+		emit(ins_l(o, t, a, i));
 		break;
 	case tLUI:
  	case tAUIPC:
 		o = tok - tLDW;
 		parse_r_c(s, &t);
 		parse_num(s, &i);
-		emit(ins_l(i >> 16, 0, t, o));
+		emit(ins_l(o, t, 0, i >> 16));
 		break;
 	case tSTW: case tSTH: case tSTB: case tSTX:
 		o = tok - tSTW;
 		parse_r_c(s, &b);
 		parse_memref(s, &a, &i);
-		emit(ins_s(i, a, b, o));
+		emit(ins_s(o, b, a, i));
 		break;
 	case tJAL:
 		parse_r_c(s, &t);
 		parse_rel(s, TYPE_PCREL_S21, &i);
-		emit(ins_j(i, t, J_JAL));
+		emit(ins_j(J_JAL, t, i));
 		break;
 	case tSYSCALL:
 		parse_num(s, &i);
-		emit(ins_j(i, 0, J_SYSCALL));
+		emit(ins_j(J_SYSCALL, 0, i));
 		break;
 	case tBREAK:
-		emit(ins_j(0, 0, J_BREAK));
+		emit(ins_j(J_BREAK, 0, 0));
 		break;
 	case tSYSRET:
-		emit(ins_j(0, 0, J_SYSRET));
+		emit(ins_j(J_SYSRET, 0, 0));
 		break;
 	case tJALR:
 		parse_2r_c(s, &t, &a);
 		if (s->tok == tNUMBER) {
-			emit(ins_i(s->num, a, t, IR_JALR));
+			emit(ins_i(IR_JALR, t, a, s->num));
 		} else if (s->tok == tREGISTER) {
-			emit(ins_r(0, s->num, a, t, IR_JALR));
+			emit(ins_r(IR_JALR, t, a, s->num, 0));
 		} else {
 			die("expected register or immediate");
 		}
 		break;
+	case tNOT:
+		parse_2r(s, &t, &a);
+		emit(ins_i(IR_XOR, t, a, -1));
+		break;
+	case tNEG:
+		parse_2r(s, &t, &a);
+		emit(ins_r(IR_SUB, t, 0, a, 0));
+		break;
+	case tSEQZ:
+		parse_2r(s, &t, &a);
+		emit(ins_i(IR_SLTU, t, a, 1));
+		break;
+	case tSNEZ:
+		parse_2r(s, &t, &a);
+		emit(ins_r(IR_SLTU, t, 0, a, 0));
+		break;
+	case tSLTZ:
+		parse_2r(s, &t, &a);
+		emit(ins_r(IR_SLT, t, a, 0, 0));
+		break;
+	case tSGTZ:
+		parse_2r(s, &t, &a);
+		emit(ins_r(IR_SLT, t, 0, a, 0));
+		break;
+	case tBEQZ:
+		parse_r_c(s, &a);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BEQ, a, 0, i));
+		break;
+	case tBNEZ:
+		parse_r_c(s, &a);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BNE, a, 0, i));
+		break;
+	case tBLEZ:
+		parse_r_c(s, &a);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BGE, 0, a, i));
+		break;
+	case tBGEZ:
+		parse_r_c(s, &a);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BGE, 0, a, i));
+		break;
+	case tBLTZ:
+		parse_r_c(s, &a);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BLT, a, 0, i));
+		break;
+	case tBGTZ:
+		parse_r_c(s, &a);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BLT, 0, a, i));
+		break;
+	case tBGT:
+		parse_2r_c(s, &a, &b);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BLT, b, a, i));
+		break;
+	case tBLE:
+		parse_2r_c(s, &a, &b);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BGE, b, a, i));
+		break;
+	case tBGTU:
+		parse_2r_c(s, &a, &b);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BLTU, b, a, i));
+		break;
+	case tBLEU:
+		parse_2r_c(s, &a, &b);
+		parse_rel(s, TYPE_PCREL_S16, &i);
+		emit(ins_b(B_BGEU, b, a, i));
+		break;
 	case tJR:
 		parse_reg(s, &a);
-		emit(ins_r(0, 0, a, 0, IR_JALR));
+		emit(ins_r(IR_JALR, 0, a, 0, 0));
 		break;
 	case tRET:
-		emit(ins_r(0, 0, 1, 0, IR_JALR));
+		emit(ins_r(IR_JALR, 0, 1, 0, 0));
 		break;
 	case tNOP:
-		emit(ins_i(0, 0, 0, IR_ADD));
+		emit(ins_i(IR_ADD, 0, 0, 0));
 		break;
 	case tMV:
 		parse_2r(s, &t, &a);
-		emit(ins_r(0, 0, a, t, IR_ADD));
+		emit(ins_r(IR_ADD, t, a, 0, 0));
 		break;
 	case tLI:
 		parse_r_c(s, &t);
@@ -600,25 +681,25 @@ int parse_line(State *s) {
 		} else {
 			parse_num(s, &i);
 			if (is_signed16(i)) {
-				emit(ins_i(i, 0, t, IR_ADD));
+				emit(ins_i(IR_ADD, t, 0, i));
 			} else {
 				uint32_t hi = i >> 16;
 				uint32_t lo = i & 0xffff;
 				if (lo & 0x8000) hi += 1;
-				emit(ins_l(hi, 0, t, L_LUI));
-				emit(ins_i(lo, t, t, IR_ADD));
+				emit(ins_l(L_LUI, t, 0, hi));
+				emit(ins_i(IR_ADD, t, t, lo));
 			}
 		}
 		break;
 	case tLA:
 		parse_r_c(s, &t);
 		parse_rel(s, TYPE_PCREL_HILO, &i);
-		emit(ins_l(i >> 16, 0, t, L_AUIPC));
-		emit(ins_i(i & 0xFFFF, t, t, IR_ADD));
+		emit(ins_l(L_AUIPC, t, 0, i >> 16));
+		emit(ins_i(IR_ADD, t, t, i & 0xFFFF));
 		break;
 	case tJ:
 		parse_rel(s, TYPE_PCREL_S21, &i);
-		emit(ins_j(i, 0, J_JAL));
+		emit(ins_j(J_JAL, 0, i));
 		break;
 	case tEQU:
 		require(s, tIDENT);

@@ -22,8 +22,8 @@
 #define B_BNE 1
 #define B_BLT 2
 #define B_BLTU 3
-#define B_GE 4
-#define B_GEU 5
+#define B_BGE 4
+#define B_BGEU 5
 
 #define L_LDW 0
 #define L_LDH 1
@@ -44,22 +44,22 @@
 #define J_BREAK 2
 #define J_SYSRET 3
 
-static inline uint32_t ins_i(uint32_t i, uint32_t a, uint32_t t, uint32_t o) {
+static inline uint32_t ins_i(uint32_t o, uint32_t t, uint32_t a, uint32_t i) {
 	return (i << 16) | ((a & 0x1F) << 11) | ((t & 0x1F) << 6) | (o & 0xF);
 }
-static inline uint32_t ins_r(uint32_t n, uint32_t b, uint32_t a, uint32_t t, uint32_t o) {
+static inline uint32_t ins_r(uint32_t o, uint32_t t, uint32_t a, uint32_t b, uint32_t n) {
 	return ((n & 7) << 21) | ((b & 0x1F) << 16) | ((a & 0x1F) << 11) | ((t & 0x1F) << 6) | (o & 0xF) | 0x10;
 }
-static inline uint32_t ins_l(uint32_t i, uint32_t a, uint32_t t, uint32_t o) {
+static inline uint32_t ins_l(uint32_t o, uint32_t t, uint32_t a, uint32_t i) {
 	return (i << 16) | ((a & 0x1F) << 11) | ((t & 0x1F) << 6) | (o & 7) | 0x20;
 }
-static inline uint32_t ins_s(uint32_t i, uint32_t a, uint32_t b, uint32_t o) {
+static inline uint32_t ins_s(uint32_t o, uint32_t b, uint32_t a, uint32_t i) {
 	return (i << 16) | ((a & 0x1F) << 11) | ((b & 0x1F) << 6) | (o & 7) | 0x28;
 }
-static inline uint32_t ins_b(uint32_t i, uint32_t a, uint32_t b, uint32_t o) {
+static inline uint32_t ins_b(uint32_t o, uint32_t a, uint32_t b, uint32_t i) {
 	return (i << 16) | ((a & 0x1F) << 11) | ((b & 0x1F) << 6) | (o & 7) | 0x30;
 }
-static inline uint32_t ins_j(uint32_t i, uint32_t t, uint32_t o) {
+static inline uint32_t ins_j(uint32_t o, uint32_t t, uint32_t i) {
 	return (i << 11) | ((t & 0x1F) << 6) | (o & 7) | 0x38;
 }
 
