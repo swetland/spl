@@ -239,7 +239,7 @@ enum tokens {
 	tLDW, tLDH, tLDB, tLDX, tLUI, tLDHU, tLDBU, tAUIPC,
 	tSTW, tSTH, tSTB, tSTX,
 	tJAL, tSYSCALL, tBREAK, tSYSRET,
-	tNOP, tMV, tLI, tLA, tJ, tJR, tRET,
+	tNOP, tMV, tLI, tLA, tJ, tJR, tCALL, tRET,
 	tNOT, tNEG, tSEQZ, tSNEZ, tSLTZ, tSGTZ,
 	tBEQZ, tBNEZ, tBLEZ, tBGEZ, tBLTZ, tBGTZ,
 	tBGT, tBLE, tBGTU, tBLEU,
@@ -259,7 +259,7 @@ char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
 	"STW", "STH", "STB", "STX",
 	"JAL", "SYSCALL", "BREAK", "SYSRET",
 	// pseudo instructions
-	"NOP", "MV", "LI", "LA", "J", "JR", "RET",
+	"NOP", "MV", "LI", "LA", "J", "JR", "CALL", "RET",
 	"NOT", "NEG", "SEQZ", "SNEZ", "SLTZ", "SGTZ",
 	"BEQZ", "BNEZ", "BLEZ", "BGEZ", "BLTZ", "BGTZ",
 	"BGT", "BLE", "BGTU", "BLEU",
@@ -700,6 +700,10 @@ int parse_line(State *s) {
 	case tJ:
 		parse_rel(s, TYPE_PCREL_S21, &i);
 		emit(ins_j(J_JAL, 0, i));
+		break;
+	case tCALL:
+		parse_rel(s, TYPE_PCREL_S21, &i);
+		emit(ins_j(J_JAL, 1, i));
 		break;
 	case tEQU:
 		require(s, tIDENT);
