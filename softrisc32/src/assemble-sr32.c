@@ -349,14 +349,7 @@ unsigned tokenize(State *state) {
 			if (nextchar(state) != '/') {
 				die("stray /");
 			}
-		case ';':
-			for (;;) {
-				x = nextchar(state);
-				if ((x == '\n') || (x == 0)) {
-					linenumber++;
-					return tEOL;
-				}
-			}
+		case ';': return tEOL;
 		case ',': return tCOMMA;
 		case ':': return tCOLON;
 		case '(': return tOPAREN;
