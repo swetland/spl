@@ -479,6 +479,13 @@ void parse_rel(State *s, unsigned type, uint32_t *i) {
 	case tDOT:
 		*i = -4;
 		break;
+	case tAT:
+		next(s);
+		if ((type == TYPE_PCREL_S16) || (type == TYPE_PCREL_S21)) {
+			expect(s, tNUMBER);
+			*i = (s->num * 4) - 4;
+			break;
+		}
 	default:
 		die("expected address");
 	}
