@@ -2,70 +2,70 @@
 # Licensed under the Apache License, Version 2.0.
 
 00000000000000000000000000000000 nop
-iiiiiiiiiiiiiiii00000ttttt000000 li      %d, %i
-0000000000000000aaaaattttt000000 mv      %d, %a
-iiiiiiiiiiiiiiiiaaaaattttt000000 addi    %d, %a, %i
-0000000000000000aaaaattttt000001 neg     %d, %a
-iiiiiiiiiiiiiiiiaaaaattttt000001 subi    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt000010 andi    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt000011 ori     %d, %a, %i
-1111111111111111aaaaattttt000100 not     %d, %a
-iiiiiiiiiiiiiiiiaaaaattttt000100 xori    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt000101 slli    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt000110 srli    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt000111 srai    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt001000 slti    %d, %a, %i
-0000000000000001aaaaattttt001001 seqz    %d, %a
-iiiiiiiiiiiiiiiiaaaaattttt001001 sltui   %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt001010 muli    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt001011 divi    %d, %a, %i
-00000000000bbbbbaaaaattttt010000 add     %d, %a, %b
-00000000000bbbbbaaaaattttt010001 sub     %d, %a, %b
-00000000000bbbbbaaaaattttt010010 and     %d, %a, %b
-00000000000bbbbbaaaaattttt010011 or      %d, %a, %b
-00000000000bbbbbaaaaattttt010100 xor     %d, %a, %b
-00000000000bbbbbaaaaattttt010101 sll     %d, %a, %b
-00000000000bbbbbaaaaattttt010110 srl     %d, %a, %b
-00000000000bbbbbaaaaattttt010111 sra     %d, %a, %b
-0000000000000000aaaaattttt011000 sltz    %d, %a
-00000000000bbbbb00000ttttt011000 sgtz    %d, %b
-00000000000bbbbbaaaaattttt011000 slt     %d, %a, %b
-00000000000bbbbb00000ttttt011001 snez    %d, %b
-00000000000bbbbbaaaaattttt011001 sltu    %d, %a, %b
-00000000000bbbbbaaaaattttt011010 mul     %d, %a, %b
-00000000000bbbbbaaaaattttt011011 div     %d, %a, %b
+iiiiiiiiiiiiiiii00000ttttt000000 li      %t, %i
+0000000000000000aaaaattttt000000 mv      %t, %a
+iiiiiiiiiiiiiiiiaaaaattttt000000 addi    %t, %a, %i
+0000000000000000aaaaattttt000001 neg     %t, %a
+iiiiiiiiiiiiiiiiaaaaattttt000001 subi    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000010 andi    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000011 ori     %t, %a, %i
+1111111111111111aaaaattttt000100 not     %t, %a
+iiiiiiiiiiiiiiiiaaaaattttt000100 xori    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000101 slli    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000110 srli    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt000111 srai    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt001000 slti    %t, %a, %i
+0000000000000001aaaaattttt001001 seqz    %t, %a
+iiiiiiiiiiiiiiiiaaaaattttt001001 sltui   %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt001010 muli    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt001011 divi    %t, %a, %i
+00000000000bbbbbaaaaattttt010000 add     %t, %a, %b
+00000000000bbbbbaaaaattttt010001 sub     %t, %a, %b
+00000000000bbbbbaaaaattttt010010 and     %t, %a, %b
+00000000000bbbbbaaaaattttt010011 or      %t, %a, %b
+00000000000bbbbbaaaaattttt010100 xor     %t, %a, %b
+00000000000bbbbbaaaaattttt010101 sll     %t, %a, %b
+00000000000bbbbbaaaaattttt010110 srl     %t, %a, %b
+00000000000bbbbbaaaaattttt010111 sra     %t, %a, %b
+0000000000000000aaaaattttt011000 sltz    %t, %a
+00000000000bbbbb00000ttttt011000 sgtz    %t, %b
+00000000000bbbbbaaaaattttt011000 slt     %t, %a, %b
+00000000000bbbbb00000ttttt011001 snez    %t, %b
+00000000000bbbbbaaaaattttt011001 sltu    %t, %a, %b
+00000000000bbbbbaaaaattttt011010 mul     %t, %a, %b
+00000000000bbbbbaaaaattttt011011 div     %t, %a, %b
 0000000000000000aaaaa00000011111 jr      %a
-0000000000000000aaaaattttt011111 jalr    %d, %a
-iiiiiiiiiiibbbbbaaaaattttt011111 jalr    %d, %a, %i
-iiiiiiiiiiiiiiiiaaaaattttt100000 ldw     %d, %i(%a)
-iiiiiiiiiiiiiiiiaaaaattttt100001 ldh     %d, %i(%a)
-iiiiiiiiiiiiiiiiaaaaattttt100010 ldb     %d, %i(%a)
-iiiiiiiiiiiiiiii00000ttttt100011 ldx     %d, %i
-iiiiiiiiiiiiiiiiaaaaattttt100011 ldx     %d, %i(%a)
-iiiiiiiiiiiiiiiiaaaaattttt100100 lui     %d, %U
-iiiiiiiiiiiiiiiiaaaaattttt100101 ldhu    %d, %i(%a)
-iiiiiiiiiiiiiiiiaaaaattttt100110 ldbu    %d, %i(%a)
-iiiiiiiiiiiiiiiiaaaaattttt100111 auipc   %d, %U
-iiiiiiiiiiiiiiiiaaaaattttt101000 stw     %d, %i(%a)
-iiiiiiiiiiiiiiiiaaaaattttt101001 sth     %d, %i(%a)
-iiiiiiiiiiiiiiiiaaaaattttt101010 stb     %d, %i(%a)
-iiiiiiiiiiiiiiii00000ttttt101011 stx     %d, %i
-iiiiiiiiiiiiiiiiaaaaattttt101011 stx     %d, %i(%a)
+0000000000000000aaaaattttt011111 jalr    %t, %a
+iiiiiiiiiiibbbbbaaaaattttt011111 jalr    %t, %a, %i
+iiiiiiiiiiiiiiiiaaaaattttt100000 ldw     %t, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100001 ldh     %t, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100010 ldb     %t, %i(%a)
+iiiiiiiiiiiiiiii00000ttttt100011 ldx     %t, %i
+iiiiiiiiiiiiiiiiaaaaattttt100011 ldx     %t, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100100 lui     %t, %U
+iiiiiiiiiiiiiiiiaaaaattttt100101 ldhu    %t, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100110 ldbu    %t, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt100111 auipc   %t, %U
+iiiiiiiiiiiiiiiiaaaaattttt101000 stw     %t, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt101001 sth     %t, %i(%a)
+iiiiiiiiiiiiiiiiaaaaattttt101010 stb     %t, %i(%a)
+iiiiiiiiiiiiiiii00000ttttt101011 stx     %t, %i
+iiiiiiiiiiiiiiiiaaaaattttt101011 stx     %t, %i(%a)
 iiiiiiiiiiiiiiiiaaaaa00000110000 beqz    %a, %B
-iiiiiiiiiiiiiiiiaaaaabbbbb110000 beq     %a, %d, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110000 beq     %a, %t, %B
 iiiiiiiiiiiiiiiiaaaaa00000110001 bnez    %a, %B
-iiiiiiiiiiiiiiiiaaaaabbbbb110001 bne     %a, %d, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110001 bne     %a, %t, %B
 iiiiiiiiiiiiiiiiaaaaa00000110010 bltz    %a, %B
-iiiiiiiiiiiiiiii00000bbbbb110010 bgtz    %d, %B
-iiiiiiiiiiiiiiiiaaaaabbbbb110010 blt     %a, %d, %B
-iiiiiiiiiiiiiiiiaaaaabbbbb110011 bltu    %a, %d, %B
-iiiiiiiiiiiiiiii00000bbbbb110100 blez    %d, %B
+iiiiiiiiiiiiiiii00000bbbbb110010 bgtz    %t, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110010 blt     %a, %t, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110011 bltu    %a, %t, %B
+iiiiiiiiiiiiiiii00000bbbbb110100 blez    %t, %B
 iiiiiiiiiiiiiiiiaaaaa00000110100 bgez    %a, %B
-iiiiiiiiiiiiiiiiaaaaabbbbb110100 bge     %a, %d, %B
-iiiiiiiiiiiiiiiiaaaaabbbbb110101 bgeu    %a, %d, %B
-iiiiiiiiiiiiiiiiiiiii00000111000 j       %d, %J
-iiiiiiiiiiiiiiiiiiiii00001111000 call    %d, %J
-iiiiiiiiiiiiiiiiiiiiittttt111000 jal     %d, %J
+iiiiiiiiiiiiiiiiaaaaabbbbb110100 bge     %a, %t, %B
+iiiiiiiiiiiiiiiiaaaaabbbbb110101 bgeu    %a, %t, %B
+iiiiiiiiiiiiiiiiiiiii00000111000 j       %t, %J
+iiiiiiiiiiiiiiiiiiiii00001111000 call    %t, %J
+iiiiiiiiiiiiiiiiiiiiittttt111000 jal     %t, %J
 iiiiiiiiiiiiiiiiiiiiittttt111001 syscall %i
 iiiiiiiiiiiiiiiiiiiiittttt111010 break
 iiiiiiiiiiiiiiiiiiiiittttt111011 sysret

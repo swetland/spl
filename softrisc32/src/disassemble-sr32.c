@@ -47,7 +47,7 @@ void sr32dis(uint32_t pc, uint32_t ins, char *out) {
 		switch (*fmt++) {
 		case 'a': out = append_str(out, regname[get_ra(ins)]); break;
 		case 'b': out = append_str(out, regname[get_rb(ins)]); break;
-		case 'd': out = append_str(out, regname[get_rt(ins)]); break;
+		case 't': out = append_str(out, regname[get_rt(ins)]); break;
 		case 'i': out = append_i32(out, get_i16(ins)); break;
 		case 'u': out = append_u32(out, get_i16(ins)); break;
 		case 'j': out = append_i32(out, get_i21(ins)); break;
