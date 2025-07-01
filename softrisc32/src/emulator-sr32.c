@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
 
 	uint32_t sp = entry - 16;
 	uint32_t lr = sp;
-	mem_wr32(lr + 0, 0xfffd006b);
+	mem_wr32(lr + 0, 0xfffd002b);
 
 	uint32_t guest_argc = args;
 	uint32_t guest_argv = 0;
@@ -167,8 +167,8 @@ int main(int argc, char** argv) {
 	cs.pc = entry;
 	cs.r[1] = lr;
 	cs.r[2] = sp;
-	cs.r[4] = guest_argc;
-	cs.r[5] = guest_argv;
+	cs.r[10] = guest_argc;
+	cs.r[11] = guest_argv;
 
 	sr32core(&cs);
 	return 0;
