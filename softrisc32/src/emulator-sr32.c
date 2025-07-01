@@ -9,15 +9,6 @@
 
 #include <emulator-sr32.h>
 
-#define MAXDATA 1024
-uint32_t indata[MAXDATA];
-uint32_t incount = 0;
-uint32_t innext = 0;
-
-uint32_t outdata[MAXDATA];
-uint32_t outcount = 0;
-uint32_t outnext = 0;
-
 #define RAMSIZE   (8*1024*1024)
 #define RAMMASK8  (RAMSIZE - 1)
 #define RAMMASK32 (RAMMASK8 & (~3))
@@ -51,41 +42,24 @@ void *mem_dma(uint32_t addr, uint32_t len) {
 }
 
 uint32_t io_rd32(CpuState *cs, uint32_t addr) {
-	if (addr == -1) {
-		if (innext == incount) {
-			fprintf(stderr, "FAIL: PC=%08x: input data exhausted\n", cs->pc);
-			exit(1);
-		}
-		if (cs->flags & F_TRACE_IO) {
-			fprintf(stderr, "< %08x\n", indata[innext]);
-		}
-		return indata[innext++];
-	}
 	return 0;
 }
 
 void io_wr32(CpuState *cs, uint32_t addr, uint32_t val) {
 	switch (addr) {
 	case -1:
-		if (cs->flags & F_TRACE_IO) {
-			fprintf(stderr, "> %08x\n", val);
-		}
-		if (outnext == outcount) {
-			fprintf(stderr, "FAIL: output data overrun\n");
-			exit(1);
-		}
-		uint32_t data = outdata[outnext++];
-		if (data != val) {
-			fprintf(stderr, "FAIL: PC=%08x: output data %08x should be %08x\n", cs->pc, val, data);
-			exit(1);
-		}
-		break;
-	case -2: {
 		uint8_t x = val;
 		if (write(2, &x, 1) != 1) ;
 		break;
-	}
+	case -2:
+		break;
 	case -3:
+		if (val) {
+			fprintf(stderr, "%08x %08x %08x %08x\n",
+				cs->r[20], cs->r[21], cs->r[22], cs->r[23]);
+			fprintf(stderr, "FAIL: CODE: %08x\n", val);
+			exit(1);
+		}
 		exit(0);
 	}
 }
@@ -118,40 +92,6 @@ void load_hex_image(const char* fn) {
 	fclose(fp);
 }
 
-void load_test_data(const char *fn) {
-	char line[1024];
-	FILE *fp = fopen(fn, "r");
-	if (fp == NULL) {
-		fprintf(stderr, "emu: cannot open: %s\n", fn);
-		exit(1);
-	}
-	while (fgets(line, sizeof(line), fp) != NULL) {
-		char *x;
-		uint32_t n;
-		if ((x = strstr(line, "//>"))) {
-			x += 3;
-			for (;;) {
-				n = strtoul(x, &x, 0);
-				outdata[outcount++] = n;
-				x = strchr(x, ',');
-				if (x == NULL) break;
-				x++;
-			}
-		}
-		if ((x = strstr(line, "//<"))) {
-			x += 3;
-			for (;;) {
-				n = strtoul(x, &x, 0);
-				indata[incount++] = n;
-				x = strchr(x, ',');
-				if (x == NULL) break;
-				x++;
-			}
-		}
-	}
-	fclose(fp);
-}
-
 void usage(int status) {
 	fprintf(stderr,
 		"usage:    emu <options> <image.hex> <arguments>\n"
@@ -173,12 +113,7 @@ int main(int argc, char** argv) {
 	memset(emu_ram, 0, sizeof(emu_ram));
 
 	while (argc > 1) {
-		if (!strcmp(argv[1], "-x")) {
-			if (argc < 3) usage(1);
-			load_test_data(argv[2]);
-			argc--;
-			argv++;
-		} else if (!strcmp(argv[1], "-tf")) {
+		if (!strcmp(argv[1], "-tf")) {
 			cs.flags |= F_TRACE_FETCH;
 		} else if (!strcmp(argv[1], "-tr")) {
 			cs.flags |= F_TRACE_REGS;
