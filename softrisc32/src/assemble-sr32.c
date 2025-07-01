@@ -683,7 +683,7 @@ int parse_line(State *s) {
 		break;
 	case tMV:
 		parse_2r(s, &t, &a);
-		emit(ins_r(IR_ADD, t, a, 0, 0));
+		emit(ins_i(IR_ADD, t, a, 0));
 		break;
 	case tLI:
 		parse_r_c(s, &t);
