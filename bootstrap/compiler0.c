@@ -181,6 +181,20 @@ String *string_make(const char* text, u32 len) {
 	return str;
 }
 
+String *string_make_n(const char* s, ...) {
+	va_list ap;
+	va_start(ap, s);
+	char text[1024];
+	char *next = text;
+	do {
+		size_t len = strlen(s);
+		memcpy(next, s, len);
+		next += len;
+	} while ((s = va_arg(ap, const char*)) != NULL);
+	va_end(ap);
+	return string_make(text, next - text);
+}
+
 Scope *scope_push(u32 kind) {
 	Scope *scope = malloc(sizeof(Scope));
 	scope->first = nil;
@@ -1458,10 +1472,24 @@ Symbol *parse_param(String *fname) {
 }
 
 void parse_function(void) {
-	String *fname = parse_name("function name");
+	String *fname = NULL;
 	Type *rtype = ctx.type_void;
 
 	scope_push(SCOPE_FUNC);
+
+	if (ctx.tok == tOPAREN) {
+		// ( Type self ) method ( ...
+		next();
+		String *pname = parse_name("self parameter name");
+		Type *mtype = parse_type(false);
+		symbol_make(pname, mtype);
+		require(tCPAREN);
+		fname = parse_name("method name");
+		// mangle full method name
+		fname = string_make_n(mtype->name->text, "$", fname->text, NULL);
+	} else {
+		fname = parse_name("function name");
+	}
 
 	require(tOPAREN);
 	if (ctx.tok != tCPAREN) {
