@@ -1328,6 +1328,7 @@ void parse_struct_init(Symbol *var) {
 			}
 			field = field->next;
 		}
+		emit_impl(".%s = ", field->name->text);
 		require(tCOLON);
 		if (ctx.tok == tOBRACE) {
 			next();
