@@ -528,7 +528,7 @@ fn parse_block() Ast {
 	return block;
 }
 
-fn parse_param(fname String) Symbol {
+fn parse_param() Symbol {
 	var pname String = parse_name("parameter name");
 	var ptype Type = parse_type(false);
 	if symbol_find(pname) != nil {
@@ -550,18 +550,26 @@ fn parse_fn_body(sym Symbol) Ast {
 }
 
 fn parse_fn() Ast {
+	scope_push(SCOPE_FUNC);
+
+	if ctx.tok == tOPAREN {
+		next();
+		// (self SelfType) ...
+		parse_param();
+		require(tCPAREN);
+		// TODO: mark node as method somehow
+	}
+
 	var fname String = parse_name("function name");
 	var rtype Type = ctx.type_void;
-
-	scope_push(SCOPE_FUNC);
 
 	require(tOPAREN);
 	var n u32 = 0;
 	if ctx.tok != tCPAREN {
-		parse_param(fname);
+		parse_param();
 		while ctx.tok == tCOMMA {
 			next();
-			parse_param(fname);
+			parse_param();
 		}
 		n++;
 	}
