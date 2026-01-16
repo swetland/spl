@@ -957,17 +957,24 @@ void parse_ident(void) {
 	Symbol *sym = symbol_find(name);
 	next();
 
-	if ((sym == nil) && (ctx.tok != tOPAREN)) {
+	if (!strcmp(name->text, "error")) {
+		require(tOPAREN);
+		parse_va_call("error");
+		return;
+	}
+
+	if (sym == nil) {
 		error("undefined identifier '%s'", name->text);
+	}
+
+	if (sym->kind == SYMBOL_DEF) {
+		emit_impl("c$%s", sym->name->text);
+		return;
 	}
 
 	if (ctx.tok == tOPAREN) {
 		// function call
 		next();
-		if (!strcmp(name->text, "error")) {
-			parse_va_call("error");
-			return;
-		}
 		emit_impl("fn_%s(", name->text);
 		while (ctx.tok != tCPAREN) {
 			parse_expr();
@@ -980,11 +987,7 @@ void parse_ident(void) {
 		emit_impl(")");
 	} else {
 		// variable access
-		if (sym->kind == SYMBOL_DEF) {
-			emit_impl("c$%s", sym->name->text);
-		} else {
-			emit_impl("$%s", sym->name->text);
-		}
+		emit_impl("$%s", sym->name->text);
 	}
 
 	while (1) {
@@ -1502,8 +1505,20 @@ void parse_function(void) {
 	}
 	require(tCPAREN);
 
-	if (ctx.tok != tOBRACE) {
+	if ((ctx.tok != tOBRACE) && (ctx.tok != tSEMI)) {
 		rtype = parse_type(false);
+	}
+
+	// TODO: more complete type if needed...
+	// TODO: consider ensuring impl-after-decl matches
+	Symbol *sym = symbol_make_global(fname, rtype);
+	sym->kind = SYMBOL_FN;
+
+	if (ctx.tok == tSEMI) {
+		// forward decl only
+		next();
+		scope_pop();
+		return;
 	}
 
 	emit_decl("t$%s%s fn_%s(", rtype->name->text, 
@@ -1522,10 +1537,6 @@ void parse_function(void) {
 	}
 	emit_decl("%s);\n", ctx.scope->first ? "" : "t$void");
 	emit_impl("%s) {\n", ctx.scope->first ? "" : "t$void");
-
-	// TODO: more complete type if needed...
-	Symbol *sym = symbol_make_global(fname, rtype);
-	sym->kind = SYMBOL_FN;
 
 	require(tOBRACE);
 
