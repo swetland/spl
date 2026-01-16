@@ -579,18 +579,23 @@ fn parse_fn() Ast {
 	}
 	require(tCPAREN);
 
-	if ctx.tok != tOBRACE {
+	if (ctx.tok != tOBRACE) && (ctx.tok != tSEMI) {
 		rtype = parse_type(false);
 	}
 
 	var sym Symbol = symbol_make_global(fname, rtype);
 	sym.kind = SYMBOL_FN;
 	sym.type = type_make(fname, TYPE_FN, rtype, nil, n);
-
 	var node Ast = ast_make_simple(AST_FUNC, 0);
 	node.name = fname;
 	node.sym = sym;
-	node.right = parse_fn_body(sym);
+
+	// TODO: differentiated handling for fwd / actual decls
+	if ctx.tok == tSEMI {
+		next();
+	} else {
+		node.right = parse_fn_body(sym);
+	}
 
 	// save parameters
 	sym.type.list = scope_pop();
