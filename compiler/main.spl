@@ -11,6 +11,8 @@ fn print_indent(fd i32) {
 	}
 }
 
+fn dump_ast_node(fd i32, node Ast);
+
 fn _dump_ast_node(fd i32, node Ast) {
 	var kind AstKind = node.kind;
 
@@ -39,7 +41,7 @@ fn _dump_ast_node(fd i32, node Ast) {
 		writes(fd, node.name.text);
 	}
 	writes(fd, "\n");
-	
+
 	dump_ast_node(fd, node.left);
 	dump_ast_node(fd, node.right);
 	indent = indent - 1;

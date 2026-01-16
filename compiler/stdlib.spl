@@ -1,6 +1,20 @@
 // Copyright 2023, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
+fn writec(fd i32, n u32);
+fn fd_open(path str);
+fn fd_close(fd i32);
+
+fn readc(fd i32);
+fn writes(fd i32, s str);
+fn writei(fd i32, n u32);
+fn writex(fd i32, n u32);
+
+fn os_exit(n i32);
+
+fn os_arg(n u32) str;
+fn os_arg_count() u32;
+
 fn strneq(s1 str, s2 str, len u32) bool {
 	var n u32 = 0;
 	while n < len {

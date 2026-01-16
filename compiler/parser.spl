@@ -19,6 +19,10 @@ fn require(tok Token) {
 	next();
 }
 
+fn parse_expr() Ast;
+fn parse_block() Ast;
+fn parse_type(fwd_ref_ok u32) Type;
+
 fn parse_name(what str) String {
 	if ctx.tok != tIDN {
 		expected(what);
