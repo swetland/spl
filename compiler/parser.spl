@@ -5,7 +5,7 @@
 // parser
 
 fn expected(what str) {
-	error("expected ", what, ", found ", @str tnames[ctx.tok]);
+	Error("expected @, found @").s(what).s(tnames[ctx.tok]);
 }
 
 fn expect(tok Token) {
@@ -38,46 +38,60 @@ fn parse_symbol(what str) Ast {
 	return ast_make_symbol(name, sym);
 }
 
+fn parse_fcall(node Ast, self Ast) Ast {
+	// function call for fname/mname node, optional self param self
+	next();
+	node = ast_make_l(AST_CALL, node);
+	var last Ast = nil;
+
+	if self != nil {
+		node.right = self;
+		last = self;
+	}
+	while ctx.tok != tCPAREN {
+		if ctx.tok == tAT {
+			// type annotation for varargs hack
+			next();
+			parse_type(false);
+		}
+
+		var expr Ast = parse_expr();
+		if last != nil {
+			last.next = expr;
+		} else {
+			node.right = expr;
+		}
+		last = expr;
+
+		if ctx.tok != tCPAREN {
+			require(tCOMMA);
+		}
+	}
+	next();
+	return node;
+}
+
 fn parse_ident() Ast {
 	var node Ast = parse_symbol("identifier");
 
 	if (node.sym == nil) && (ctx.tok != tOPAREN) {
-		error("undefined identifier '", @str node.name.text, "'");
+		Error("undefined identifier '@'").s(node.name.text);
 	}
 
 	if ctx.tok == tOPAREN {
-		// function call
-		next();
-		node = ast_make_l(AST_CALL, node);
-		var last Ast = nil;
-
-		while ctx.tok != tCPAREN {
-			if ctx.tok == tAT {
-				// type annotation for varargs hack
-				next();
-				parse_type(false);
-			}
-
-			var expr Ast = parse_expr();
-			if last != nil {
-				last.next = expr;
-			} else {
-				node.right = expr;
-			}
-			last = expr;
-
-			if ctx.tok != tCPAREN {
-				require(tCOMMA);
-			}
-		}
-		next();
+		node = parse_fcall(node, nil);
 	}
 
 	while true {
 		if ctx.tok == tDOT {
 			// field access
 			next();
-			node = ast_make_lr(AST_FIELD, node, parse_symbol("field name"));
+			var name Ast = parse_symbol("field or method name");
+			if ctx.tok == tOPAREN {
+				node = parse_fcall(name, node);
+			} else {
+				node = ast_make_lr(AST_FIELD, node, name);
+			}
 		} else if ctx.tok == tOBRACK {
 			// array access
 			next();
@@ -122,7 +136,7 @@ fn parse_primary_expr() Ast {
 	} else if ctx.tok == tIDN {
 		node = parse_ident();
 	} else {
-		error("invalid expression");
+		Error("invalid expression");
 	}
 	return node;
 }
@@ -142,7 +156,7 @@ fn parse_unary_expr() Ast {
 		next();
 		return ast_make_l(AST_NOT, parse_unary_expr());
 	} else if op == tAMP {
-		error("dereference not supported");
+		Error("dereference not supported");
 		//next();
 		//parse_unary_expr();
 	} else {
@@ -213,7 +227,7 @@ fn parse_struct_type(name String) Type {
 			// resolve forward ref
 			type.kind = TYPE_STRUCT;
 		} else {
-			error("cannot redefine struct '", @str name.text, "'");
+			Error("cannot redefine struct '@'").s(name.text);
 		}
 	};
 	scope_push(SCOPE_STRUCT);
@@ -250,7 +264,7 @@ fn parse_array_type() Type {
 		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, 0);
 	} else {
 		if ctx.tok != tNUM {
-			error("array size must be numeric");
+			Error("array size must be numeric");
 		}
 		nelem = ctx.num;
 		next();
@@ -263,18 +277,18 @@ fn parse_array_type() Type {
 
 fn parse_type(fwd_ref_ok u32) Type {
 	if ctx.tok == tSTAR { // pointer-to
-		error("pointer types not supported");
+		Error("pointer types not supported");
 		//next();
 		//return type_make(nil, TYPE_POINTER, parse_type(true), nil, 0);
 	} else if ctx.tok == tOBRACK { // array-of
 		next();
 		return parse_array_type();
 	} else if ctx.tok == tFN {
-		error("func types not supported");
+		Error("func types not supported");
 		//next();
 		//return parse_func_type();
 	} else if ctx.tok == tSTRUCT {
-		error ("anonymous struct types not supported");
+		Error ("anonymous struct types not supported");
 		//next();
 		//return parse_struct_type(nil);
 	} else if ctx.tok == tIDN {
@@ -285,7 +299,7 @@ fn parse_type(fwd_ref_ok u32) Type {
 			if fwd_ref_ok {
 				type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
 			} else {
-				error("undefined type '", @str name.text, "' not usable here");
+				Error("undefined type '@' not usable here").s(name.text);
 			}
 		}
 		return type;
@@ -349,7 +363,7 @@ fn parse_return() Ast {
 	if ctx.tok == tSEMI {
 		next();
 	} else {
-		//	error("return types do not match");
+		//	Error("return types do not match");
 		node.left = parse_expr();
 		require(tSEMI);
 	}
@@ -360,7 +374,7 @@ fn parse_break() Ast {
 	// TODO: break-to-labeled-loop support
 	var scope Scope = scope_find(SCOPE_LOOP);
 	if scope == nil {
-		error("break must be used from inside a looping construct");
+		Error("break must be used from inside a looping construct");
 	}
 	require(tSEMI);
 	return ast_make_simple(AST_BREAK, 0);
@@ -370,7 +384,7 @@ fn parse_continue() Ast {
 	// TODO: continue-to-labeled-loop support
 	var scope Scope = scope_find(SCOPE_LOOP);
 	if scope == nil {
-		error("continue must be used from inside a looping construct");
+		Error("continue must be used from inside a looping construct");
 	}
 	require(tSEMI);
 	return ast_make_simple(AST_CONTINUE, 0);
@@ -386,7 +400,7 @@ fn parse_struct_init(sym Symbol) {
 		var field Symbol = sym.type.list;
 		while true { // TODO: field_find
 			if field == nil {
-				error("structure has no '", @str name.text, "' field");
+				Error("structure has no '@' field").s(name.text);
 			}
 			if field.name == name {
 				break;
@@ -435,8 +449,7 @@ fn parse_var() {
 			} else if type.kind == TYPE_ARRAY {
 				parse_array_init(sym);
 			} else {
-				error("type ", @str type.name.text,
-					" cannot be initialized with {} expr");
+				Error("type @ cannot be initialized with {} expr").s(type.name.text);
 			}
 		} else {
 			parse_expr();
@@ -535,8 +548,10 @@ fn parse_block() Ast {
 fn parse_param() Symbol {
 	var pname String = parse_name("parameter name");
 	var ptype Type = parse_type(false);
-	if symbol_find(pname) != nil {
-		error("duplicate parameter name '", @str pname.text, "'");
+	// check only in current scope to avoid errors
+	// about pnames that mask globals (which is allowed)
+	if symbol_find_in(pname, ctx.scope) != nil {
+		Error("duplicate parameter name '@'").s(pname.text);
 	}
 	return symbol_make(pname, ptype);
 }
@@ -615,7 +630,7 @@ fn parse_enum_def() {
 		var name String = parse_name("enum tag name");
 		var sym Symbol = symbol_find(name);
 		if sym != nil {
-			error("cannot redfine '", @str name.text, "' as enum tag");
+			Error("cannot redfine '@' as enum tag").s(name.text);
 		}
 		sym = symbol_make_global(name, ctx.type_u32);
 		sym.kind = SYMBOL_DEF;

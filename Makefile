@@ -14,7 +14,7 @@ out/compiler0: bootstrap/compiler0.c
 
 # compiler1: SPL compiler written in SPL
 #
-COMPILER_SRC := compiler/stdlib.spl compiler/types.spl compiler/lexer.spl compiler/parser.spl compiler/main.spl
+COMPILER_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl compiler/lexer.spl compiler/parser.spl compiler/main.spl
 
 out/compiler1: ./out/compiler0 $(COMPILER_SRC)
 	@echo ''

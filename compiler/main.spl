@@ -72,11 +72,11 @@ fn start() i32 {
 	while n < os_arg_count() {
 		var arg str = os_arg(n);
 		if arg[0] == '-' {
-			error("unsupported option '", arg, "'");
+			Error("unsupported option '@'").s(arg);
 		}
 		ctx.fd_in = fd_open(arg);
 		if ctx.fd_in == -1 {
-			error("cannot open '", arg, "'");
+			Error("cannot open '@'").s(arg);
 		}
 		ctx.linenumber = 1;
 		ctx.filename = arg;

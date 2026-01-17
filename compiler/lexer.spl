@@ -107,11 +107,11 @@ fn unescape(n u32) u32 {
 		var x0 u32 = unhex(scan());
 		var x1 u32 = unhex(scan());
 		if (x0 < 0) || (x1 < 0) {
-			error("invalid hex escape");
+			Error("invalid hex escape");
 		}
 		return (x0 << 4) | x1;
 	} else {
-		error("invalid escape ", n);
+		Error("invalid escape ").n(n);
 		return 0;
 	}
 }
@@ -123,7 +123,7 @@ fn scan_string(cc u32, nc u32) Token {
 			nc = scan();
 			break;
 		} else if nc == 0 {
-			error("unterminated string");
+			Error("unterminated string");
 		} else if nc == '\\' {
 			ctx.tmp[n] = unescape(scan());
 		} else {
@@ -132,7 +132,7 @@ fn scan_string(cc u32, nc u32) Token {
 		nc = scan();
 		n++;
 		if n == 255 {
-			error("constant string too large");
+			Error("constant string too large");
 		}
 	}
 	ctx.tmp[n] = 0;
@@ -182,7 +182,7 @@ fn scan_number(cc u32, nc u32) Token {
 			nc = scan();
 			n++;
 			if (n == 34) {
-				error("binary constant too large");
+				Error("binary constant too large");
 			}
 		}
 	} else if (cc == '0') && (nc == 'x') { // hex
@@ -196,14 +196,14 @@ fn scan_number(cc u32, nc u32) Token {
 			nc = scan();
 			n++;
 			if n == 10 {
-				error("hex constant too large");
+				Error("hex constant too large");
 			}
 		}
 	} else { // decimal
 		while lextab[nc] == tNUM {
 			var tmp u32 = (val * 10) + (nc - '0');
 			if tmp <= val {
-				error("decimal constant too large");
+				Error("decimal constant too large");
 			}
 			val = tmp;
 			nc = scan();
@@ -223,7 +223,7 @@ fn scan_ident(cc u32, nc u32) Token {
 		if (tok == tIDN) || (tok == tNUM) {
 			ctx.tmp[n] = nc;
 			n++;
-			if (n == 32) { error("identifier too large"); }
+			if (n == 32) { Error("identifier too large"); }
 			nc = scan();
 		} else {
 			break;
@@ -251,7 +251,7 @@ fn _next() Token {
 			}
 			nc = scan();
 			if nc != '\'' {
-				error("unterminated character constant");
+				Error("unterminated character constant");
 			}
 			nc = scan();
 			return tNUM;
@@ -291,7 +291,7 @@ fn _next() Token {
 		} else if tok == tSPC {
 			continue;
 		} else if (tok == tMSC) || (tok == tINV) {
-			error("unknown character ", @u32 cc);
+			Error("unknown character @").n(cc);
 		}
 
 		// if we're an AddOp or MulOp, followed by an '='

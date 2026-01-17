@@ -1,0 +1,215 @@
+// Copyright 2023, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+// tools for strings, symbols, and ASTs
+
+fn string_make(text str, len u32) String {
+	var s String = ctx.stringlist;
+	while s != nil {
+		if (s.len == len) && strneq(text, s.text, len) {
+			return s;
+		}
+		s = s.next;
+	}
+	s = new(String);
+	s.len = len;
+	strcpyn(s.text, text, len + 1);
+	s.next = ctx.stringlist;
+	ctx.stringlist = s;
+	return s;
+}
+
+fn scope_push(kind ScopeKind) Scope {
+	var scope Scope = new(Scope);
+	scope.first = nil;
+	scope.last = nil;
+	scope.parent = ctx.scope;
+	scope.kind = kind;
+	ctx.scope = scope;
+	return scope;
+}
+
+// returns symbol list for the popped scope
+fn scope_pop() Symbol {
+	var scope Scope = ctx.scope;
+	ctx.scope = scope.parent;
+	return scope.first;
+}
+
+fn scope_find(kind ScopeKind) Scope {
+	var scope Scope = ctx.scope;
+	while scope != nil {
+		if scope.kind == kind {
+			return scope;
+		}
+		scope = scope.parent;
+	}
+	return nil;
+}
+
+fn symbol_find_in(name String, scope Scope) Symbol {
+	var sym Symbol = scope.first;
+	while sym != nil {
+		if sym.name == name {
+			return sym;
+		}
+		sym = sym.next;
+	}
+	return nil;
+}
+
+// find the first surrounding scope of a specified kind
+fn symbol_find(name String) Symbol {
+	var scope Scope = ctx.scope;
+	while scope != nil {
+		var sym Symbol = symbol_find_in(name, scope);
+		if sym != nil {
+			return sym;
+		}
+		scope = scope.parent;
+	}
+	return nil;
+}
+
+fn symbol_make_in_scope(name String, type Type, scope Scope) Symbol {
+	var sym Symbol = new(Symbol);
+	sym.name = name;
+	sym.type = type;
+	sym.next = nil;
+	sym.kind = SYMBOL_VAR;
+	if scope.first == nil {
+		scope.first = sym;
+	} else {
+		scope.last.next = sym;
+	}
+	scope.last = sym;
+	return sym;
+}
+
+fn symbol_make_global(name String, type Type) Symbol {
+	return symbol_make_in_scope(name, type, ctx.global);
+}
+
+fn symbol_make(name String, type Type) Symbol {
+	return symbol_make_in_scope(name, type, ctx.scope);
+}
+
+fn type_make(name String, kind TypeKind, of Type, list Symbol, count u32) Type {
+	var type Type = new(Type);
+	type.name = name;
+	type.of = of;
+	type.list = list;
+	type.kind = kind;
+	type.count = count;
+	if name != nil {
+		type.next = ctx.typelist;
+		ctx.typelist = type;
+	} else {
+		type.next = nil;
+	}
+	return type;
+}
+
+fn type_find(name String) Type {
+	var t Type = ctx.typelist;
+	while t != nil {
+		if t.name == name {
+			return t;
+		}
+		t = t.next;
+	}
+	return nil;
+}
+
+fn type_find_field(type Type, name String) Symbol {
+	if type.kind != TYPE_STRUCT {
+		Error("not a struct");
+	}
+	var s Symbol = type.list;
+	while s != nil {
+		if s.name == name {
+			return s;
+		}
+		s = s.next;
+	}
+	Error("struct has no such field '@'").s(name.text);
+	return nil;
+}
+
+fn ast_make(kind AstKind, ival u32, name String, sym Symbol, type Type) Ast {
+	var node Ast = new(Ast);
+	node.kind = kind;
+	node.ival = ival;
+	node.name = name;
+	node.sym = sym;
+	node.type = type;
+	node.srcloc = ctx.linenumber;
+	return node;
+}
+
+fn ast_make_lr(kind AstKind, left Ast, right Ast) Ast {
+	var node Ast = ast_make(kind, 0, nil, nil, nil);
+	node.left = left;
+	node.right = right;
+	return node;
+}
+
+fn ast_make_l(kind AstKind, child Ast) Ast {
+	var node Ast = ast_make(kind, 0, nil, nil, nil);
+	node.left = child;
+	return node;
+}
+
+fn ast_make_simple(kind AstKind, x u32) Ast {
+	return ast_make(kind, x, nil, nil, nil);
+}
+
+fn ast_make_const(value u32, type Type) Ast {
+	return ast_make(AST_CONST, value, nil, nil, type);
+}
+
+fn ast_make_symbol(name String, sym Symbol) Ast {
+	// TODO maybe handle nil sym differently?
+	var type Type = nil;
+	if sym != nil {
+		type = sym.type;
+	}
+	return ast_make(AST_SYMBOL, 0, name, sym, type);
+}
+
+fn ctx_init() {
+	ctx = new(Context);
+
+	ctx.idn_if       = string_make("if", 2);
+	ctx.idn_fn       = string_make("fn", 2);
+	ctx.idn_for      = string_make("for", 3);
+	ctx.idn_var      = string_make("var", 3);
+	ctx.idn_nil      = string_make("nil", 3);
+	ctx.idn_new      = string_make("new", 3);
+	ctx.idn_case     = string_make("case", 4);
+	ctx.idn_else     = string_make("else", 4);
+	ctx.idn_enum     = string_make("enum", 4);
+	ctx.idn_true     = string_make("true", 4);
+	ctx.idn_break    = string_make("break", 5);
+	ctx.idn_while    = string_make("while", 5);
+	ctx.idn_false    = string_make("false", 5);
+	ctx.idn_switch   = string_make("switch", 6);
+	ctx.idn_struct   = string_make("struct", 6);
+	ctx.idn_return   = string_make("return", 6);
+	ctx.idn_continue = string_make("continue", 8);
+
+	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
+	ctx.type_bool    = type_make(string_make("bool", 4), TYPE_BOOL, nil, nil, 0);
+	ctx.type_nil     = type_make(string_make("nil", 3),  TYPE_NIL,  nil, nil, 0);
+	ctx.type_str     = type_make(string_make("str", 3),  TYPE_STR,  nil, nil, 0);
+	ctx.type_u32     = type_make(string_make("u32", 3),  TYPE_U32,  nil, nil, 0);
+	ctx.type_i32     = type_make(string_make("i32", 3),  TYPE_I32,  nil, nil, 0);
+	ctx.type_u8      = type_make(string_make("u8", 2),   TYPE_U8,   nil, nil, 0);
+
+	scope_push(SCOPE_GLOBAL);
+	ctx.global = ctx.scope;
+
+	ctx.linenumber = 1;
+	ctx.filename = "<stdin>";
+}
+
