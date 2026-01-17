@@ -1,0 +1,62 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+struct ErrorStream {
+	msg str,
+	idx u32,
+};
+
+fn es_prologue() {
+	writes(2, "\n");
+	writes(2, ctx.filename);
+	writes(2, ":");
+	writei(2, ctx.linenumber);
+	writes(2, ": error: ");
+}
+
+fn es_advance(s ErrorStream) {
+	var n u32 = s.idx;
+	while (s.msg[n] != 0) && (s.msg[n] != '@') {
+		n++;
+	}
+	if n - s.idx != 0 {
+		write(2, s.msg, s.idx, n - s.idx);
+		if s.msg[n] == '@' {
+			s.idx = n + 1;
+			return;
+		}
+		s.idx = n;
+	}
+	if s.msg[n] == 0 {
+		writec(2, '\n');
+		os_exit(1);
+	}
+}
+
+fn (self ErrorStream) s(x str) ErrorStream {
+	writes(2, x);
+	es_advance(self);
+	return self;
+}
+
+fn (self ErrorStream) n(n i32) ErrorStream {
+	writei(2, n);
+	es_advance(self);
+	return self;
+}
+
+fn (self ErrorStream) x(n u32) ErrorStream {
+	writex(2, n);
+	es_advance(self);
+	return self;
+}
+
+fn Error(msg str) ErrorStream {
+	var s ErrorStream = new(ErrorStream);
+	s.msg = msg;
+	s.idx = 0;
+	es_prologue();
+	es_advance(s);
+	return s;
+}
+
