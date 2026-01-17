@@ -950,6 +950,65 @@ void parse_va_call(const char* fn) {
 	}
 	next();
 	emit_impl(" fn_%s_end(); })", fn);
+	emit_impl(";\n");
+}
+
+void parse_fn_call(String *name, int n) {
+	emit_impl("fn_%s(", name->text);
+	if (n > 0) {
+		emit_impl("$$%d%s", n - 1, ctx.tok == tCPAREN ? "" : ", ");
+	}
+	while (ctx.tok != tCPAREN) {
+		parse_expr();
+		if (ctx.tok != tCPAREN) {
+			require(tCOMMA);
+			emit_impl(", ");
+		}
+	}
+	next();
+	emit_impl(")");
+}
+
+// special handling for statements that are function calls
+// allows for chained method calls sufficient for stuff like:
+// error("cannot read @, code @").s(filename).n(status);
+void parse_fn_statement(Symbol *sym) {
+	next();
+	Type *type = sym->type;
+	int isvoid = (type->kind == TYPE_VOID);
+	int n = 0;
+
+	if (!isvoid) {
+		// stash retval in a temporary in case we need it
+		emit_impl("{ t$%s%s $$%d = ", type->name->text, type->kind == TYPE_STRUCT ? "*" : "", n);
+	}
+	goto first;
+
+	while (ctx.tok == tDOT) {
+		next();
+		if (ctx.tok != tIDN) {
+			error("expected method name");
+		}
+		// mangle full method name
+		String *mname = string_make_n(type->name->text, "$", ctx.ident->text, NULL);
+
+		sym = symbol_find(mname);
+		if (sym == nil) {
+			error("unknown method %s", mname->text);
+		}
+		type = sym->type;
+		next();
+		n++;
+		emit_impl("; t$%s%s $$%d = ", type->name->text, type->kind == TYPE_STRUCT ? "*" : "", n);
+first:
+		require(tOPAREN);
+		parse_fn_call(sym->name, n);
+	}
+
+	if (!isvoid) {
+		emit_impl("; }");
+	}
+	emit_impl(";\n");
 }
 
 void parse_ident(void) {
@@ -957,16 +1016,9 @@ void parse_ident(void) {
 	Symbol *sym = symbol_find(name);
 	next();
 
-	if (!strcmp(name->text, "error")) {
-		require(tOPAREN);
-		parse_va_call("error");
-		return;
-	}
-
 	if (sym == nil) {
 		error("undefined identifier '%s'", name->text);
 	}
-
 	if (sym->kind == SYMBOL_DEF) {
 		emit_impl("c$%s", sym->name->text);
 		return;
@@ -975,16 +1027,7 @@ void parse_ident(void) {
 	if (ctx.tok == tOPAREN) {
 		// function call
 		next();
-		emit_impl("fn_%s(", name->text);
-		while (ctx.tok != tCPAREN) {
-			parse_expr();
-			if (ctx.tok != tCPAREN) {
-				require(tCOMMA);
-				emit_impl(", ");
-			}
-		}
-		next();
-		emit_impl(")");
+		parse_fn_call(name, 0);
 	} else {
 		// variable access
 		emit_impl("$%s", sym->name->text);
@@ -1454,6 +1497,19 @@ void parse_block(void) {
 			// empty statement
 			continue;
 		} else {
+			if (ctx.tok == tIDN) {
+				if (!strcmp(ctx.ident->text, "error")) {
+					next();
+					require(tOPAREN);
+					parse_va_call("error");
+					continue;
+				}
+				Symbol *sym = symbol_find(ctx.ident);
+				if ((sym != nil) && (sym->kind == SYMBOL_FN)) {
+					parse_fn_statement(sym);
+					continue;
+				}
+			}
 			parse_expr_statement();
 		}
 	}

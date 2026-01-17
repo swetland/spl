@@ -21,7 +21,7 @@ out/compiler1: ./out/compiler0 $(COMPILER_SRC)
 	@echo '### BUILDING STAGE 1 COMPILER USING TRANSPILER ###'
 	@mkdir -p out/ out/compiler
 	./out/compiler0 -o out/compiler/compiler $(COMPILER_SRC)
-	gcc -g -O0 -Wall -I. -Ibootstrap/inc -Iout -o $@ out/compiler/compiler.impl.c	
+	gcc -g -O0 -Wall -Wno-unused-variable -I. -Ibootstrap/inc -Iout -o $@ out/compiler/compiler.impl.c
 
 # compiler2: SPL compiler written in SPL, compiled by compiler1
 #
