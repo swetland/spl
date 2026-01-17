@@ -49,12 +49,6 @@ fn parse_fcall(node Ast, self Ast) Ast {
 		last = self;
 	}
 	while ctx.tok != tCPAREN {
-		if ctx.tok == tAT {
-			// type annotation for varargs hack
-			next();
-			parse_type(false);
-		}
-
 		var expr Ast = parse_expr();
 		if last != nil {
 			last.next = expr;

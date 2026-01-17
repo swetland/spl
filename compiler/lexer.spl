@@ -1,20 +1,6 @@
 // Copyright 2023, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-fn error_begin() i32 {
-	writes(2, "\n");
-	writes(2, ctx.filename);
-	writes(2, ":");
-	writei(2, ctx.linenumber);
-	writes(2, ": error: ");
-	return 2;
-}
-
-fn error_end() {
-	writes(2, "\n");
-	os_exit(1);
-}
-
 // ================================================================
 // lexical scanner
 
