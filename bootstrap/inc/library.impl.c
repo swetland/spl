@@ -8,6 +8,10 @@ void fn__hexout_(int x) {
 	printf("D %08x\n", x);
 }
 
+void fn_write(int fd, t$str s, unsigned off, unsigned len) {
+	write(fd, (void*) (s + off), len);
+}
+
 void fn_writes(int fd, t$str s) {
 	write(fd, (void*)s, strlen((void*) s));
 }

@@ -9,6 +9,7 @@ fn readc(fd i32);
 fn writes(fd i32, s str);
 fn writei(fd i32, n u32);
 fn writex(fd i32, n u32);
+fn write(fd i32, s str, off u32, len u32);
 
 fn os_exit(n i32);
 
