@@ -919,40 +919,6 @@ int is_type(const char* typename) {
 	return !strcmp(sym->type->name->text, typename);
 }
 
-// cheesy varargs for a few special purpose functions
-void parse_va_call(const char* fn) {
-	emit_impl("({ int fd = fn_%s_begin();", fn);
-	while (ctx.tok != tCPAREN) {
-		if (ctx.tok == tAT) {
-			next();
-			Type *type = parse_type(false);
-			if (type == ctx.type_str) {
-				emit_impl(" fn_writes(fd,");
-			} else if (type == ctx.type_u32) {
-				emit_impl(" fn_writex(fd,");
-			} else if (type == ctx.type_i32) {
-				emit_impl(" fn_writei(fd,");
-			} else {
-				error("unsupported type '%s'", type->name->text);
-			}
-		} else if (ctx.tok == tSTR) {
-			emit_impl(" fn_writes(fd,");
-		} else if (ctx.tok == tIDN) {
-			emit_impl(" fn_write%s(fd,", is_type("str") ? "s" : "x");
-		} else {
-			emit_impl(" fn_writex(fd,");
-		}
-		parse_expr();
-		emit_impl(");");
-		if (ctx.tok != tCPAREN) {
-			require(tCOMMA);
-		}
-	}
-	next();
-	emit_impl(" fn_%s_end(); })", fn);
-	emit_impl(";\n");
-}
-
 void parse_fn_call(String *name, int n) {
 	emit_impl("fn_%s(", name->text);
 	if (n > 0) {
@@ -1498,12 +1464,6 @@ void parse_block(void) {
 			continue;
 		} else {
 			if (ctx.tok == tIDN) {
-				if (!strcmp(ctx.ident->text, "error")) {
-					next();
-					require(tOPAREN);
-					parse_va_call("error");
-					continue;
-				}
 				Symbol *sym = symbol_find(ctx.ident);
 				if ((sym != nil) && (sym->kind == SYMBOL_FN)) {
 					parse_fn_statement(sym);
