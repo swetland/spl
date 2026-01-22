@@ -31,7 +31,7 @@ typedef struct {
 } sr32ins_t;
 
 static sr32ins_t instab[] = {
-#include <instab.h>
+#include <instab-sr32.h>
 };
 
 void sr32dis(uint32_t pc, uint32_t ins, char *out) {
