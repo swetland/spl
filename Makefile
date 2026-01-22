@@ -1,6 +1,6 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/compiler0 out/compiler1 out/compiler2
+all: out/compiler0 out/compiler1 out/compiler2 out/asm out/emu
 
 test: out/test/summary.txt
 
@@ -68,3 +68,9 @@ out/test/summary.txt: $(ALLTESTS)
 
 %: test/%.spl
 	@$(MAKE) $(patsubst %.spl,out/%.txt,$<)
+
+TOP := softrisc32/
+BIN := out/
+GEN := out/gen/
+
+include $(TOP)Makefile
