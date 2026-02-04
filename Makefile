@@ -28,7 +28,7 @@ out/compiler1: ./out/compiler0 $(COMPILER_SRC)
 out/compiler2: ./out/compiler1 $(COMPILER_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 2 COMPILER USING STAGE 1 COMPILER ###'
-	./out/compiler1 $(COMPILER_SRC) > out/compiler2
+	./out/compiler1 -ast out/compiler2.ast $(COMPILER_SRC) > out/compiler2
 
 # rules for building out/.../foo.bin from .../foo.spl
 #

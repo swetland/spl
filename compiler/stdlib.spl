@@ -3,6 +3,7 @@
 
 fn writec(fd i32, n u32);
 fn fd_open(path str);
+fn fd_create(path str);
 fn fd_close(fd i32);
 
 fn readc(fd i32);
@@ -15,6 +16,19 @@ fn os_exit(n i32);
 
 fn os_arg(n u32) str;
 fn os_arg_count() u32;
+
+fn streq(s1 str, s2 str) bool {
+	var n u32 = 0;
+	while true {
+		if s1[n] != s2[n] {
+			return false;
+		}
+		if s1[n] == 0 {
+			return true;
+		}
+		n++;
+	}
+}
 
 fn strneq(s1 str, s2 str, len u32) bool {
 	var n u32 = 0;

@@ -59,18 +59,24 @@ fn dump_ast_node(fd i32, node Ast) {
 	}
 }
 
-fn dump_ast(node Ast) {
-	dump_ast_node(1, node);
-}
-
 fn start() i32 {
 	ctx_init();
 	parse_init();
 	ctx.filename = os_arg(0);
+	var astfd i32 = -1;
 
 	var n u32 = 1;
 	while n < os_arg_count() {
 		var arg str = os_arg(n);
+		if streq(arg, "-ast") {
+			n++;
+			arg = os_arg(n);
+			astfd = fd_create(arg);
+			if astfd == -1 {
+				Error("cannot open AST list file '@'").s(arg);
+			}
+			continue;
+		}
 		if arg[0] == '-' {
 			Error("unsupported option '@'").s(arg);
 		}
@@ -91,7 +97,9 @@ fn start() i32 {
 		n++;
 	}
 
-	dump_ast(ctx.program);
+	if astfd != -1 {
+		dump_ast_node(astfd, ctx.program);
+	}
 	return 0;
 }
 
