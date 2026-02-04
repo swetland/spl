@@ -6,6 +6,6 @@ out="out/${base}"
 
 if [ ! -e "${src}" ] ; then echo error: cannot find "${src}" ; exit 1 ; fi
 
-make out/compiler/compiler.bin
+make out/compiler1
 
-out/compiler/compiler.bin < ${src}
+out/compiler1 ${src}
