@@ -64,6 +64,7 @@ fn start() i32 {
 	parse_init();
 	ctx.filename = os_arg(0);
 	var astfd i32 = -1;
+	var outfd i32 = -1;
 
 	var n u32 = 1;
 	while n < os_arg_count() {
@@ -74,6 +75,15 @@ fn start() i32 {
 			astfd = fd_create(arg);
 			if astfd == -1 {
 				Error("cannot open AST list file '@'").s(arg);
+			}
+			continue;
+		}
+		if streq(arg, "-out") {
+			n++;
+			arg = os_arg(n);
+			outfd = fd_create(arg);
+			if outfd == -1 {
+				Error("cannot open output file '@'").s(arg);
 			}
 			continue;
 		}
