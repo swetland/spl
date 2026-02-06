@@ -60,3 +60,57 @@ fn Error(msg str) ErrorStream {
 	return s;
 }
 
+struct OutStream {
+	msg str,
+	idx u32,
+	fd i32,
+};
+
+fn os_advance(s OutStream) {
+	var n u32 = s.idx;
+	while (s.msg[n] != 0) && (s.msg[n] != '@') {
+		n++;
+	}
+	if n - s.idx != 0 {
+		write(s.fd, s.msg, s.idx, n - s.idx);
+		if s.msg[n] == '@' {
+			s.idx = n + 1;
+			return;
+		}
+		s.idx = n;
+	}
+}
+
+fn (self OutStream) s(x str) OutStream {
+	writes(self.fd, x);
+	os_advance(self);
+	return self;
+}
+
+fn (self OutStream) n(n i32) OutStream {
+	writei(self.fd, n);
+	os_advance(self);
+	return self;
+}
+
+fn (self OutStream) x(n u32) OutStream {
+	writex(self.fd, n);
+	os_advance(self);
+	return self;
+}
+
+fn (self OutStream) fmt(msg str) OutStream {
+	self.msg = msg;
+	self.idx = 0;
+	os_advance(self);
+	return self;
+}
+
+fn OutFd(fd i32) OutStream {
+	var s OutStream = new(OutStream);
+	s.msg = "";
+	s.idx = 0;
+	s.fd = fd;
+	return s;
+}
+
