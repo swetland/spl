@@ -309,7 +309,7 @@ fn parse_while() Ast {
 	require(tOBRACE);
 	scope_push(SCOPE_LOOP);
 	var block Ast = parse_block();
-	scope_pop();
+	block.sym = scope_pop();
 	return ast_make_lr(AST_WHILE, expr, block);
 }
 
@@ -320,7 +320,7 @@ fn parse_if() Ast {
 	require(tOBRACE);
 	scope_push(SCOPE_BLOCK);
 	var block Ast = parse_block();
-	scope_pop();
+	block.sym = scope_pop();
 
 	var last Ast = ast_make_lr(AST_CASE, expr, block);
 	var stmt Ast = ast_make_l(AST_IF, last);
@@ -335,7 +335,7 @@ fn parse_if() Ast {
 			require(tOBRACE);
 			scope_push(SCOPE_BLOCK);
 			block = parse_block();
-			scope_pop();
+			block.sym = scope_pop();
 			last.next = ast_make_lr(AST_CASE, expr, block);
 			last = last.next;
 		} else {
@@ -343,7 +343,7 @@ fn parse_if() Ast {
 			require(tOBRACE);
 			scope_push(SCOPE_BLOCK);
 			block = parse_block();
-			scope_pop();
+			block.sym = scope_pop();
 			last.next = ast_make_l(AST_ELSE, block);
 			break;
 		}
@@ -553,13 +553,11 @@ fn parse_param() Symbol {
 fn parse_fn_body(sym Symbol) Ast {
 	ctx.cur_fn = sym;
 	require(tOBRACE);
-	scope_push(SCOPE_FUNC); // parameters, from fn
 	scope_push(SCOPE_BLOCK);
-	var node Ast = parse_block();
-	scope_pop(); // stow in node?
-	scope_pop();
+	var block Ast = parse_block();
+	block.sym = scope_pop();
 	ctx.cur_fn = nil;
-	return node;
+	return block;
 }
 
 fn parse_fn() Ast {

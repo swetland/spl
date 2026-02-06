@@ -73,9 +73,9 @@ enum AstKind {
 // top node
 	AST_PROGRAM,  // l=FUNC*
 // program components (chained into a list by next)
-	AST_FUNC,     // l=BLOCK
+	AST_FUNC,     // l=BLOCK sym: fn-symbol
 // container of statements
-	AST_BLOCK,    // l=STMT*
+	AST_BLOCK,    // l=STMT* sym: local-symbols-list
 // statements (chained into a list by next)
 	AST_EXPR,     // l=EXPR
 	AST_WHILE,    // l=EXPR r=BLOCK
@@ -87,16 +87,16 @@ enum AstKind {
 	AST_CASE,     // l=EXPR r=BLOCK
 	AST_ELSE,     // l=BLOCK
 // expressions
-	AST_SYMBOL,
-	AST_CONST,    // numeric constant
-	AST_STRING,   // string constant
+	AST_SYMBOL,   // sym: symbol
+	AST_CONST,    // ival: numeric constant
+	AST_STRING,   // name: string constant
 	AST_DEREF,    // l=EXPR type: pointer-to-...
 	AST_INDEX,    // l=EXPR type: array-of-...  r=EXPR index
 	AST_FIELD,    // l=EXPR type: struct        r=SYMBOL field
 	AST_ADDROF,   // l=EXPR type: lvalue
-	AST_CALL,     // l=NAME r=EXPR*
+	AST_CALL,     // l=SYMBOL r=EXPR*
 	AST_ASSIGN,   // l=lhsEXPR r=rhsEXPR
-	AST_NEW,      // l=TYPE
+	AST_NEW,      // name: typename  <<TODO: sym instead?
 // binary expressions
 	// Rel Ops (maintain order matched w/ lexer)
 	AST_EQ, AST_NE, AST_LT, AST_LE, AST_GT, AST_GE,

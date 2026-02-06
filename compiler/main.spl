@@ -35,6 +35,17 @@ fn _dump_ast_node(fd i32, node Ast) {
 		}
 		writes(fd, ") ");
 		writes(fd, node.sym.type.of.name.text);
+	} else if kind == AST_BLOCK {
+		writes(fd, "(");
+		var sym Symbol = node.sym;
+		while sym != nil {
+			writes(fd, sym.name.text);
+			if sym.next != nil {
+				writes(fd, ", ");
+			}
+			sym = sym.next;
+		}
+		writes(fd, ") ");
 	} else if kind == AST_STRING {
 		printstr(fd, node.name.text);
 	} else if kind == AST_SYMBOL {
