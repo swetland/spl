@@ -329,6 +329,7 @@ fn token_print(fd i32) {
 }
 
 fn next() Token {
+	ctx.srcloc = ctx.linenumber;
 	ctx.tok = _next();
 	return ctx.tok;
 }

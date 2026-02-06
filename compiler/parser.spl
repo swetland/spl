@@ -137,18 +137,19 @@ fn parse_primary_expr() Ast {
 
 fn parse_unary_expr() Ast {
 	var op u32 = ctx.tok;
+	var posn u32 = ctx.srcloc;
 	if op == tPLUS {
 		next();
 		return parse_unary_expr();
 	} else if op == tMINUS {
 		next();
-		return ast_make_l(AST_NEG, parse_unary_expr());
+		return ast_posn(ast_make_l(AST_NEG, parse_unary_expr()), posn);
 	} else if op == tBANG {
 		next();
-		return ast_make_l(AST_BOOL_NOT, parse_unary_expr());
+		return ast_posn(ast_make_l(AST_BOOL_NOT, parse_unary_expr()), posn);
 	} else if op == tNOT {
 		next();
-		return ast_make_l(AST_NOT, parse_unary_expr());
+		return ast_posn(ast_make_l(AST_NOT, parse_unary_expr()), posn);
 	} else if op == tAMP {
 		Error("dereference not supported");
 		//next();
@@ -160,11 +161,12 @@ fn parse_unary_expr() Ast {
 }
 
 fn parse_mul_expr() Ast {
+	var posn u32 = ctx.srcloc;
 	var node Ast = parse_unary_expr();
 	while ctx.tok & tcMASK == tcMULOP {
 		var op u32 = (ctx.tok - tSTAR) + AST_MUL;
 		next();
-		node = ast_make_lr(op, node, parse_unary_expr());
+		node = ast_posn(ast_make_lr(op, node, parse_unary_expr()), posn);
 	}
 	return node;
 }
@@ -180,32 +182,35 @@ fn parse_add_expr() Ast {
 }
 
 fn parse_rel_expr() Ast {
+	var posn u32 = ctx.srcloc;
 	var node Ast = parse_add_expr();
 	if ctx.tok & tcMASK == tcRELOP {
 		var op u32 = (ctx.tok - tEQ) + AST_EQ;
 		next();
-		node = ast_make_lr(op, node, parse_add_expr());
+		node = ast_posn(ast_make_lr(op, node, parse_add_expr()), posn);
 	}
 	return node;
 }
 
 fn parse_and_expr() Ast {
+	var posn u32 = ctx.srcloc;
 	var node Ast = parse_rel_expr();
 	if ctx.tok == tAND {
 		while ctx.tok == tAND {
 			next();
-			node = ast_make_lr(AST_BOOL_AND, node, parse_rel_expr());
+			node = ast_posn(ast_make_lr(AST_BOOL_AND, node, parse_rel_expr()), posn);
 		}
 	}
 	return node;
 }
 
 fn parse_expr() Ast {
+	var posn u32 = ctx.srcloc;
 	var node Ast = parse_and_expr();
 	if ctx.tok == tOR {
 		while ctx.tok == tOR {
 			next();
-			node = ast_make_lr(AST_BOOL_OR, node, parse_and_expr());
+			node = ast_posn(ast_make_lr(AST_BOOL_OR, node, parse_and_expr()), posn);
 		}
 	}
 	return node;
@@ -305,46 +310,49 @@ fn parse_type(fwd_ref_ok u32) Type {
 
 fn parse_while() Ast {
 	// while expr { block }
+	var posn u32 = ctx.srcloc;
 	var expr Ast = parse_expr();
 	require(tOBRACE);
 	scope_push(SCOPE_LOOP);
 	var block Ast = parse_block();
 	block.sym = scope_pop();
-	return ast_make_lr(AST_WHILE, expr, block);
+	return ast_posn(ast_make_lr(AST_WHILE, expr, block), posn);
 }
 
 fn parse_if() Ast {
 	// if expr { block }
-
+	var posn u32 = ctx.srcloc;
 	var expr Ast = parse_expr();
 	require(tOBRACE);
 	scope_push(SCOPE_BLOCK);
 	var block Ast = parse_block();
 	block.sym = scope_pop();
 
-	var last Ast = ast_make_lr(AST_CASE, expr, block);
-	var stmt Ast = ast_make_l(AST_IF, last);
+	var last Ast = ast_posn(ast_make_lr(AST_CASE, expr, block), posn);
+	var stmt Ast = ast_posn(ast_make_l(AST_IF, last), posn);
 
 	while ctx.tok == tELSE {
 		// ... else ...
 		next();
 		if ctx.tok == tIF {
 			// ... if expr { block }
+			posn = ctx.srcloc;
 			next();
 			expr = parse_expr();
 			require(tOBRACE);
 			scope_push(SCOPE_BLOCK);
 			block = parse_block();
 			block.sym = scope_pop();
-			last.next = ast_make_lr(AST_CASE, expr, block);
+			last.next = ast_posn(ast_make_lr(AST_CASE, expr, block), posn);
 			last = last.next;
 		} else {
 			// ... { block }
+			posn = ctx.srcloc;
 			require(tOBRACE);
 			scope_push(SCOPE_BLOCK);
 			block = parse_block();
 			block.sym = scope_pop();
-			last.next = ast_make_l(AST_ELSE, block);
+			last.next = ast_posn(ast_make_l(AST_ELSE, block), posn);
 			break;
 		}
 	}
@@ -462,7 +470,8 @@ fn _parse_expr_statement() Ast {
 	if ctx.tok == tASSIGN {
 		// basic assignment
 		next();
-		return ast_make_lr(AST_ASSIGN, node, parse_expr());
+		var posn u32 = ctx.srcloc;
+		return ast_posn(ast_make_lr(AST_ASSIGN, node, parse_expr()), posn);
 	} else if (ctx.tok & tcMASK) == tcAEQOP {
 		// +=, etc
 		op = (ctx.tok - tADDEQ) + AST_ADD;
@@ -491,7 +500,8 @@ fn _parse_expr_statement() Ast {
 }
 
 fn parse_expr_statement() Ast {
-	var stmt Ast = ast_make_l(AST_EXPR, _parse_expr_statement());
+	var posn u32 = ctx.srcloc;
+	var stmt Ast = ast_posn(ast_make_l(AST_EXPR, _parse_expr_statement()), posn);
 	require(tSEMI);
 	return stmt;
 }
@@ -562,6 +572,7 @@ fn parse_fn_body(sym Symbol) Ast {
 
 fn parse_fn() Ast {
 	scope_push(SCOPE_FUNC);
+	var posn u32 = ctx.srcloc;
 
 	if ctx.tok == tOPAREN {
 		next();
@@ -593,7 +604,7 @@ fn parse_fn() Ast {
 	var sym Symbol = symbol_make_global(fname, rtype);
 	sym.kind = SYMBOL_FN;
 	sym.type = type_make(fname, TYPE_FN, rtype, nil, n);
-	var node Ast = ast_make_simple(AST_FUNC, 0);
+	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
 	node.name = fname;
 	node.sym = sym;
 
@@ -601,7 +612,7 @@ fn parse_fn() Ast {
 	if ctx.tok == tSEMI {
 		next();
 	} else {
-		node.right = parse_fn_body(sym);
+		node.left = parse_fn_body(sym);
 	}
 
 	// save parameters

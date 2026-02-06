@@ -231,6 +231,8 @@ struct Context {
 	flags u32,
 	cc u32,			// scanner: next character
 
+	srcloc u32,		// position at the start of the last token
+
 	tok Token,		// most recent token
 	num u32,		// for tNUM
 	tmp [256]u8,		// for tIDN, tSTR

@@ -143,7 +143,7 @@ fn ast_make(kind AstKind, ival u32, name String, sym Symbol, type Type) Ast {
 	node.name = name;
 	node.sym = sym;
 	node.type = type;
-	node.srcloc = ctx.linenumber;
+	node.srcloc = ctx.srcloc;
 	return node;
 }
 
@@ -175,6 +175,11 @@ fn ast_make_symbol(name String, sym Symbol) Ast {
 		type = sym.type;
 	}
 	return ast_make(AST_SYMBOL, 0, name, sym, type);
+}
+
+fn ast_posn(node Ast, srcloc u32) Ast {
+	node.srcloc = srcloc;
+	return node;
 }
 
 fn ctx_init() {
@@ -210,6 +215,7 @@ fn ctx_init() {
 	ctx.global = ctx.scope;
 
 	ctx.linenumber = 1;
+	ctx.srcloc = 1;
 	ctx.filename = "<stdin>";
 }
 
