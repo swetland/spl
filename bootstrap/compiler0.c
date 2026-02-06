@@ -1484,7 +1484,7 @@ Symbol *parse_param(String *fname) {
 	//	ptype = type_make_ptr(ptype);
 	//}
 
-	if (symbol_find(pname)) {
+	if (symbol_find_in(pname, ctx.scope)) {
 		error("duplicate parameter name '%s'", pname->text);
 	}
 
