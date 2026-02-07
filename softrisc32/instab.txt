@@ -63,8 +63,8 @@ iiiiiiiiiiiiiiii00000bbbbb110100 blez    %t, %B
 iiiiiiiiiiiiiiiiaaaaa00000110100 bgez    %a, %B
 iiiiiiiiiiiiiiiiaaaaabbbbb110100 bge     %a, %t, %B
 iiiiiiiiiiiiiiiiaaaaabbbbb110101 bgeu    %a, %t, %B
-iiiiiiiiiiiiiiiiiiiii00000111000 j       %t, %J
-iiiiiiiiiiiiiiiiiiiii00001111000 call    %t, %J
+iiiiiiiiiiiiiiiiiiiii00000111000 j       %J
+iiiiiiiiiiiiiiiiiiiii00001111000 call    %J
 iiiiiiiiiiiiiiiiiiiiittttt111000 jal     %t, %J
 iiiiiiiiiiiiiiiiiiiiittttt111001 syscall %i
 iiiiiiiiiiiiiiiiiiiiittttt111010 break
