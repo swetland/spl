@@ -1268,11 +1268,11 @@ void parse_if(void) {
 		// ... else ...
 		if (ctx.tok == tIF) {
 			// ... if expr { block }
-			emit_impl("} else if ");
+			emit_impl("} else if (");
 			next();
 			parse_expr();
 			require(tOBRACE);
-			emit_impl(" {\n");
+			emit_impl(") {\n");
 			scope_push(SCOPE_BLOCK);
 			parse_block();
 			scope_pop();
