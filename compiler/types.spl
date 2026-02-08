@@ -11,11 +11,18 @@ struct String {
 };
 
 enum SymbolKind {
-	SYMBOL_VAR,
-	SYMBOL_FLD, // struct field
-	SYMBOL_PTR, // struct *field
-	SYMBOL_DEF, // enum
-	SYMBOL_FN,
+	SYMBOL_MASK      = 0x00F,
+	// basic types
+	SYMBOL_VAR       = 0x001, // variable
+	SYMBOL_DEF       = 0x002, // enum or constant
+	SYMBOL_FLD       = 0x004, // field of a structure
+	SYMBOL_FN        = 0x008, // function
+	// flags: scope for variables:
+	SYMBOL_LOCAL     = 0x010,
+	SYMBOL_PARAM     = 0x020,
+	SYMBOL_GLOBAL    = 0x040,
+	// flag: pointer or reference
+	SYMBOL_PTR       = 0x100,
 };
 
 struct Symbol {
@@ -23,6 +30,7 @@ struct Symbol {
 	name *String,
 	type *Type,
 	kind SymbolKind,
+	ival i32,
 };
 
 enum ScopeKind {

@@ -240,11 +240,11 @@ fn parse_struct_type(name String) Type {
 		var kind SymbolKind = SYMBOL_FLD;
 		if ctx.tok == tSTAR {
 			next();
-			kind = SYMBOL_PTR;
+			kind |= SYMBOL_PTR;
 		}
 		var ftype Type = parse_type(true);
-		var sym Symbol = symbol_make(fname, ftype);
-		sym.kind = kind;
+		symbol_make(fname, ftype, kind, 0);
+		// TODO: calculate ival correctly
 		if ctx.tok != tCBRACE {
 			require(tCOMMA);
 		}
@@ -435,12 +435,16 @@ fn parse_array_init(sym Symbol) {
 	}
 }
 
-fn parse_var() {
+fn parse_var(kind SymbolKind) {
 	// TODO: global vs local
 	// TODO: generate assignment/initialization
+	// TODO: correctly calculate ival (or assign later?)
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false);
-	var sym Symbol = symbol_make(name, type);
+	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
+		kind |= SYMBOL_PTR;
+	}
+	var sym Symbol = symbol_make(name, type, SYMBOL_VAR | kind, 0);
 
 	if ctx.tok == tASSIGN {
 		next();
@@ -531,7 +535,7 @@ fn parse_block() Ast {
 			node = parse_if();
 		} else if ctx.tok == tVAR {
 			next();
-			parse_var();
+			parse_var(SYMBOL_LOCAL);
 		} else if ctx.tok == tSEMI {
 			next();
 			// empty statement
@@ -549,15 +553,19 @@ fn parse_block() Ast {
 	return block;
 }
 
-fn parse_param() Symbol {
-	var pname String = parse_name("parameter name");
-	var ptype Type = parse_type(false);
+fn parse_param(ival i32) Symbol {
+	var kind SymbolKind = SYMBOL_VAR | SYMBOL_PARAM;
+	var name String = parse_name("parameter name");
+	var type Type = parse_type(false);
+	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
+		kind |= SYMBOL_PTR;
+	}
 	// check only in current scope to avoid errors
 	// about pnames that mask globals (which is allowed)
-	if symbol_find_in(pname, ctx.scope) != nil {
-		Error("duplicate parameter name '@'").s(pname.text);
+	if symbol_find_in(name, ctx.scope) != nil {
+		Error("duplicate parameter name '@'").s(name.text);
 	}
-	return symbol_make(pname, ptype);
+	return symbol_make(name, type, kind, ival);
 }
 
 fn parse_fn_body(sym Symbol) Ast {
@@ -578,7 +586,7 @@ fn parse_fn() Ast {
 	if ctx.tok == tOPAREN {
 		next();
 		// (self SelfType) ...
-		parse_param();
+		parse_param(0);
 		require(tCPAREN);
 		// TODO: mark node as method somehow
 		n++;
@@ -589,11 +597,11 @@ fn parse_fn() Ast {
 
 	require(tOPAREN);
 	if ctx.tok != tCPAREN {
-		parse_param();
+		parse_param(n);
 		n++;
 		while ctx.tok == tCOMMA {
 			next();
-			parse_param();
+			parse_param(n);
 			n++;
 		}
 	}
@@ -603,9 +611,8 @@ fn parse_fn() Ast {
 		rtype = parse_type(false);
 	}
 
-	var sym Symbol = symbol_make_global(fname, rtype);
-	sym.kind = SYMBOL_FN;
-	sym.type = type_make(fname, TYPE_FN, rtype, nil, n);
+	var type Type = type_make(fname, TYPE_FN, rtype, nil, n);
+	var sym Symbol = symbol_make_global(fname, type, SYMBOL_FN, 0);
 	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
 	node.name = fname;
 	node.sym = sym;
@@ -637,12 +644,12 @@ fn parse_enum_def() {
 		if sym != nil {
 			Error("cannot redfine '@' as enum tag").s(name.text);
 		}
-		sym = symbol_make_global(name, ctx.type_u32);
-		sym.kind = SYMBOL_DEF;
+		sym = symbol_make_global(name, ctx.type_u32, SYMBOL_DEF, 0);
 		if ctx.tok == tASSIGN {
 			next();
 			parse_expr();
-			// TODO val <- expr
+			// TODO: sym.ival <- expr
+			// TODO: store subtree for later eval
 		} else {
 			val++;
 		}
@@ -678,7 +685,7 @@ fn parse_program() Ast {
 			ctx.last = node;
 		} else if ctx.tok == tVAR {
 			next();
-			parse_var();
+			parse_var(SYMBOL_GLOBAL);
 		} else if ctx.tok == tEOF {
 			break;
 		} else {
