@@ -1,0 +1,9 @@
+
+__start:
+	j start
+
+_hexout_:
+	ldw t0, 0(sp)
+	stx t0, -2(x0)
+	ret
+

@@ -1,4 +1,10 @@
-#!/bin/bash -e
+#!/bin/bash
+set -euo pipefail
+
+if [ "$#" -ne 1 ]; then
+	echo 'error: usage compile1 <source>'
+	exit 1
+fi
 
 src="$1"
 base="${src%.spl}"
@@ -6,6 +12,11 @@ out="out/${base}"
 
 if [ ! -e "${src}" ] ; then echo error: cannot find "${src}" ; exit 1 ; fi
 
-make out/compiler1
+make out/compiler1 out/asm
 
-out/compiler1 ${src}
+mkdir -p $(dirname ${out})
+rm -f ${out}.ast
+rm -f ${out}.s32
+rm -f ${out}.hex
+out/compiler1 -ast ${out}.ast -out ${out}.s32 build/stdlib-abi0.spl ${src}
+out/asm -o ${out}.hex build/stdlib-abi0.s32 ${out}.s32

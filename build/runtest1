@@ -6,16 +6,17 @@
 compile () {
 	local src="$1"
 	local bin="$2"
-	local tmp="${bin%.bin}"
+	local asm="${bin%.bin}.s32"
+	local ast="${bin%.bin}.ast"
 
 	rm -f ${bin} ${asm} ${ast}
-	out/compiler0 -o ${tmp} build/stdlib-bootstrap.spl ${src} >/dev/null || return 1;
-	gcc -g -O0 -Wall -I. -Ibootstrap/inc -Iout -o ${bin} ${tmp}.impl.c || return 1;
+	out/compiler1 -ast ${ast} -out ${asm} build/stdlib-abi0.spl ${src} >/dev/null || return 1;
+	out/asm -o ${bin} build/stdlib-abi0.s32 ${asm} || return 1;
 	return 0
 }
 
 run () {
-	"$1" || return 1;
+	out/emu "$1" || return 1;
 	return 0
 }
 
