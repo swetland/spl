@@ -302,10 +302,17 @@ static char* rnames[64] = {
 	"x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15",
 	"x16", "x17", "x18", "x19", "x20", "x21", "x22", "x23",
 	"x24", "x25", "x26", "x27", "x28", "x29", "x30", "x31",
+#if RISCV_STYLE
 	"zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
 	"s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
 	"a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
 	"s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6",
+#else
+	"zero", "ra", "sp", "gp", "tp", "rv", "rw", "fp",
+	"t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7",
+	"t8", "t9", "t10", "t11", "t12", "t13", "t14", "t15",
+	"t16", "t17", "t18", "t19", "t20", "t21", "t22", "t23",
+#endif
 };
 
 // may be called once after nextchar
@@ -784,20 +791,34 @@ void assemble(const char *fn) {
 
 int main(int argc, char **argv) {
 	const char *outname = "out.hex";
-	filename = argv[1];
+	int count = 0;
 
 	image_base = 0x100000;
 	image_size = sizeof(image);
 	PC = image_base;
 
-	if (argc < 2) {
-		die("no file specified");
+	while (argc > 1) {
+		if (!strcmp(argv[1], "-o")) {
+			if (argc < 2) {
+				die("no output file specified");
+			}
+			outname = argv[2];
+			argv++;
+			argc--;
+		} else if (argv[1][0] == '-') {
+			die("unknown option '%s'", argv[1]);
+		} else {
+			filename = argv[1];
+			assemble(filename);
+			count++;
+		}
+		argv++;
+		argc--;
 	}
-	if (argc == 3) {
-		outname = argv[2];
+	if (count == 0) {
+		die("no input files specified");
 	}
 
-	assemble(filename);
 	checklabels();
 	save(outname);
 	return 0;

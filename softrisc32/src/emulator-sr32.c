@@ -49,18 +49,17 @@ void io_wr32(CpuState *cs, uint32_t addr, uint32_t val) {
 	switch (addr) {
 	case -1:
 		uint8_t x = val;
-		if (write(2, &x, 1) != 1) ;
+		if (write(1, &x, 1) != 1) ;
 		break;
 	case -2:
+		fprintf(stdout, "D %08x\n", val);
 		break;
 	case -3:
-		if (val) {
-			fprintf(stderr, "%08x %08x %08x %08x\n",
-				cs->r[20], cs->r[21], cs->r[22], cs->r[23]);
-			fprintf(stderr, "FAIL: CODE: %08x\n", val);
-			exit(1);
-		}
+		fprintf(stdout, "X %08x\n", val);
 		exit(0);
+	case -4:
+		fprintf(stderr, "FAILURE %08x\n", val);
+		exit(1);
 	}
 }
 
@@ -142,7 +141,7 @@ int main(int argc, char** argv) {
 
 	uint32_t sp = entry - 16;
 	uint32_t lr = sp;
-	mem_wr32(lr + 0, 0xfffd002b);
+	mem_wr32(lr + 0, 0xfffd016b); // stx rv, -3 (exit)
 
 	uint32_t guest_argc = args;
 	uint32_t guest_argv = 0;
@@ -164,11 +163,16 @@ int main(int argc, char** argv) {
 		mem_wr32(p, 0);
 	}
 
+	// args on stack for abi0
+	sp -= 8;
+	mem_wr32(sp + 0, guest_argc);
+	mem_wr32(sp + 4, guest_argv);
+
 	cs.pc = entry;
 	cs.r[1] = lr;
 	cs.r[2] = sp;
-	cs.r[10] = guest_argc;
-	cs.r[11] = guest_argv;
+	// cs.r[10] = guest_argc;
+	// cs.r[11] = guest_argv;
 
 	sr32core(&cs);
 	return 0;

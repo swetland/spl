@@ -34,6 +34,7 @@ iiiiiiiiiiiiiiiiaaaaattttt001011 divi    %t, %a, %i
 00000000000bbbbbaaaaattttt011001 sltu    %t, %a, %b
 00000000000bbbbbaaaaattttt011010 mul     %t, %a, %b
 00000000000bbbbbaaaaattttt011011 div     %t, %a, %b
+00000000000000000000100000011111 ret
 0000000000000000aaaaa00000011111 jr      %a
 0000000000000000aaaaattttt011111 jalr    %t, %a
 iiiiiiiiiiibbbbbaaaaattttt011111 jalr    %t, %a, %i
