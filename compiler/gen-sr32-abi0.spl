@@ -1,0 +1,346 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+// This is a bootstrapping code-generator for softrisc32 "abi0",
+// which uses most registers (8..31) as caller-save temporaries
+// and does all parameter passing via the stack
+
+// There is absolutely no optimization of any kind here, the
+// goal being correct sr32 code sufficient to compile the full
+// compiler so it can then compile itself (with the real backend).
+
+// Language features not present in the bootstrap transpiler are
+// avoided.
+
+fn GenError(node Ast, msg str) ErrorStream {
+	var s ErrorStream = new(ErrorStream);
+	s.msg = msg;
+	s.idx = 0;
+	writes(2, "\n");
+	writes(2, ctx.filename);
+	writes(2, ": ");
+	writei(2, node.srcloc);
+	writes(2, ": error: ");
+	es_advance(s);
+	return s;
+}
+
+var os OutStream;
+
+fn emit(msg str) OutStream {
+	os.msg = msg;
+	os.idx = 0;
+	os_advance(os);
+	return os;
+}
+
+var tmp_mask i32 = 0;
+
+fn find_bit(set i32) i32 {
+	var n i32 = 0;
+	while n < 32 {
+		if (set & (1 << n)) == 0 {
+			break;
+		}
+		n++;
+	}
+	return n;
+}
+
+fn get_reg() i32 {
+	var n i32 = find_bit(tmp_mask);
+	if n > 8 {
+		Error("out of temporary registers");
+	}
+	tmp_mask |= (1 << n);
+	return n + 8;
+}
+
+fn put_reg(n i32) {
+	if n != 0 {
+		n = 1 << (n - 8);
+		if (tmp_mask & n) == 0 {
+			Error("freeing unallocated temporary register @").n(n);
+		}
+		tmp_mask &= (~n);
+	}
+}
+
+var nextlabel i32 = 0;
+
+fn make_label() i32 {
+	var n i32 = nextlabel;
+	nextlabel++;
+	return n;
+}
+fn emit_target(id i32) {
+	emit("_L@:\n").n(id);
+}
+fn emit_branch(x str, a i32, b i32, tgt i32) {
+	emit("    b@ x@, x@, _L@\n").s(x).n(a).n(b).n(tgt);
+}
+fn emit_jump(tgt i32) {
+	emit("    j _L@\n").n(tgt);
+}
+fn emit_binop(op str, t i32, a i32, b i32) {
+	emit("    @ x@, x@, x@\n").s(op).n(t).n(a).n(b);
+}
+fn emit_li(t i32, v i32) {
+	emit("    li x@, @\n").n(t).n(v);
+}
+
+fn gen_expr(node Ast) i32;
+fn gen_block(node Ast);
+
+fn gen_relop(node Ast, op str) i32 {
+	var ttrue i32 = make_label();
+	var tdone i32 = make_label();
+	var a i32 = gen_expr(node.left);
+	var b i32 = gen_expr(node.right);
+	emit_branch(op, a, b, ttrue);
+	emit_li(a, 0);
+	emit_jump(tdone);
+	emit_target(ttrue);
+	emit_li(a, 1);
+	emit_target(tdone);
+	put_reg(b);
+	return a;
+}
+
+fn gen_binop(node Ast, op str) i32 {
+	var a i32 = gen_expr(node.left);
+	var b i32 = gen_expr(node.right);
+	emit_binop(op, a, a, b);
+	put_reg(b);
+	return a;
+}
+
+fn gen_unop(node Ast, op str) i32 {
+	var x i32 = gen_expr(node.left);
+	emit("    @ x@, x@\n").s(op).n(x).n(x);
+	return x;
+}
+
+fn gen_call(fcall Ast) i32 {
+	var sym Symbol = fcall.left.sym;
+	if sym == nil {
+		GenError(fcall, "calling undefined function '@'").s(fcall.left.name.text);
+	}
+	emit("    subi sp, sp, @\n").n(sym.type.count * 4);
+	var node Ast = fcall.right;
+	var n i32 = 0;
+	while node != nil {
+		var x i32 = gen_expr(node);
+		emit("    stw x@, @(sp)\n").n(x).n(n * -4);
+		put_reg(x);
+		n++;
+		node = node.next;
+	}
+	if n != sym.type.count {
+		GenError(fcall, "parameter count mismatch: expected @, found @").n(sym.type.count).n(n);
+	}
+	emit("    call @\n").s(sym.name.text);
+	emit("    addi sp, sp, @\n").n(sym.type.count * 4);
+
+	if sym.type.of == ctx.type_void {
+		return 0;
+	} else {
+		var t i32 = get_reg();
+		emit("    mv x@, rv\n").n(t);
+		return t;
+	}
+}
+
+fn gen_addr(node Ast) i32 {
+	// TODO: obtain storage address
+	return gen_expr(node);
+}
+
+fn gen_assign(node Ast) i32 {
+	var ar i32 = gen_addr(node.left);
+	var vr i32 = gen_expr(node.right);
+	emit("    stw x@, (x@)\n").n(vr).n(ar);
+	put_reg(ar);
+	return vr;
+}
+
+fn gen_expr(node Ast) i32 {
+	var kind i32 = node.kind;
+
+	if kind == AST_CONST {
+		var t i32 = get_reg();
+		emit_li(t, node.ival);
+		return t;
+	}
+	if kind == AST_SYMBOL {
+		// param? local? global?
+		var t i32 = get_reg();
+		emit_li(t, 42);
+		return t;
+	}
+	if kind == AST_EQ  { return gen_relop(node, "eq"); }
+	if kind == AST_NE  { return gen_relop(node, "ne"); }
+	if kind == AST_LT  { return gen_relop(node, "lt"); }
+	if kind == AST_LE  { return gen_relop(node, "le"); }
+	if kind == AST_GT  { return gen_relop(node, "gt"); }
+	if kind == AST_GE  { return gen_relop(node, "ge"); }
+	if kind == AST_ADD { return gen_binop(node, "add"); }
+	if kind == AST_SUB { return gen_binop(node, "sub"); }
+	if kind == AST_OR  { return gen_binop(node, "or"); }
+	if kind == AST_XOR { return gen_binop(node, "xor"); }
+	if kind == AST_MUL { return gen_binop(node, "mul"); }
+	if kind == AST_DIV { }
+	if kind == AST_MOD { }
+	if kind == AST_AND { return gen_binop(node, "and"); }
+	if kind == AST_LSL { return gen_binop(node, "sll"); }
+	if kind == AST_LSR { return gen_binop(node, "srl"); }
+	if kind == AST_NOT { return gen_unop(node, "not"); }
+	if kind == AST_NEG { return gen_unop(node, "neg"); }
+	if kind == AST_BOOL_NOT { return gen_unop(node, "not"); }
+	if kind == AST_BOOL_AND {  }
+	if kind == AST_BOOL_OR { }
+	if kind == AST_STRING { }
+	if kind == AST_DEREF { }
+	if kind == AST_INDEX { }
+	if kind == AST_FIELD { }
+	if kind == AST_CALL { return gen_call(node); }
+	if kind == AST_ASSIGN { return gen_assign(node); }
+	if kind == AST_NEW { }
+	GenError(node, "unsupported @").s(ast_kind[kind]);
+	return 0;
+}
+
+var return_target i32 = -1;
+var continue_target i32 = -1;
+var break_target i32 = -1;
+var return_type Type = nil;
+
+fn gen_while(node Ast) {
+	var save_ct i32 = continue_target;
+	var save_bt i32 = break_target;
+
+	var loop i32 = make_label();
+	var exit i32 = make_label();
+	continue_target = loop;
+	break_target = exit;
+
+	emit_target(loop);
+	var a i32 = gen_expr(node.left);
+	emit_branch("eq", a, 0, exit);
+	put_reg(a);
+	gen_block(node.right);
+	emit_jump(loop);
+	emit_target(exit);
+
+	continue_target = save_ct;
+	break_target = save_bt;
+}
+
+fn gen_break(node Ast) {
+	if break_target < 0 {
+		GenError(node, "break used outside of loop");
+	}
+	emit_jump(break_target);
+}
+
+fn gen_continue(node Ast) {
+	if continue_target < 0 {
+		GenError(node, "continue used outside of loop");
+	}
+	emit_jump(continue_target);
+}
+
+fn gen_if(node Ast) {
+	var done i32 = make_label();
+	node = node.left;
+	while node != nil {
+		if node.kind == AST_ELSE {
+			gen_block(node.left);
+		} else {
+			var skip i32 = make_label();
+			var x i32 = gen_expr(node.left);
+			emit_branch("eq", x, 0, skip);
+			put_reg(x);
+			gen_block(node.right);
+			if node.next != nil {
+				emit_jump(done);
+			}
+			emit_target(skip);
+		}
+		node = node.next;
+	}
+	emit_target(done);
+}
+
+fn gen_return(node Ast) {
+	if node.left == nil {
+		if return_type != ctx.type_void {
+			GenError(node, "return value required");
+		}
+	} else {
+		if return_type == ctx.type_void {
+			GenError(node, "void function must not return a value");
+		}
+		var x i32 = gen_expr(node.left);
+		emit("    mv rv, x@\n").n(x);
+		put_reg(x);
+	}
+	emit_jump(return_target);
+}
+
+fn gen_block(node Ast) {
+	node = node.left;
+	while node != nil {
+		var kind i32 = node.kind;
+		if kind == AST_EXPR {
+			put_reg(gen_expr(node.left));
+		} else if kind == AST_WHILE {
+			gen_while(node);
+		} else if kind == AST_BREAK {
+			gen_break(node);
+		} else if kind == AST_CONTINUE {
+			gen_continue(node);
+		} else if kind == AST_RETURN {
+			gen_return(node);
+		} else if kind == AST_IF {
+			gen_if(node);
+		} else {
+			GenError(node, "unsupported @").s(ast_kind[kind]);
+		}
+		node = node.next;
+	}
+}
+
+fn gen_fn(node Ast) {
+	if node.left == nil {
+		return;
+	}
+	return_type = node.sym.type.of;
+	return_target = make_label();
+	emit("\n@:\n").s(node.sym.name.text);
+	// prologue
+	emit("    stw ra, -4(sp)\n");
+	emit("    stw fp, -8(sp)\n");
+	emit("    mv fp, sp\n");
+	emit("    subi sp, sp, @\n").n(8); // TODO: locals
+	gen_block(node.left);
+	//TODO: check for no return on non-void functions
+	emit("    li rv, 0\n");
+	emit_target(return_target);
+	// epilogue
+	emit("    ldw ra, -4(fp)\n");
+	emit("    ldw fp, -8(fp)\n");
+	emit("    addi sp, sp, @\n").n(8); // TODO: locals
+	emit("    ret\n");
+}
+
+fn gen(outfd i32, node Ast) {
+	os = OutFd(outfd);
+	emit("// gen-sr32-abi0\n\n");
+	while node != nil {
+		if node.kind == AST_FUNC {
+			gen_fn(node);
+		}
+		node = node.next;
+	}
+}

@@ -75,7 +75,7 @@ fn start() i32 {
 	parse_init();
 	ctx.filename = os_arg(0);
 	var astfd i32 = -1;
-	var outfd i32 = -1;
+	var outfd i32 = 1;
 
 	var n u32 = 1;
 	while n < os_arg_count() {
@@ -120,6 +120,9 @@ fn start() i32 {
 
 	if astfd != -1 {
 		dump_ast_node(astfd, ctx.program);
+	}
+	if outfd != -1 {
+		gen(outfd, ctx.program.left);
 	}
 	return 0;
 }
