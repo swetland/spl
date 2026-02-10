@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0.
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include <emulator-sr32.h>
@@ -11,7 +12,12 @@
 void sr32core(CpuState *s) {
 	int32_t a, b, n;
 	uint32_t pc = s->pc;
+	uint32_t limit = 1000000;
 	for (;;) {
+	if (--limit == 0) {
+		fprintf(stderr, "EXECUTION LIMIT REACHED\n");
+		exit(1);
+	}
 	int32_t ins = mem_rd32(pc);
 #if WITH_TRACE
 	if (s->flags & F_TRACE_FETCH) {
