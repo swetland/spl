@@ -486,10 +486,8 @@ void parse_memref(State *s, uint32_t *r, uint32_t *i) {
 	require(s, tCPAREN);
 }
 void parse_rel(State *s, unsigned type, uint32_t *i) {
+
 	switch (s->tok) {
-	case tIDENT:
-		*i = uselabel(s->str, PC, type);
-		break;
 	case tDOT:
 		*i = -4;
 		break;
@@ -501,6 +499,11 @@ void parse_rel(State *s, unsigned type, uint32_t *i) {
 			break;
 		}
 	default:
+		// accept registers and opcodes as label names here
+		if (isalpha(s->str[0]) || (s->str[0] == '_') || (s->str[0] == '.')) {
+			*i = uselabel(s->str, PC, type);
+			break;
+		}
 		die("expected address");
 	}
 	next(s);
@@ -522,17 +525,22 @@ void parse_2r_c(State *s, uint32_t *one, uint32_t *two) {
 int parse_line(State *s) {
 	uint32_t a, b, t, i, o;
 	char *name;
-	if (s->tok == tIDENT) {
-		name = strdup(s->str);
-		setlabel(name, PC);
-		if (next(s) != tCOLON) {
-			die("unexpected '%s'\n", name);
-		}
-		next(s);
-	}
+
+	// save textual rep
+	char save[SMAXSIZE];
+	strlcpy(save, s->str, SMAXSIZE);
 
 	unsigned tok = s->tok;
 	next(s);
+
+	if (s->tok == tCOLON) {
+		// anything followed by a colon is a label
+		name = strdup(save);
+		setlabel(name, PC);
+		next(s);
+		tok = s->tok;
+		next(s);
+	}
 
 	switch (tok) {
 	case tADD: case tSUB: case tAND: case tOR:
