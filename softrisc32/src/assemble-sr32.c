@@ -235,7 +235,7 @@ enum tokens {
 	tEOF, tEOL, tIDENT, tREGISTER, tNUMBER, tSTRING,
 	tCOMMA, tCOLON, tOPAREN, tCPAREN, tAT, tDOT,
 	tADD, tSUB, tAND, tOR, tXOR, tSLL, tSRL, tSRA,
-	tSLT, tSLTU, tMUL, tDIV,
+	tSLT, tSLTU, tMUL, tDIV, tREM,
 	tADDI, tSUBI, tANDI, tORI, tXORI, tSLLI, tSRLI, tSRAI,
 	tSLTI, tSLTUI, tMULI, tDIVI,
 	tJALR,
@@ -254,7 +254,7 @@ enum tokens {
 char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
 	",", ":", "(", ")", "@", ".",
 	"ADD", "SUB", "AND", "OR", "XOR", "SLL", "SRL", "SRA",
-	"SLT", "SLTU", "MUL", "DIV",
+	"SLT", "SLTU", "MUL", "DIV", "REM",
 	"ADDI", "SUBI", "ANDI", "ORI", "XORI", "SLLI", "SRLI", "SRAI",
 	"SLTI", "SLTUI", "MULI", "DIVI",
 	"JALR",
@@ -550,6 +550,12 @@ int parse_line(State *s) {
 		parse_2r_c(s, &t, &a);
 		parse_reg(s, &b);
 		emit(ins_r(o, t, a, b, 0));
+		break;
+	case tREM:
+		o = tDIV - tADD;
+		parse_2r_c(s, &t, &a);
+		parse_reg(s, &b);
+		emit(ins_r(o, t, a, b, 1));
 		break;
 	case tADDI: case tSUBI: case tANDI: case tORI:
 	case tXORI: case tSLLI: case tSRLI: case tSRAI:

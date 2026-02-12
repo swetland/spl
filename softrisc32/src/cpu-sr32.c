@@ -12,7 +12,7 @@
 void sr32core(CpuState *s) {
 	int32_t a, b, n;
 	uint32_t pc = s->pc;
-	uint32_t limit = 1000000;
+	uint32_t limit = 10000000;
 	for (;;) {
 	if (--limit == 0) {
 		fprintf(stderr, "EXECUTION LIMIT REACHED\n");
@@ -45,7 +45,14 @@ void sr32core(CpuState *s) {
 		case 0x8: n = (a < b) ? 1 : 0; break;
 		case 0x9: n = (((uint32_t)a) < ((uint32_t)b)) ? 1 : 0; break;
 		case 0xa: n = a * b; break;
-		case 0xb: n = a / b; break;
+		case 0xb: {
+			if ((ins & 0x200010) == 0x200010) {
+				n = a % b;
+			} else {
+				n = a / b;
+			}
+			break;
+		}
 		case 0xf: n = pc; pc = a + b; break;
 		default: goto undef;
 		}
