@@ -435,7 +435,9 @@ fn parse_array_init(sym Symbol) {
 	}
 }
 
-fn parse_var(kind SymbolKind) {
+fn parse_var(kind SymbolKind) Ast {
+	var node Ast = nil;
+	var posn u32 = ctx.srcloc;
 	// TODO: global vs local
 	// TODO: generate assignment/initialization
 	// TODO: correctly calculate ival (or assign later?)
@@ -458,12 +460,15 @@ fn parse_var(kind SymbolKind) {
 				Error("type @ cannot be initialized with {} expr").s(type.name.text);
 			}
 		} else {
-			parse_expr();
+			node = ast_make_symbol(name, sym);
+			node = ast_make_lr(AST_ASSIGN, node, parse_expr());
+			node = ast_posn(ast_make_l(AST_EXPR, node), posn);
 		}
 	} else {
 		// default init
 	}
 	require(tSEMI);
+	return node;
 }
 
 fn _parse_expr_statement() Ast {
@@ -535,7 +540,10 @@ fn parse_block() Ast {
 			node = parse_if();
 		} else if ctx.tok == tVAR {
 			next();
-			parse_var(SYMBOL_LOCAL);
+			node = parse_var(SYMBOL_LOCAL);
+			if node == nil {
+				continue;
+			}
 		} else if ctx.tok == tSEMI {
 			next();
 			// empty statement
