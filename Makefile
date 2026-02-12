@@ -100,8 +100,8 @@ endef
 __FORCE__: ;
 
 # generate shortcut runtest rules for the tests
-$(info $(foreach x,$(ALLTESTS0),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test0/%,%,$(x)))).0,$(x)))))
-$(info $(foreach x,$(ALLTESTS1),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test1/%,%,$(x)))).1,$(x)))))
+$(foreach x,$(ALLTESTS0),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test0/%,%,$(x)))).0,$(x))))
+$(foreach x,$(ALLTESTS1),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test1/%,%,$(x)))).1,$(x))))
 
 TOP := softrisc32/
 BIN := out/
