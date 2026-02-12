@@ -597,11 +597,11 @@ fn parse_fn() Ast {
 
 	require(tOPAREN);
 	if ctx.tok != tCPAREN {
-		parse_param(n);
+		parse_param(4 * n);
 		n++;
 		while ctx.tok == tCOMMA {
 			next();
-			parse_param(n);
+			parse_param(4 * n);
 			n++;
 		}
 	}

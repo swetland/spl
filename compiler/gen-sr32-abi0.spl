@@ -12,6 +12,11 @@
 // Language features not present in the bootstrap transpiler are
 // avoided.
 
+enum CodeGenConfig {
+	MaxTmpRegs = 8,
+	FirstTmpReg = 8,
+};
+
 fn GenError(node Ast, msg str) ErrorStream {
 	var s ErrorStream = new(ErrorStream);
 	s.msg = msg;
@@ -34,6 +39,7 @@ fn emit(msg str) OutStream {
 	return os;
 }
 
+var local_max i32 = 0;
 var tmp_mask i32 = 0;
 
 fn find_bit(set i32) i32 {
@@ -49,16 +55,16 @@ fn find_bit(set i32) i32 {
 
 fn get_reg() i32 {
 	var n i32 = find_bit(tmp_mask);
-	if n > 8 {
+	if n > MaxTmpRegs {
 		Error("out of temporary registers");
 	}
 	tmp_mask |= (1 << n);
-	return n + 8;
+	return n + FirstTmpReg;
 }
 
 fn put_reg(n i32) {
 	if n != 0 {
-		n = 1 << (n - 8);
+		n = 1 << (n - FirstTmpReg);
 		if (tmp_mask & n) == 0 {
 			Error("freeing unallocated temporary register @").n(n);
 		}
@@ -121,6 +127,25 @@ fn gen_unop(node Ast, op str) i32 {
 	return x;
 }
 
+fn emit_load_tmp() {
+	var n i32 = 0;
+	while n < MaxTmpRegs {
+		if tmp_mask & (1 << n) {
+			emit("    ldw x@, -@(fp) //RT\n").n(FirstTmpReg + n).n(local_max + 4*n);
+		}
+		n++;
+	}
+}
+fn emit_save_tmp() {
+	var n i32 = 0;
+	while n < MaxTmpRegs {
+		if tmp_mask & (1 << n) {
+			emit("    stw x@, -@(fp) //ST\n").n(FirstTmpReg + n).n(local_max + 4*n);
+		}
+		n++;
+	}
+}
+
 fn gen_call(fcall Ast) i32 {
 	var sym Symbol = fcall.left.sym;
 	if sym == nil {
@@ -131,7 +156,7 @@ fn gen_call(fcall Ast) i32 {
 	var n i32 = 0;
 	while node != nil {
 		var x i32 = gen_expr(node);
-		emit("    stw x@, @(sp)\n").n(x).n(n * -4);
+		emit("    stw x@, @(sp)\n").n(x).n(n * 4);
 		put_reg(x);
 		n++;
 		node = node.next;
@@ -139,8 +164,10 @@ fn gen_call(fcall Ast) i32 {
 	if n != sym.type.count {
 		GenError(fcall, "parameter count mismatch: expected @, found @").n(sym.type.count).n(n);
 	}
+	emit_save_tmp();
 	emit("    call @\n").s(sym.name.text);
 	emit("    addi sp, sp, @\n").n(sym.type.count * 4);
+	emit_load_tmp();
 
 	if sym.type.of == ctx.type_void {
 		return 0;
@@ -152,8 +179,35 @@ fn gen_call(fcall Ast) i32 {
 }
 
 fn gen_addr(node Ast) i32 {
-	// TODO: obtain storage address
-	return gen_expr(node);
+	var kind i32 = node.kind;
+
+	if kind == AST_SYMBOL {
+		var t i32 = get_reg();
+		var sym Symbol = node.sym;
+		if sym.kind & SYMBOL_PARAM {
+			emit("    addi x@, fp, @\n").n(t).n(sym.ival);
+		} else if sym.kind & SYMBOL_LOCAL {
+			emit("    addi x@, fp, -@\n").n(t).n(sym.ival);
+		} else {
+			GenError(node, "unsupported store");
+		}
+		return t;
+	}
+	GenError(node, "sorry...");
+	return 0;
+}
+
+fn gen_load(node Ast) i32 {
+	var t i32 = get_reg();
+	var sym Symbol = node.sym;
+	if sym.kind & SYMBOL_PARAM {
+		emit("    ldw x@, @(fp)\n").n(t).n(sym.ival);
+	} else if sym.kind & SYMBOL_LOCAL {
+		emit("    ldw x@, -@(fp)\n").n(t).n(sym.ival);
+	} else {
+		GenError(node, "unsupported symbol for load");
+	}
+	return t;
 }
 
 fn gen_assign(node Ast) i32 {
@@ -173,10 +227,7 @@ fn gen_expr(node Ast) i32 {
 		return t;
 	}
 	if kind == AST_SYMBOL {
-		// param? local? global?
-		var t i32 = get_reg();
-		emit_li(t, 42);
-		return t;
+		return gen_load(node);
 	}
 	if kind == AST_EQ  { return gen_relop(node, "eq"); }
 	if kind == AST_NE  { return gen_relop(node, "ne"); }
@@ -311,6 +362,42 @@ fn gen_block(node Ast) {
 	}
 }
 
+fn setup_locals(node Ast, n i32) {
+	if node.kind == AST_BLOCK {
+		var sym Symbol = node.sym;
+		while sym != nil {
+			emit("// local @ @\n").n(n).s(sym.name.text);
+			sym.ival = n;
+			n += 4;
+			sym = sym.next;
+		}
+	}
+	var node2 Ast = node.left;
+	while node2 != nil {
+		setup_locals(node2, n);
+		node2 = node2.next;
+	}
+	node2 = node.right;
+	while node2 != nil {
+		setup_locals(node2, n);
+		node2 = node2.next;
+	}
+	if n > local_max {
+		local_max = n;
+	}
+}
+
+
+//  p3         p3     1
+//  p2         p2     1
+//  p1 <- sp   p1 <-  0(fp)
+//             ra    -4
+//             fp'   -8
+//             l1   -12
+//             l2   -16
+//             ..
+//             t8 <-  0(sp)
+
 fn gen_fn(node Ast) {
 	if node.left == nil {
 		return;
@@ -318,11 +405,14 @@ fn gen_fn(node Ast) {
 	return_type = node.sym.type.of;
 	return_target = make_label();
 	emit("\n@:\n").s(node.sym.name.text);
+	// first two slots go to ra, fp
+	local_max = 0;
+	setup_locals(node.left, 12);
 	// prologue
 	emit("    stw ra, -4(sp)\n");
 	emit("    stw fp, -8(sp)\n");
 	emit("    mv fp, sp\n");
-	emit("    subi sp, sp, @\n").n(8); // TODO: locals
+	emit("    subi sp, sp, @\n").n(local_max + MaxTmpRegs * 4);
 	gen_block(node.left);
 	//TODO: check for no return on non-void functions
 	emit("    li rv, 0\n");
@@ -330,7 +420,7 @@ fn gen_fn(node Ast) {
 	// epilogue
 	emit("    ldw ra, -4(fp)\n");
 	emit("    ldw fp, -8(fp)\n");
-	emit("    addi sp, sp, @\n").n(8); // TODO: locals
+	emit("    addi sp, sp, @\n").n(local_max + MaxTmpRegs * 4);
 	emit("    ret\n");
 }
 
