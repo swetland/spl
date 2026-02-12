@@ -545,7 +545,7 @@ int parse_line(State *s) {
 	switch (tok) {
 	case tADD: case tSUB: case tAND: case tOR:
 	case tXOR: case tSLL: case tSRL: case tSRA:
-	case tSLT: case tSLTU:
+	case tSLT: case tSLTU: case tMUL: case tDIV:
 		o = tok - tADD;
 		parse_2r_c(s, &t, &a);
 		parse_reg(s, &b);
@@ -559,7 +559,6 @@ int parse_line(State *s) {
 		parse_num(s, &i);
 		emit(ins_i(o, t, a, i));
 		break;
-	// todo: mul div
 	case tBEQ: case tBNE: case tBLT:
 	case tBLTU: case tBGE: case tBGEU:
 		o = tok - tBEQ;
