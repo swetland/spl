@@ -1,5 +1,6 @@
 
 __start:
+	li gp, __global_segment
 	j start
 
 _hexout_:

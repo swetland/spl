@@ -85,7 +85,6 @@ enum AstKind {
 // container of statements
 	AST_BLOCK,    // l=STMT* sym: local-symbols-list
 // statements (chained into a list by next)
-	AST_EXPR,     // l=EXPR
 	AST_WHILE,    // l=EXPR r=BLOCK
 	AST_BREAK,
 	AST_CONTINUE,
@@ -119,7 +118,7 @@ enum AstKind {
 
 var ast_kind []str = {
 	"PROGRAM", "FUNC",
-	"BLOCK", "EXPR", "WHILE", "BREAK", "CONTINUE",
+	"BLOCK", "WHILE", "BREAK", "CONTINUE",
 	"RETURN", "IF", "CASE", "ELSE",
 	"SYMBOL", "CONST", "STRING",
 	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN", "NEW",
@@ -150,7 +149,7 @@ fn ast_is_expr(kind AstKind) bool {
 }
 
 fn ast_is_stmt(kind AstKind) bool {
-	return (kind >= AST_EXPR) && (kind <= AST_ELSE);
+	return (kind >= AST_WHILE) && (kind <= AST_ELSE);
 }
 
 struct Ast {

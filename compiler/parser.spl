@@ -462,7 +462,7 @@ fn parse_var(kind SymbolKind) Ast {
 		} else {
 			node = ast_make_symbol(name, sym);
 			node = ast_make_lr(AST_ASSIGN, node, parse_expr());
-			node = ast_posn(ast_make_l(AST_EXPR, node), posn);
+			node = ast_posn(node, posn);
 		}
 	} else {
 		// default init
@@ -510,7 +510,7 @@ fn _parse_expr_statement() Ast {
 
 fn parse_expr_statement() Ast {
 	var posn u32 = ctx.srcloc;
-	var stmt Ast = ast_posn(ast_make_l(AST_EXPR, _parse_expr_statement()), posn);
+	var stmt Ast = ast_posn(_parse_expr_statement(), posn);
 	require(tSEMI);
 	return stmt;
 }
@@ -673,32 +673,38 @@ fn parse_init() {
 }
 
 fn parse_program() Ast {
+	var node Ast = nil;
 	while true {
-		if ctx.tok == tENUM {
+		if ctx.tok == tEOF {
+			break;
+		} else if ctx.tok == tENUM {
 			next();
 			parse_enum_def();
+			continue;
 		} else if ctx.tok == tSTRUCT {
 			next();
 			var name String = parse_name("struct name");
 			parse_struct_type(name);
 			require(tSEMI);
+			continue;
 		} else if ctx.tok == tFN {
 			next();
-			var node Ast = parse_fn();
-			if ctx.last == nil {
-				ctx.program.left = node;
-			} else {
-				ctx.last.next = node;
-			}
-			ctx.last = node;
+			node = parse_fn();
 		} else if ctx.tok == tVAR {
 			next();
-			parse_var(SYMBOL_GLOBAL);
-		} else if ctx.tok == tEOF {
-			break;
+			node = parse_var(SYMBOL_GLOBAL);
+			if node == nil {
+				Error("cannot init global");
+			}
 		} else {
 			expected("function, variable, or type definition");
 		}
+		if ctx.last == nil {
+			ctx.program.left = node;
+		} else {
+			ctx.last.next = node;
+		}
+		ctx.last = node;
 	}
 	return ctx.program;
 }

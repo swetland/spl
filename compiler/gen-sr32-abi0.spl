@@ -188,8 +188,10 @@ fn gen_addr(node Ast) i32 {
 			emit("    addi x@, fp, @\n").n(t).n(sym.ival);
 		} else if sym.kind & SYMBOL_LOCAL {
 			emit("    addi x@, fp, -@\n").n(t).n(sym.ival);
+		} else if sym.kind & SYMBOL_GLOBAL {
+			emit("    addi x@, gp, @\n").n(t).n(sym.ival);
 		} else {
-			GenError(node, "unsupported store");
+			GenError(node, "unsupported store for '@' @").s(sym.name.text).x(sym.kind);
 		}
 		return t;
 	}
@@ -204,8 +206,10 @@ fn gen_load(node Ast) i32 {
 		emit("    ldw x@, @(fp)\n").n(t).n(sym.ival);
 	} else if sym.kind & SYMBOL_LOCAL {
 		emit("    ldw x@, -@(fp)\n").n(t).n(sym.ival);
+	} else if sym.kind & SYMBOL_GLOBAL{
+		emit("    ldw x@, @(gp)\n").n(t).n(sym.ival);
 	} else {
-		GenError(node, "unsupported symbol for load");
+		GenError(node, "unsupported symbol for load '@' @").s(sym.name.text).x(sym.kind);
 	}
 	return t;
 }
@@ -240,8 +244,8 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_OR  { return gen_binop(node, "or"); }
 	if kind == AST_XOR { return gen_binop(node, "xor"); }
 	if kind == AST_MUL { return gen_binop(node, "mul"); }
-	if kind == AST_DIV { }
-	if kind == AST_MOD { }
+	if kind == AST_DIV { return gen_binop(node, "div"); }
+	if kind == AST_MOD { return gen_binop(node, "rem"); }
 	if kind == AST_AND { return gen_binop(node, "and"); }
 	if kind == AST_LSL { return gen_binop(node, "sll"); }
 	if kind == AST_LSR { return gen_binop(node, "srl"); }
@@ -343,9 +347,7 @@ fn gen_block(node Ast) {
 	node = node.left;
 	while node != nil {
 		var kind i32 = node.kind;
-		if kind == AST_EXPR {
-			put_reg(gen_expr(node.left));
-		} else if kind == AST_WHILE {
+		if kind == AST_WHILE {
 			gen_while(node);
 		} else if kind == AST_BREAK {
 			gen_break(node);
@@ -355,6 +357,8 @@ fn gen_block(node Ast) {
 			gen_return(node);
 		} else if kind == AST_IF {
 			gen_if(node);
+		} else if ast_is_expr(kind) {
+			put_reg(gen_expr(node));
 		} else {
 			GenError(node, "unsupported @").s(ast_kind[kind]);
 		}
@@ -424,13 +428,51 @@ fn gen_fn(node Ast) {
 	emit("    ret\n");
 }
 
-fn gen(outfd i32, node Ast) {
-	os = OutFd(outfd);
-	emit("// gen-sr32-abi0\n\n");
+fn gen_functions(node Ast) {
 	while node != nil {
 		if node.kind == AST_FUNC {
 			gen_fn(node);
 		}
 		node = node.next;
 	}
+}
+
+fn gen_global_addrs(node Ast) {
+	var n i32 = 0;
+	while node != nil {
+		if node.kind == AST_ASSIGN {
+			var sym Symbol = node.left.sym;
+			sym.ival = n;
+			n += 4;
+		}
+		node = node.next;
+	}
+}
+
+fn eval_const_expr(node Ast) i32 {
+	if node.kind != AST_CONST {
+		// TODO: real cexprs
+		GenError(node, "invalid constant expression");
+	}
+	return node.ival;
+}
+
+fn gen_global_inits(node Ast) {
+	emit("__global_segment:\n");
+	while node != nil {
+		if node.kind == AST_ASSIGN{
+			var sym Symbol = node.left.sym;
+			var val i32 = eval_const_expr(node.right);
+			emit("    .word @ // @\n").n(val).s(sym.name.text);
+		}
+		node = node.next;
+	}
+}
+
+fn gen(outfd i32, node Ast) {
+	os = OutFd(outfd);
+	emit("// gen-sr32-abi0\n\n");
+	gen_global_addrs(node);
+	gen_functions(node);
+	gen_global_inits(node);
 }
