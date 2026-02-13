@@ -709,6 +709,8 @@ int parse_line(State *s) {
 		parse_r_c(s, &t);
 		if (s->tok == tIDENT) {
 			parse_rel(s, TYPE_ABS_HILO, &i);
+			emit(ins_l(L_LUI, t, 0, 0));
+			emit(ins_i(IR_ADD, t, t, 0));
 		} else {
 			parse_num(s, &i);
 			if (fits_in_signed16(i)) {
