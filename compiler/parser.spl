@@ -497,6 +497,7 @@ fn _parse_expr_statement() Ast {
 		expr = ast_make_const(1, ctx.type_i32);
 	} else if (ctx.tok == tDEC) {
 		op = AST_SUB;
+		next();
 		expr = ast_make_const(1, ctx.type_i32);
 	} else {
 		// simple expression
@@ -655,10 +656,11 @@ fn parse_enum_def() {
 		sym = symbol_make_global(name, ctx.type_u32, SYMBOL_DEF, 0);
 		if ctx.tok == tASSIGN {
 			next();
-			parse_expr();
-			// TODO: sym.ival <- expr
-			// TODO: store subtree for later eval
+			sym.ival = eval_const_expr(parse_expr());
+			val = sym.ival + 1;
+			// TODO: store subtree for later eval instead?
 		} else {
+			sym.ival = val;
 			val++;
 		}
 		require(tCOMMA);

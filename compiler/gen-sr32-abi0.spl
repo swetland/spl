@@ -202,7 +202,9 @@ fn gen_addr(node Ast) i32 {
 fn gen_load(node Ast) i32 {
 	var t i32 = get_reg();
 	var sym Symbol = node.sym;
-	if sym.kind & SYMBOL_PARAM {
+	if sym.kind & SYMBOL_DEF {
+		emit_li(t, sym.ival);
+	} else if sym.kind & SYMBOL_PARAM {
 		emit("    ldw x@, @(fp)\n").n(t).n(sym.ival);
 	} else if sym.kind & SYMBOL_LOCAL {
 		emit("    ldw x@, -@(fp)\n").n(t).n(sym.ival);
@@ -447,14 +449,6 @@ fn gen_global_addrs(node Ast) {
 		}
 		node = node.next;
 	}
-}
-
-fn eval_const_expr(node Ast) i32 {
-	if node.kind != AST_CONST {
-		// TODO: real cexprs
-		GenError(node, "invalid constant expression");
-	}
-	return node.ival;
 }
 
 fn gen_global_inits(node Ast) {

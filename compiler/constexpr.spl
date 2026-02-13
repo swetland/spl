@@ -1,0 +1,54 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+fn eval_const_expr(node Ast);
+
+fn eval_const_binop(node Ast) i32 {
+	var kind i32 = node.kind;
+	var a i32 = eval_const_expr(node.left);
+	var b i32 = eval_const_expr(node.right);
+
+	if kind == AST_ADD { return a + b; }
+	if kind == AST_SUB { return a - b; }
+	if kind == AST_OR  { return a | b; }
+	if kind == AST_XOR { return a ^ b; }
+	if kind == AST_MUL { return a * b; }
+	if kind == AST_DIV {
+		if b == 0 { Error("constant division by zero"); }
+		return a / b;
+	}
+	if kind == AST_MOD {
+		if b == 0 { Error("constant division by zero"); }
+		return a % b;
+	}
+	if kind == AST_AND { return a & b; }
+	if kind == AST_LSL { return a << b; }
+	// TODO: correct LSR
+	if kind == AST_LSR { return a >> b; }
+	Error("unsupported const binop");
+	return 0;
+}
+
+fn eval_const_expr(node Ast) i32 {
+	var kind i32 = node.kind;
+	if kind == AST_CONST {
+		return node.ival;
+	}
+	if kind == AST_SYMBOL {
+		if node.sym.kind & SYMBOL_DEF {
+			return node.sym.ival;
+		}
+	}
+	if ast_is_binop(node.kind) {
+		return eval_const_binop(node);
+	}
+	if kind == AST_NOT {
+		return ~eval_const_expr(node.left);
+	}
+	if kind == AST_NEG {
+		return -eval_const_expr(node.left);
+	}
+	Error("unsupported const expr");
+	return 0;
+}
+

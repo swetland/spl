@@ -14,7 +14,8 @@ out/compiler0: bootstrap/compiler0.c
 
 # compiler1: SPL compiler written in SPL
 #
-COMPILERX_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl compiler/lexer.spl compiler/parser.spl
+COMPILERX_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl
+COMPILERX_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
 COMPILER1_SRC := $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
 
 out/compiler1: ./out/compiler0 out/asm $(COMPILER1_SRC)
