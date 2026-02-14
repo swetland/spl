@@ -19,7 +19,7 @@ log="${txt%.txt}.log"
 msg="${txt%.txt}.msg"
 gold="${src%.spl}.log"
 
-echo "RUNTEST: $src: compiling..."
+#echo "RUNTEST: $src: compiling..."
 if compile "$src" "$bin" 2> "$msg"; then
 	# success!
 	if [[ "$txt" == *"-err"* ]]; then
