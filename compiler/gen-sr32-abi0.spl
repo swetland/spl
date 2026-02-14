@@ -224,6 +224,36 @@ fn gen_assign(node Ast) i32 {
 	return vr;
 }
 
+fn gen_bool_and(node Ast) i32 {
+	var t i32 = get_reg();
+	emit_li(t, 0);
+	var res0 i32 = make_label();
+	var x i32 = gen_expr(node.left);
+	emit_branch("eq", x, 0, res0);
+	put_reg(x);
+	x = gen_expr(node.right);
+	emit_branch("eq", x, 0, res0);
+	put_reg(x);
+	emit_li(t, 1);
+	emit_target(res0);
+	return t;
+}
+
+fn gen_bool_or(node Ast) i32 {
+	var t i32 = get_reg();
+	emit_li(t, 1);
+	var res1 i32 = make_label();
+	var x i32 = gen_expr(node.left);
+	emit_branch("ne", x, 0, res1);
+	put_reg(x);
+	x = gen_expr(node.right);
+	emit_branch("ne", x, 0, res1);
+	put_reg(x);
+	emit_li(t, 0);
+	emit_target(res1);
+	return t;
+}
+
 fn gen_expr(node Ast) i32 {
 	var kind i32 = node.kind;
 
@@ -254,8 +284,8 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_NOT { return gen_unop(node, "not"); }
 	if kind == AST_NEG { return gen_unop(node, "neg"); }
 	if kind == AST_BOOL_NOT { return gen_unop(node, "not"); }
-	if kind == AST_BOOL_AND {  }
-	if kind == AST_BOOL_OR { }
+	if kind == AST_BOOL_AND { return gen_bool_and(node); }
+	if kind == AST_BOOL_OR { return gen_bool_or(node); }
 	if kind == AST_STRING { }
 	if kind == AST_DEREF { }
 	if kind == AST_INDEX { }
