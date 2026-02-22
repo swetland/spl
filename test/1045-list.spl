@@ -5,12 +5,28 @@ struct Node {
 };
 
 fn print(node Node) {
-	_hexout_(node.value);
+	while node != nil {
+		_hexout_(node.value);
+		node = node.next;
+	}
+}
+
+fn prepend(node Node, value i32) Node {
+	var newnode Node = new(Node);
+	newnode.next = node;
+	newnode.value = value;
+	return newnode;
 }
 
 fn start() i32 {
 	var node Node = new(Node);
 	node.value = 42;
-	print(node);	
+	print(node);
+
+	node = prepend(node, 1);
+	node = prepend(node, 2);
+	node = prepend(node, 3);
+	print(node);
+
 	return 0;
 }
