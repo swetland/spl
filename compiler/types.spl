@@ -173,7 +173,9 @@ struct Ast {
 	sym *Symbol,
 	type *Type,
 
-	srcloc u32, // linenumber for now
+	// 12 bits: source file id
+	// 20 bits: source line number
+	srcloc u32,
 };
 
 
@@ -233,12 +235,18 @@ var tnames []str = {
 };
 
 
+struct SourceFile {
+	next *SourceFile,
+	name str,
+	id i32,
+};
+
 // ================================================================
 // lexer / parser / compiler context
 
 struct Context {
-	filename str,		// filename of active source
-	outname str,		// base name for output files
+	filelist *SourceFile,	// list of all source files
+	fileid i32,
 
 	fd_in i32,		// current input file
 	linenumber u32,		// line number of most recent line

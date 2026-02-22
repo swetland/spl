@@ -268,7 +268,7 @@ fn _next() Token {
 				continue;
 			}
 		} else if tok == tEOL {
-			ctx.linenumber++;
+			ctx.linenumber = (ctx.linenumber & 0xFFF00000) | ((ctx.linenumber & 0x000FFFFF) + 1);
 			ctx.lineoffset = ctx.byteoffset;
 			//if ctx.flags & cfVisibleEOL {
 			//	return tEOL;
@@ -309,6 +309,12 @@ fn printstr(fd i32, s str) {
 		n++;
 	}
 	writec(fd, '"');
+}
+
+fn print_srcloc(fd i32, loc u32) {
+	writes(2, ctx_find_source_file(loc >> 20));
+	writes(2, ": ");
+	writei(2, loc & 0x000FFFFF);
 }
 
 fn token_print(fd i32) {

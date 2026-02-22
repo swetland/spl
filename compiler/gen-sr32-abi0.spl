@@ -22,9 +22,7 @@ fn GenError(node Ast, msg str) ErrorStream {
 	s.msg = msg;
 	s.idx = 0;
 	writes(2, "\n");
-	writes(2, ctx.filename);
-	writes(2, ": ");
-	writei(2, node.srcloc);
+	print_srcloc(2, node.srcloc);
 	writes(2, ": error: ");
 	es_advance(s);
 	return s;

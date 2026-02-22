@@ -227,9 +227,31 @@ fn ctx_init() {
 	scope_push(SCOPE_GLOBAL);
 	ctx.global = ctx.scope;
 
-	ctx.linenumber = 1;
-	ctx.srcloc = 1;
-	ctx.filename = "<stdin>";
+	ctx.linenumber = 0;
+	ctx.srcloc = 0;
+	ctx.filelist = nil;
+}
+
+fn ctx_set_source_file(name str) {
+	var sf SourceFile = new(SourceFile);
+	sf.name = name;
+	sf.id = ctx.fileid;
+	sf.next = ctx.filelist;
+	ctx.filelist = sf;
+	ctx.fileid++;
+
+	ctx.linenumber = (sf.id << 20) | 1;
+}
+
+fn ctx_find_source_file(id i32) str {
+	var sf SourceFile = ctx.filelist;
+	while sf != nil {
+		if sf.id == id {
+			return sf.name;
+		}
+		sf = sf.next;
+	}
+	return "???";
 }
 
 fn type_size(type Type) i32 {

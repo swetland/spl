@@ -115,7 +115,6 @@ fn dump_types(fd i32) {
 fn start() i32 {
 	ctx_init();
 	parse_init();
-	ctx.filename = os_arg(0);
 	var astfd i32 = -1;
 	var outfd i32 = 1;
 
@@ -147,8 +146,7 @@ fn start() i32 {
 		if ctx.fd_in == -1 {
 			Error("cannot open '@'").s(arg);
 		}
-		ctx.linenumber = 1;
-		ctx.filename = arg;
+		ctx_set_source_file(arg);
 
 		scan();
 		next();
