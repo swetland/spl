@@ -11,6 +11,22 @@ fn print_indent(fd i32) {
 	}
 }
 
+fn print_type(fd i32, type Type) {
+	if type.kind == TYPE_POINTER {
+		writes(fd, "*");
+		type = type.of;
+	}
+	if type.kind == TYPE_ARRAY {
+		writes(fd, "[]");
+		type = type.of;
+	}
+	if type.name == nil {
+		writes(fd, "???");
+	} else {
+		writes(fd, type.name.text);
+	}
+}
+
 fn dump_ast_node(fd i32, node Ast);
 
 fn _dump_ast_node(fd i32, node Ast) {
@@ -50,6 +66,13 @@ fn _dump_ast_node(fd i32, node Ast) {
 		printstr(fd, node.name.text);
 	} else if kind == AST_SYMBOL {
 		writes(fd, node.name.text);
+	} else if kind == AST_NEW {
+		print_type(fd, node.type);
+	}
+	if node.type != nil {
+		writes(fd, " [");
+		print_type(fd, node.type);
+		writes(fd, "]");
 	}
 	writes(fd, "\n");
 
@@ -69,6 +92,29 @@ fn dump_ast_node(fd i32, node Ast) {
 		}
 	}
 }
+
+fn dump_types(fd i32) {
+	var type Type = ctx.typelist;
+	while type != nil {
+		writes(fd, type.name.text);
+		writes(fd, ": ");
+		writei(fd, type_size(type));
+		writes(fd, "\n");
+		if type.kind == TYPE_STRUCT {
+			var sym Symbol = type.list;
+			while sym != nil {
+				writes(fd, "    ");
+				writes(fd, sym.name.text);
+				writes(fd, ": ");
+				writei(fd, sym.ival);
+				writes(fd, "\n");
+				sym = sym.next;
+			}
+		}
+		type = type.next;
+	}
+}
+
 
 fn start() i32 {
 	ctx_init();
@@ -120,6 +166,7 @@ fn start() i32 {
 
 	if astfd != -1 {
 		dump_ast_node(astfd, ctx.program);
+		dump_types(astfd);
 	}
 	if outfd != -1 {
 		gen(outfd, ctx.program.left);

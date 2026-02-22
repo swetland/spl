@@ -38,10 +38,10 @@ fn parse_symbol(what str) Ast {
 	return ast_make_symbol(name, sym);
 }
 
-fn parse_fcall(node Ast, self Ast) Ast {
+fn parse_fcall(fnode Ast, self Ast) Ast {
 	// function call for fname/mname node, optional self param self
 	next();
-	node = ast_make_l(AST_CALL, node);
+	var node Ast = ast_make_l(AST_CALL, fnode);
 	var last Ast = nil;
 
 	if self != nil {
@@ -62,13 +62,39 @@ fn parse_fcall(node Ast, self Ast) Ast {
 		}
 	}
 	next();
+	// type is the fn's return type
+	node.type = fnode.type.of;
 	return node;
+}
+
+fn parse_field_ref(node Ast, name String) Ast {
+	var type Type = node.type;
+	if type == nil {
+		Error("BOGUS NODE TYPE");
+	}
+	if type.kind == TYPE_POINTER {
+		type = type.of;
+	}
+	if type.kind != TYPE_STRUCT {
+		Error("expected struct");
+	}
+	var sym Symbol = type.list;
+	while sym != nil {
+		if sym.name == name {
+			node = ast_make_lr(AST_FIELD, node, ast_make_symbol(name, sym));
+			node.type = sym.type;
+			return node;
+		}
+		sym = sym.next;
+	}
+	Error("struct '@' has no field '@'").s(type.name.text).s(name.text);
+	return nil;
 }
 
 fn parse_ident() Ast {
 	var node Ast = parse_symbol("identifier");
 
-	if (node.sym == nil) && (ctx.tok != tOPAREN) {
+	if (node.sym == nil) {
 		Error("undefined identifier '@'").s(node.name.text);
 	}
 
@@ -78,13 +104,15 @@ fn parse_ident() Ast {
 
 	while true {
 		if ctx.tok == tDOT {
-			// field access
 			next();
-			var name Ast = parse_symbol("field or method name");
+			var name String = parse_name("field or method name");
 			if ctx.tok == tOPAREN {
-				node = parse_fcall(name, node);
+				// method call
+				var sym Symbol = symbol_find(name);
+				node = parse_fcall(ast_make_symbol(name, sym), node);
 			} else {
-				node = ast_make_lr(AST_FIELD, node, name);
+				// field access
+				node = parse_field_ref(node, name);
 			}
 		} else if ctx.tok == tOBRACK {
 			// array access
@@ -124,8 +152,14 @@ fn parse_primary_expr() Ast {
 	} else if ctx.tok == tNEW {
 		next();
 		require(tOPAREN);
-		node = ast_make_simple(AST_NEW, 0);
-		node.name = parse_name("type name");
+		var type Type = parse_type(false);
+		node = ast_make_symbol(ctx.str_new_fn, symbol_find(ctx.str_new_fn));
+		node = ast_make_lr(AST_CALL, node, ast_make_simple(AST_CONST, type_size(type)));
+		node.type = type.of;
+		// TODO: do this instead and transform to call later on:
+		//node = ast_make_simple(AST_NEW, 0);
+		//node.type = parse_type(false);
+		//node.type = node.type.of;
 		require(tCPAREN);
 	} else if ctx.tok == tIDN {
 		node = parse_ident();
@@ -220,7 +254,11 @@ fn parse_struct_type(name String) Type {
 	var type Type = type_find(name);
 
 	if type == nil {
+		// pointer-to-struct is so commonly used, we always
+		// create it alongside the struct and they reference
+		// each other via their of fields
 		type = type_make(name, TYPE_STRUCT, nil, nil, 0);
+		type.of = type_make(nil, TYPE_POINTER, type, nil, 0);
 	} else {
 		if type.kind == TYPE_UNDEFINED {
 			// resolve forward ref
@@ -229,6 +267,8 @@ fn parse_struct_type(name String) Type {
 			Error("cannot redefine struct '@'").s(name.text);
 		}
 	};
+	var off i32 = 0;
+	var ptr bool = false;
 	scope_push(SCOPE_STRUCT);
 	require(tOBRACE);
 	while true {
@@ -240,16 +280,22 @@ fn parse_struct_type(name String) Type {
 		var kind SymbolKind = SYMBOL_FLD;
 		if ctx.tok == tSTAR {
 			next();
-			kind |= SYMBOL_PTR;
+			ptr = true;
+		} else {
+			ptr = false;
 		}
 		var ftype Type = parse_type(true);
-		symbol_make(fname, ftype, kind, 0);
-		// TODO: calculate ival correctly
+		if ptr {
+			ftype = ftype.of; // use the pointer-to-struct
+		}
+		symbol_make(fname, ftype, kind, off);
 		if ctx.tok != tCBRACE {
 			require(tCOMMA);
 		}
+		off += type_size(ftype);
 	}
 	type.list = scope_pop();
+	type.count = off;
 	return type;
 }
 
@@ -296,7 +342,11 @@ fn parse_type(fwd_ref_ok u32) Type {
 		var type Type = type_find(name);
 		if type == nil {
 			if fwd_ref_ok {
+				// pointer-to-struct is so commonly used, we always
+				// create it alongside the struct and they reference
+				// each other via their of fields
 				type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
+				type.of = type_make(nil, TYPE_POINTER, type, nil, 0);
 			} else {
 				Error("undefined type '@' not usable here").s(name.text);
 			}
@@ -392,14 +442,19 @@ fn parse_continue() Ast {
 	return ast_make_simple(AST_CONTINUE, 0);
 }
 
+// sym type must be kind STRUCT or POINTER->STRUCT
 fn parse_struct_init(sym Symbol) {
+	var type Type = sym.type;
+	if type.kind == TYPE_POINTER {
+		type = type.of;
+	}
 	while true {
 		if ctx.tok == tCBRACE {
 			next();
 			break;
 		}
 		var name String = parse_name("field name");
-		var field Symbol = sym.type.list;
+		var field Symbol = type.list;
 		while true { // TODO: field_find
 			if field == nil {
 				Error("structure has no '@' field").s(name.text);
@@ -444,7 +499,7 @@ fn parse_var(kind SymbolKind) Ast {
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false);
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
-		kind |= SYMBOL_PTR;
+		type = type.of; // use the pointer-to-struct
 	}
 	var sym Symbol = symbol_make(name, type, SYMBOL_VAR | kind, 0);
 
@@ -453,6 +508,8 @@ fn parse_var(kind SymbolKind) Ast {
 		if ctx.tok == tOBRACE {
 			next();
 			if type.kind == TYPE_STRUCT {
+				parse_struct_init(sym);
+			} else if (type.kind == TYPE_POINTER) && (type.of.kind == TYPE_STRUCT) {
 				parse_struct_init(sym);
 			} else if type.kind == TYPE_ARRAY {
 				parse_array_init(sym);
@@ -567,7 +624,7 @@ fn parse_param(ival i32) Symbol {
 	var name String = parse_name("parameter name");
 	var type Type = parse_type(false);
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
-		kind |= SYMBOL_PTR;
+		type = type.of; // use the pointer-to-struct
 	}
 	// check only in current scope to avoid errors
 	// about pnames that mask globals (which is allowed)
@@ -696,7 +753,7 @@ fn parse_program() Ast {
 			next();
 			node = parse_var(SYMBOL_GLOBAL);
 			if node == nil {
-				Error("cannot init global");
+				continue;
 			}
 		} else {
 			expected("function, variable, or type definition");

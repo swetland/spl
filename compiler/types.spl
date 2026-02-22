@@ -21,8 +21,6 @@ enum SymbolKind {
 	SYMBOL_LOCAL     = 0x010,
 	SYMBOL_PARAM     = 0x020,
 	SYMBOL_GLOBAL    = 0x040,
-	// flag: pointer or reference
-	SYMBOL_PTR       = 0x100,
 };
 
 struct Symbol {
@@ -30,6 +28,8 @@ struct Symbol {
 	name *String,
 	type *Type,
 	kind SymbolKind,
+	// var: offset from param/frame/global base
+	// fld: offset from struct base
 	ival i32,
 };
 
@@ -62,15 +62,24 @@ enum TypeKind {
 	TYPE_STRUCT,
 	TYPE_FN,
 	TYPE_ENUM,
-	TYPE_UNDEFINED,
+	TYPE_UNDEFINED, // fwd ref to a struct
+};
+
+var type_kind []str = {
+	"void", "bool", "u8", "u32", "i32", "nil", "ptr", "array", "slice", "str", "struct", "fn", "enum", "undef",
 };
 
 struct Type {
 	next *Type,
 	name *String,
-	of *Type,      // for slice, array, ptr, fn (return type)
-	list *Symbol,  // for struct (fields), fn (params)
+	// for slice, array, ptr, fn (return type)
+	// for structs, pointer-to-this-struct
+	of *Type,
+	// for struct (fields), fn (params)
+	list *Symbol,
 	kind TypeKind,
+	// slice/array: number of slots
+	// struct: total byte size
 	count u32,
 };
 
@@ -280,6 +289,8 @@ struct Context {
 	type_u32 *Type,
 	type_i32 *Type,
 	type_u8 *Type,
+
+	str_new_fn *String,
 };
 
 var ctx Context;
