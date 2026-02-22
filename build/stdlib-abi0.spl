@@ -1,2 +1,14 @@
 
+var __heap_base u32 = 4 * 1024 * 1024;
+
 fn _hexout_(n i32);
+
+fn __new(sz i32) u32 {
+	// TODO: should zero new object
+	// currently the emulator inits ram to zero and there
+	// is no free/reuse, so not yet an issue
+	var addr u32 = __heap_base;
+	sz = (sz + 15) & (~15);
+	__heap_base += sz;
+	return __heap_base;
+}
