@@ -291,6 +291,9 @@ struct Context {
 	type_u8 *Type,
 
 	str_new_fn *String,
+	str_type_unknown *String,
+	str_type_pointer *String,
+	str_type_array *String,
 };
 
 var ctx Context;

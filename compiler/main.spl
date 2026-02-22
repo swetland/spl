@@ -20,11 +20,7 @@ fn print_type(fd i32, type Type) {
 		writes(fd, "[]");
 		type = type.of;
 	}
-	if type.name == nil {
-		writes(fd, "???");
-	} else {
-		writes(fd, type.name.text);
-	}
+	writes(fd, type.name.text);
 }
 
 fn dump_ast_node(fd i32, node Ast);
