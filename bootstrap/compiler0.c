@@ -451,6 +451,8 @@ void emit_impl_cparen(unsigned idx) {
 	}
 }
 
+void emit_impl_typename(Type* type, int ref);
+
 void ctx_open_source(const char* filename) {
 	ctx.filename = filename;
 	ctx.linenumber = 0;
@@ -1037,9 +1039,11 @@ void parse_primary_expr(void) {
 	} else if (ctx.tok == tNEW) {
 		next();
 		require(tOPAREN);
-		String *typename = parse_name("type name");
+		Type *type = parse_type(false);
 		require(tCPAREN);
-		emit_impl("calloc(1,sizeof(t$%s))", typename->text);
+		emit_impl("calloc(1,sizeof(");
+		emit_impl_typename(type, 0);
+		emit_impl("))");
 		return;
 	} else if (ctx.tok == tIDN) {
 		parse_ident();
@@ -1205,6 +1209,20 @@ Type *parse_array_type(void) {
 		emit_type("typedef t$%s t$%s[%u];\n", type->of->name->text, type->name->text, nelem);
 	}
 	return type;
+}
+
+void emit_impl_typename(Type *type, int ref) {
+	if (ref) {
+		if (type->kind == TYPE_STRUCT) {
+			emit_impl("t$%s*", type->name->text);
+			return;
+		}
+		if (type->kind == TYPE_ARRAY) {
+			emit_impl("t$%s*", type->of->name->text);
+			return;
+		}
+	}
+	emit_impl("t$%s", type->name->text);
 }
 
 Type *parse_type(bool fwd_ref_ok) {
@@ -1394,9 +1412,8 @@ void parse_var(void) {
 				error("type %s cannot be initialized with {} expr", type->name->text);
 			}
 		} else {
-			emit_impl("t$%s %s$%s = ", type->name->text,
-				(type->kind == TYPE_STRUCT) ? "*" : "",
-				name->text);
+			emit_impl_typename(type, 1);
+			emit_impl(" $%s = ", name->text);
 			parse_expr();
 			emit_impl(";\n");
 		}
