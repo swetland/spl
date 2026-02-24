@@ -1,0 +1,14 @@
+
+struct Data {
+	n [10]u32,
+};
+
+fn start() i32 {
+	var d Data = new(Data);
+	d.n[0] = 1;
+	d.n[9] = 10;
+	_hexout_(d.n[0]);
+	_hexout_(d.n[1]);
+	_hexout_(d.n[9]);
+	return 0;
+}
