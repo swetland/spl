@@ -515,13 +515,39 @@ fn gen_global_addrs(node Ast) {
 	}
 }
 
+fn gen_global_struct_init(sym Symbol, node Ast) {
+	var off u32 = 0;
+	if sym.type.kind != TYPE_STRUCT {
+		GenError(node, "illegal struct init");
+	}
+	while node != nil {
+		var pos u32 = node.ival;
+		if pos & 3 { GenError(node, "struct init: alignment"); }
+		if pos < off { GenError(node, "struct init: ordering"); }
+		while off < pos {
+			emit("    .word 0\n");
+			off += 4;
+		}
+		emit("    .word -1 // todo\n");
+		node = node.next;
+	}
+	while off < sym.type.count{
+		emit("    .word 0\n");
+		off += 4;
+	}
+}
+
 fn gen_global_inits(node Ast) {
 	emit("__global_segment:\n");
 	while node != nil {
-		if node.kind == AST_ASSIGN{
+		if node.kind == AST_ASSIGN {
 			var sym Symbol = node.left.sym;
-			var val i32 = eval_const_expr(node.right);
-			emit("    .word @ // @\n").n(val).s(sym.name.text);
+			if node.right.kind == AST_ASSIGN {
+				gen_global_struct_init(sym, node.right);
+			} else {
+				var val i32 = eval_const_expr(node.right);
+				emit("    .word @ // @\n").n(val).s(sym.name.text);
+			}
 		}
 		node = node.next;
 	}

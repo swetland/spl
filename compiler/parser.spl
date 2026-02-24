@@ -442,8 +442,35 @@ fn parse_continue() Ast {
 	return ast_make_simple(AST_CONTINUE, 0);
 }
 
+fn ast_insert_by_ival(list Ast, node Ast) Ast {
+	if list == nil {
+		return node;
+	}
+	if list.ival > node.ival {
+		node.next = list;
+		return node;
+	}
+	var last Ast = list;
+	while true {
+		if last.next == nil {
+			last.next = node;
+			break;
+		}
+		if last.next.ival > node.ival {
+			node.next = last.next;
+			last.next = node;
+			break;
+		}
+		last = last.next;
+	}
+	return list;
+}
+
 // sym type must be kind STRUCT or POINTER->STRUCT
-fn parse_struct_init(sym Symbol) {
+fn parse_struct_init(sym Symbol) Ast {
+	var list Ast = nil;
+	var node Ast;
+
 	var type Type = sym.type;
 	if type.kind == TYPE_POINTER {
 		type = type.of;
@@ -453,6 +480,7 @@ fn parse_struct_init(sym Symbol) {
 			next();
 			break;
 		}
+		var posn u32 = ctx.srcloc;
 		var name String = parse_name("field name");
 		var field Symbol = type.list;
 		while true { // TODO: field_find
@@ -467,14 +495,18 @@ fn parse_struct_init(sym Symbol) {
 		require(tCOLON);
 		if ctx.tok == tOBRACE {
 			next();
-			parse_struct_init(field);
+			node = parse_struct_init(field);
 		} else {
-			parse_expr();
+			node = parse_expr();
 		}
+		node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(name, field), node), posn);
+		node.ival = field.ival;
+		list = ast_insert_by_ival(list, node);
 		if ctx.tok != tCBRACE {
 			require(tCOMMA);
 		}
 	}
+	return list;
 }
 
 fn parse_array_init(sym Symbol) {
@@ -508,19 +540,19 @@ fn parse_var(kind SymbolKind) Ast {
 		if ctx.tok == tOBRACE {
 			next();
 			if type.kind == TYPE_STRUCT {
-				parse_struct_init(sym);
+				node = parse_struct_init(sym);
 			} else if (type.kind == TYPE_POINTER) && (type.of.kind == TYPE_STRUCT) {
-				parse_struct_init(sym);
+				node = parse_struct_init(sym);
 			} else if type.kind == TYPE_ARRAY {
+				// TODO
 				parse_array_init(sym);
 			} else {
 				Error("type @ cannot be initialized with {} expr").s(type.name.text);
 			}
 		} else {
-			node = ast_make_symbol(name, sym);
-			node = ast_make_lr(AST_ASSIGN, node, parse_expr());
-			node = ast_posn(node, posn);
+			node = parse_expr();
 		}
+		node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(name, sym), node), posn);
 	} else {
 		// default init
 	}
