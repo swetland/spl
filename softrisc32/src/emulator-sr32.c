@@ -41,6 +41,32 @@ void *mem_dma(uint32_t addr, uint32_t len) {
 	return emu_ram + addr;
 }
 
+int do_check_state = 0;
+
+void check_state(void) {
+	int fail = 0;
+	if (!do_check_state) {
+		return;
+	}
+	char line[256];
+	while (fgets(line, sizeof(line), stdin) != NULL) {
+		if (line[0] == 'M') {
+			uint32_t addr;
+			uint32_t val;
+			if (sscanf(line, "M %x %x", &addr, &val) == 2) {
+				uint32_t actual = mem_rd32(addr);
+				if (actual != val) {
+					fprintf(stderr, "M %08x %08x != %08x\n", addr, val, actual);
+					fail = 1;
+				}
+			}
+		}
+	}
+	if (fail) {
+		exit(1);
+	}
+}
+
 uint32_t io_rd32(CpuState *cs, uint32_t addr) {
 	return 0;
 }
@@ -56,6 +82,7 @@ void io_wr32(CpuState *cs, uint32_t addr, uint32_t val) {
 		break;
 	case -3:
 		fprintf(stdout, "X %08x\n", val);
+		check_state();
 		exit(0);
 	case -4:
 		fprintf(stderr, "FAILURE %08x\n", val);
@@ -94,7 +121,7 @@ void load_hex_image(const char* fn) {
 void usage(int status) {
 	fprintf(stderr,
 		"usage:    emu <options> <image.hex> <arguments>\n"
-		"options: -x <datafile>     Load Test Vector Data\n"
+		"options: -check            Check Machine State\n"
 		"         -tf               Trace Instruction Fetches\n"
 		"         -tr               Trace Register Writes\n"
 		"         -tb               Trace Branches\n"
@@ -120,6 +147,8 @@ int main(int argc, char** argv) {
 			cs.flags |= F_TRACE_BRANCH;
 		} else if (!strcmp(argv[1], "-ti")) {
 			cs.flags |= F_TRACE_IO;
+		} else if (!strcmp(argv[1], "-check")) {
+			do_check_state = 1;
 		} else if (argv[1][0] == '-') {
 			fprintf(stderr, "emu: unknown option: %s\n", argv[1]);
 			return -1;
