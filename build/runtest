@@ -17,6 +17,7 @@ bin="${txt%.txt}.bin"
 lst="${txt%.txt}.lst"
 log="${txt%.txt}.log"
 msg="${txt%.txt}.msg"
+chk="${src%.spl}.chk"
 gold="${src%.spl}.log"
 
 #echo "RUNTEST: $src: compiling..."
@@ -28,7 +29,7 @@ if compile "$src" "$bin" 2> "$msg"; then
 		echo "FAIL: $src" > "$txt"
 	else
 		#echo "RUNTEST: $src: running..."
-		if run "$bin" > "$log"; then
+		if run "$bin" "$chk" > "$log"; then
 			if diff "$log" "$gold" >/dev/null ; then
 				echo "RUNTEST: $src: PASS"
 				echo "PASS: $src" > "$txt"

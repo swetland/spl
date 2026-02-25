@@ -10,5 +10,5 @@ fn __new(sz i32) u32 {
 	var addr u32 = __heap_base;
 	sz = (sz + 15) & (~15);
 	__heap_base += sz;
-	return __heap_base;
+	return addr;
 }

@@ -16,7 +16,11 @@ compile () {
 }
 
 run () {
-	out/emu "$1" || return 1;
+	if [ -f "$2" ]; then
+		out/emu -check "$1" <$2 || return 1;
+	else
+		out/emu "$1" || return 1;
+	fi
 	return 0
 }
 
