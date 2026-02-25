@@ -1173,7 +1173,11 @@ Type *parse_struct_type(String *name) {
 		bool ptr = (ctx.tok == tSTAR);
 		if (ptr) next();
 		Type *type = parse_type(true);
-		emit_decl("    t$%s %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
+		if ((type->kind == TYPE_ARRAY) && ptr) {
+			emit_decl("    t$%s *%s;\n", type->of->name->text, fname->text);
+		} else {
+			emit_decl("    t$%s %s%s;\n", type->name->text, ptr ? "*" : "", fname->text);
+		}
 		Symbol *sym = symbol_make(fname, type);
 		sym->kind = ptr ? SYMBOL_PTR : SYMBOL_FLD;
 		if (ctx.tok != tCBRACE) {
