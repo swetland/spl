@@ -1,10 +1,12 @@
 
 struct Data {
+	x i32,
 	n [10]u32,
 };
 
 fn start() i32 {
 	var d Data = new(Data);
+	d.x = 42;
 	d.n[0] = 1;
 	d.n[9] = 10;
 	_hexout_(d.n[0]);
