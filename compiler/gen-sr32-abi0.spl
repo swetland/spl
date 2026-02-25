@@ -204,6 +204,42 @@ fn gen_field_load(node Ast) i32 {
 	return ar;
 }
 
+// load:  vr < 0  (returns an allocated vr)
+// store: vr >= 0 (returns vr, vr not consumed)
+fn gen_array_access(node Ast, vr i32) i32 {
+	var type Type = node.left.type;
+	var ptr bool = false;
+	if type.kind == TYPE_POINTER {
+		type = type.of;
+		ptr = true;
+	}
+	if type.kind != TYPE_ARRAY {
+		GenError(node, "index of non-array type");
+	}
+	var sz i32 = type_size(type.of);
+	var ar i32 = gen_addr(node.left);
+	if ptr {
+		emit("    ldw x@, (x@) // array ptr deref\n").n(ar).n(ar);
+	}
+	var ir i32 = gen_expr(node.right);
+	if sz == 2 { emit("    slli x@, x@, 1\n").n(ir).n(ir); }
+	if sz == 4 { emit("    slli x@, x@, 2\n").n(ir).n(ir); }
+	emit("    add x@, x@, x@\n").n(ar).n(ar).n(ir);
+	put_reg(ir);
+	if vr < 0 {
+		if sz == 1 { emit("    ldb x@, (x@)\n").n(ar).n(ar); }
+		if sz == 2 { emit("    ldh x@, (x@)\n").n(ar).n(ar); }
+		if sz == 4 { emit("    ldw x@, (x@)\n").n(ar).n(ar); }
+		return ar;
+	} else {
+		if sz == 1 { emit("    stb x@, (x@)\n").n(vr).n(ar); }
+		if sz == 2 { emit("    sth x@, (x@)\n").n(vr).n(ar); }
+		if sz == 4 { emit("    stw x@, (x@)\n").n(vr).n(ar); }
+		put_reg(ar);
+		return vr;
+	}
+}
+
 fn gen_addr(node Ast) i32 {
 	var kind i32 = node.kind;
 
@@ -251,6 +287,9 @@ fn gen_load(node Ast) i32 {
 }
 
 fn gen_assign(node Ast) i32 {
+	if (node.left.kind == AST_INDEX) {
+		return gen_array_access(node.left, gen_expr(node.right));
+	}
 	var ar i32 = gen_addr(node.left);
 	var vr i32 = gen_expr(node.right);
 	emit("    stw x@, (x@)\n").n(vr).n(ar);
@@ -322,7 +361,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_BOOL_OR { return gen_bool_or(node); }
 	if kind == AST_STRING { }
 	if kind == AST_DEREF { }
-	if kind == AST_INDEX { }
+	if kind == AST_INDEX { return gen_array_access(node, -1); }
 	if kind == AST_FIELD { return gen_field_load(node); }
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }

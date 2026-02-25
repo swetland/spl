@@ -118,6 +118,10 @@ fn type_make(name String, kind TypeKind, of Type, list Symbol, count u32) Type {
 	return type;
 }
 
+fn type_make_ptr(type Type) Type {
+	return type_make(nil, TYPE_POINTER, type, nil, 0);
+}
+
 fn type_find(name String) Type {
 	var t Type = ctx.typelist;
 	while t != nil {
