@@ -27,6 +27,7 @@ $(BIN)asm: $(ASMSRC)
 	gcc $(CFLAGS_SR32) -o $@ $(filter-out %.h,$(ASMSRC))
 
 EMUSRC := src/emulator-sr32.c src/cpu-sr32.c src/emulator-sr32.h src/sr32.h
+EMUSRC += src/syscalls-abi0.c
 EMUSRC := $(addprefix $(TOP),$(EMUSRC)) $(GEN)instab-sr32.h
 
 $(BIN)emu: $(EMUSRC)

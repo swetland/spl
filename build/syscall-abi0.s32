@@ -1,0 +1,39 @@
+
+os_exit:
+	syscall 0x100
+	ret
+os_arg:
+	syscall 0x101
+	ret
+os_arg_count:
+	syscall 0x102
+	ret
+
+fd_open:
+	syscall 0x200
+	ret
+fd_create:
+	syscall 0x201
+	ret
+fd_close:
+	syscall 0x202
+	ret
+readc:
+	syscall 0x203
+	ret
+writec:
+	syscall 0x204
+	ret
+writes:
+	syscall 0x205
+	ret
+writei:
+	syscall 0x206
+	ret
+writex:
+	syscall 0x207
+	ret
+write:
+	syscall 0x208
+	ret
+

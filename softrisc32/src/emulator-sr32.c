@@ -90,8 +90,7 @@ void io_wr32(CpuState *cs, uint32_t addr, uint32_t val) {
 	}
 }
 
-void do_syscall(CpuState *s, uint32_t n) {
-}
+// void do_syscall(CpuState *s, uint32_t n) { }
 
 void do_undef(CpuState *s, uint32_t ins) {
 	fprintf(stderr, "UNDEF INSTR (PC=%08x INS=%08x)\n", s->pc, ins);
@@ -128,6 +127,8 @@ void usage(int status) {
 		"         -ti               Trace IO Reads & Writes\n");
 	exit(status);
 }
+
+void sys_init(uint32_t argc, uint32_t argv);
 
 int main(int argc, char** argv) {
 	uint32_t entry = 0x100000;
@@ -202,6 +203,8 @@ int main(int argc, char** argv) {
 	cs.r[2] = sp;
 	// cs.r[10] = guest_argc;
 	// cs.r[11] = guest_argv;
+
+	sys_init(guest_argc, guest_argv);
 
 	sr32core(&cs);
 	return 0;

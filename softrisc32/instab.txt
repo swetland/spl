@@ -68,7 +68,7 @@ iiiiiiiiiiiiiiiiaaaaabbbbb110101 bgeu    %a, %t, %B
 iiiiiiiiiiiiiiiiiiiii00000111000 j       %J
 iiiiiiiiiiiiiiiiiiiii00001111000 call    %J
 iiiiiiiiiiiiiiiiiiiiittttt111000 jal     %t, %J
-iiiiiiiiiiiiiiiiiiiiittttt111001 syscall %i
+iiiiiiiiiiiiiiiiiiiiittttt111001 syscall %j
 iiiiiiiiiiiiiiiiiiiiittttt111010 break
 iiiiiiiiiiiiiiiiiiiiittttt111011 sysret
 -------------------------------- unknown
