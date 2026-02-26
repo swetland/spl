@@ -33,8 +33,8 @@ int is_signed16(uint32_t n) {
 	return ((n == 0) || (n == 0xFFFF0000));
 }
 int is_signed21(uint32_t n) {
-	n &= 0xFFFFF800;
-	return ((n == 0) || (n == 0xFFFFF800));
+	n &= 0xFF800000;
+	return ((n == 0) || (n == 0xFF800000));
 }
 int fits_in_signed16(uint32_t n) {
 	n &= 0xFFFF8000;
@@ -420,7 +420,7 @@ unsigned tokenize(State *state) {
 			}
 			s = sbuf + 1;
 			while (*s) {
-				if (!isalnum(*s) && (*s != '_')) {
+				if (!isalnum(*s) && (*s != '_') && (*s != '$')) {
 					die("invalid character '%c' (%d) in identifier", *s, *s);
 				}
 				s++;
