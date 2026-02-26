@@ -145,6 +145,7 @@ fn emit_save_tmp() {
 }
 
 enum DataChunkKind {
+	DATA_U8,
 	DATA_U32,
 	DATA_PTR,
 };
@@ -152,9 +153,9 @@ enum DataChunkKind {
 struct DataChunk {
 	next *DataChunk,
 	data *[]u32,
+	kind u32,
 	count u32,
 	id u32,
-	kind u32,
 };
 
 var data_id u32 = 0;
@@ -162,14 +163,27 @@ var data_list DataChunk;
 
 fn make_data_chunk(kind u32, n u32) DataChunk {
 	var dc DataChunk = new(DataChunk);
+	if kind == DATA_U8 {
+		// bytecount to wordcount, rounding up
+		n = (n + 3) >> 2;
+	}
+	dc.next = data_list;
+	dc.data = __new(n * 4);
 	dc.kind = kind;
 	dc.count = n;
 	dc.id = data_id;
-	dc.data = __new(n * 4);
-	dc.next = data_list;
 	data_list = dc;
 	data_id++;
 	return dc;
+}
+
+fn write_data_chunk(dc DataChunk, idx u32, val u32) {
+	if dc.kind == DATA_U8 {
+		val = (val & 0xFF) << ((idx & 3) * 8);
+		dc.data[idx >> 2] |= val;
+	} else {
+		dc.data[idx] = val;
+	}
 }
 
 fn emit_data_chunk(dc DataChunk) {
@@ -177,10 +191,10 @@ fn emit_data_chunk(dc DataChunk) {
 	var n u32 = 0;
 	while n < dc.count {
 		var v i32 = dc.data[n];
-		if (dc.kind == DATA_PTR) && n {
+		if (dc.kind == DATA_PTR) && v {
 			emit("    .word _D@\n").n(v);
 		} else {
-			emit("    .word @\n").n(v);
+			emit("    .word @\n").x(v);
 		}
 		n++;
 	}
@@ -195,34 +209,22 @@ fn emit_data_chunks() {
 	data_list = nil;
 }
 
-fn make_string_chunk(s str) DataChunk {
+fn make_string_chunk(s str) u32 {
 	var len i32 = strlen(s);
-	// include terminator and round to multiple of 4
-	var dc DataChunk = make_data_chunk(DATA_U32, (len + 4) >> 2);
+	// include terminator \0
+	var dc DataChunk = make_data_chunk(DATA_U8, len + 1);
 	var n i32 = 0;
-	var i i32 = 0;
-	var shift i32 = 0;
-	while i < len {
-		n |= s[i] << shift;
-		if shift == 24 {
-			dc.data[i >> 2] = n;
-			n = 0;
-			shift = 0;
-		} else {
-			shift += 8;
-		}
-		i++;
+	while n < len {
+		write_data_chunk(dc, n, s[n]);
+		n++;
 	}
-	if shift {
-		dc.data[i >> 2] = n;
-	}
-	return dc;
+	return dc.id;
 }
 
 fn gen_string_const(s str) i32 {
-	var dc DataChunk = make_string_chunk(s);
+	var id u32 = make_string_chunk(s);
 	var r i32 = get_reg();
-	emit("    la x@, _D@\n").n(r).n(dc.id);
+	emit("    la x@, _D@\n").n(r).n(id);
 	return r;
 }
 
@@ -309,8 +311,8 @@ fn gen_array_access(node Ast, vr i32) i32 {
 	emit("    add x@, x@, x@\n").n(ar).n(ar).n(ir);
 	put_reg(ir);
 	if vr < 0 {
-		if sz == 1 { emit("    ldb x@, (x@)\n").n(ar).n(ar); }
-		if sz == 2 { emit("    ldh x@, (x@)\n").n(ar).n(ar); }
+		if sz == 1 { emit("    ldbu x@, (x@)\n").n(ar).n(ar); }
+		if sz == 2 { emit("    ldhu x@, (x@)\n").n(ar).n(ar); }
 		if sz == 4 { emit("    ldw x@, (x@)\n").n(ar).n(ar); }
 		return ar;
 	} else {
@@ -637,26 +639,34 @@ fn gen_global_addrs(node Ast) {
 	}
 }
 
-fn gen_global_struct_init(sym Symbol, node Ast) {
-	var off u32 = 0;
-	if sym.type.kind != TYPE_STRUCT {
-		GenError(node, "illegal struct init");
-	}
-	while node != nil {
-		var pos u32 = node.ival;
-		if pos & 3 { GenError(node, "struct init: alignment"); }
-		if pos < off { GenError(node, "struct init: ordering"); }
-		while off < pos {
-			emit("    .word 0\n");
-			off += 4;
+fn gen_global_array_init(node Ast) u32 {
+	var kind i32 = DATA_U32;
+	if node.kind == AST_STRING {
+		return make_string_chunk(node.name.text);
+	} else if node.kind == AST_ARRAY {
+		if type_size(node.type) == 1 {
+			kind = DATA_U8;
+		} else if !type_is_scalar(node.type) {
+			kind = DATA_PTR;
 		}
-		emit("    .word -1 // todo\n");
+	} else {
+		GenError(node, "illegal array init");
+	}
+	var dc DataChunk = make_data_chunk(kind, node.ival);
+	node = node.left;
+	var n i32 = 0;
+	while node != nil {
+		var v u32;
+		if kind == DATA_PTR {
+			v = gen_global_array_init(node);
+		} else {
+			v = eval_const_expr(node);
+		}
+		write_data_chunk(dc, n, v);
 		node = node.next;
+		n++;
 	}
-	while off < sym.type.count{
-		emit("    .word 0\n");
-		off += 4;
-	}
+	return dc.id;
 }
 
 fn gen_global_inits(node Ast) {
@@ -665,10 +675,13 @@ fn gen_global_inits(node Ast) {
 		if node.kind == AST_ASSIGN {
 			var sym Symbol = node.left.sym;
 			if node.right.kind == AST_STRING {
-				var dc DataChunk = make_string_chunk(node.right.name.text);
-				emit("    .word _D@\n").n(dc.id);
+				var id u32 = make_string_chunk(node.right.name.text);
+				emit("    .word _D@ //STRING\n").n(id);
+			} else if node.right.kind == AST_ARRAY {
+				var id u32 = gen_global_array_init(node.right);
+				emit("    .word _D@ //ARRAY\n").n(id);
 			} else if node.right.kind == AST_ASSIGN {
-				gen_global_struct_init(sym, node.right);
+				GenError(node, "global struct init unsupported");
 			} else {
 				var val i32 = eval_const_expr(node.right);
 				emit("    .word @ // @\n").n(val).s(sym.name.text);

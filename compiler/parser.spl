@@ -523,46 +523,56 @@ fn parse_struct_init(sym Symbol) Ast {
 	return list;
 }
 
-fn parse_array_init(sym Symbol) {
+fn parse_array_init(typeof Type) Ast {
+	var list Ast = ast_make_simple(AST_ARRAY, 0);
+	var last Ast = nil;
+	var count i32 = 0;
 	while true {
 		if ctx.tok == tCBRACE {
 			next();
 			break;
 		}
-		parse_expr();
+		var node Ast = parse_expr();
+		if last {
+			last.next = node;
+		} else {
+			list.left = node;
+		}
+		last = node;
 		if ctx.tok != tCBRACE {
 			require(tCOMMA);
 		}
+		count++;
 	}
+	list.type = typeof;
+	list.ival = count;
+	return list;
 }
 
 fn parse_var(kind SymbolKind) Ast {
+	// TODO: correctly calculate ival (or assign later?)
 	var node Ast = nil;
 	var posn u32 = ctx.srcloc;
-	// TODO: global vs local
-	// TODO: generate assignment/initialization
-	// TODO: correctly calculate ival (or assign later?)
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false);
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		type = type.of; // use the pointer-to-struct
 	}
-	if (type.kind == TYPE_ARRAY) && (!(kind & SYMBOL_GLOBAL)) {
+	if (type.kind == TYPE_ARRAY) {
 		type = type_make_ptr(type);
 	}
 	var sym Symbol = symbol_make(name, type, SYMBOL_VAR | kind, 0);
-
+	if type.kind == TYPE_POINTER {
+		type = type.of;
+	}
 	if ctx.tok == tASSIGN {
 		next();
 		if ctx.tok == tOBRACE {
 			next();
 			if type.kind == TYPE_STRUCT {
 				node = parse_struct_init(sym);
-			} else if (type.kind == TYPE_POINTER) && (type.of.kind == TYPE_STRUCT) {
-				node = parse_struct_init(sym);
 			} else if type.kind == TYPE_ARRAY {
-				// TODO
-				parse_array_init(sym);
+				node = parse_array_init(type.of);
 			} else {
 				Error("type @ cannot be initialized with {} expr").s(type.name.text);
 			}

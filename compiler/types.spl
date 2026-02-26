@@ -54,7 +54,7 @@ enum TypeKind {
 	TYPE_U8,
 	TYPE_U32,
 	TYPE_I32,
-	TYPE_NIL,
+	TYPE_NIL, // first non-scalar type
 	TYPE_POINTER,
 	TYPE_ARRAY,
 	TYPE_SLICE,
@@ -82,6 +82,10 @@ struct Type {
 	// struct: total byte size
 	count u32,
 };
+
+fn type_is_scalar(type Type) bool {
+	return type.kind < TYPE_NIL;
+}
 
 // ================================================================
 // Abstract Syntax Tree
@@ -112,6 +116,7 @@ enum AstKind {
 	AST_ADDROF,   // l=EXPR type: lvalue
 	AST_CALL,     // l=SYMBOL r=EXPR*
 	AST_ASSIGN,   // l=lhsEXPR r=rhsEXPR
+	AST_ARRAY,    // l=EXPR* type: array-of-...
 	AST_NEW,      // name: typename  <<TODO: sym instead?
 // binary expressions
 	// Rel Ops (maintain order matched w/ lexer)
@@ -130,7 +135,7 @@ var ast_kind []str = {
 	"BLOCK", "WHILE", "BREAK", "CONTINUE",
 	"RETURN", "IF", "CASE", "ELSE",
 	"SYMBOL", "CONST", "STRING",
-	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN", "NEW",
+	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN", "ARRAY", "NEW",
 	"EQ", "NE", "LT", "LE", "GT", "GE",
 	"ADD", "SUB", "OR", "XOR",
 	"MUL", "DIV", "MOD", "AND", "LSL", "LSR",
