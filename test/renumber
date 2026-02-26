@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ "$#" -ne 2 ]; then
+	echo 'error: usage: renumber <src> <dst>'
+	exit 1
+fi
+
+if [ -f ${2}-* ]; then
+	echo error: possible collision with: ${2}-*
+	exit 1
+fi
+
+for src in ${1}-* ; do
+	dst=`echo ${src} | sed "s/^${1}-/${2}-/"`
+	echo ${src} ${dst}
+	git mv ${src} ${dst}
+done
