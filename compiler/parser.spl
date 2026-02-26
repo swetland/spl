@@ -91,6 +91,21 @@ fn parse_field_ref(node Ast, name String) Ast {
 	return nil;
 }
 
+fn find_method(type Type, name String) Symbol {
+	if type.kind == TYPE_POINTER {
+		type = type.of;
+	}
+	var sym Symbol = type.methods;
+	while sym != nil {
+		if name.text == sym.name.text {
+			return sym;
+		}
+		sym = sym.next;
+	}
+	Error("type '@' has no method '@'").s(type.name.text).s(name.text);
+	return nil;
+}
+
 fn parse_ident() Ast {
 	var node Ast = parse_symbol("identifier");
 
@@ -108,7 +123,7 @@ fn parse_ident() Ast {
 			var name String = parse_name("field or method name");
 			if ctx.tok == tOPAREN {
 				// method call
-				var sym Symbol = symbol_find(name);
+				var sym Symbol = find_method(node.type, name);
 				node = parse_fcall(ast_make_symbol(name, sym), node);
 			} else {
 				// field access
@@ -579,11 +594,12 @@ fn parse_var(kind SymbolKind) Ast {
 		} else {
 			node = parse_expr();
 		}
-		node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(name, sym), node), posn);
 	} else {
 		// default init
+		node = ast_make_simple(AST_CONST, 0);
 	}
 	require(tSEMI);
+	node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(name, sym), node), posn);
 	return node;
 }
 
@@ -710,13 +726,14 @@ fn parse_fn() Ast {
 	scope_push(SCOPE_FUNC);
 	var posn u32 = ctx.srcloc;
 	var n u32 = 0;
+	var method_of Type = nil;
 
 	if ctx.tok == tOPAREN {
 		next();
 		// (self SelfType) ...
-		parse_param(0);
+		var sym Symbol = parse_param(0);
+		method_of = sym.type.of;
 		require(tCPAREN);
-		// TODO: mark node as method somehow
 		n++;
 	}
 
@@ -740,6 +757,15 @@ fn parse_fn() Ast {
 	}
 
 	var type Type = type_make(fname, TYPE_FN, rtype, nil, n);
+
+	if method_of != nil {
+		var sym Symbol = symbol_make_in_scope(fname, type, SYMBOL_FN, 0, nil);
+		sym.next = method_of.methods;
+		method_of.methods = sym;
+		fname = mangle(method_of.name, fname);
+		type.name = fname;
+	}
+
 	var sym Symbol = symbol_make_global(fname, type, SYMBOL_FN, 0);
 	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
 	node.name = fname;

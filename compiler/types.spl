@@ -81,6 +81,7 @@ struct Type {
 	// slice/array: number of slots
 	// struct: total byte size
 	count u32,
+	methods *Symbol,
 };
 
 fn type_is_scalar(type Type) bool {

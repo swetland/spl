@@ -276,3 +276,30 @@ fn type_size(type Type) i32 {
 	// VOID, ENUM, FN, UNDEFINED, etc
 	return 0;
 }
+
+fn _mangle(a str, b str) String {
+	var alen i32 = strlen(a);
+	var blen i32 = strlen(b);
+	var s []u8 = __new(alen + blen + 2); // TODO: use static buffer
+	var n i32 = 0;
+	var i i32 = 0;
+	while i < alen {
+		s[n] = a[i];
+		n++;
+		i++;
+	}
+	s[n] = '$';
+	n++;
+	i = 0;
+	while i < blen {
+		s[n] = b[i];
+		n++;
+		i++;
+	}
+	s[n] = 0;
+	return string_make(s, n);
+}
+
+fn mangle(a String, b String) String {
+	return _mangle(a.text, b.text);
+}
