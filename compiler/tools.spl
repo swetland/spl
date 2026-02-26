@@ -78,12 +78,14 @@ fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival i32, scope
 	sym.next = nil;
 	sym.kind = kind;
 	sym.ival = ival;
-	if scope.first == nil {
-		scope.first = sym;
-	} else {
-		scope.last.next = sym;
+	if scope != nil {
+		if scope.first == nil {
+			scope.first = sym;
+		} else {
+			scope.last.next = sym;
+		}
+		scope.last = sym;
 	}
-	scope.last = sym;
 	return sym;
 }
 
@@ -218,10 +220,11 @@ fn ctx_init() {
 	ctx.type_void    = type_make(string_make("void", 4), TYPE_VOID, nil, nil, 0);
 	ctx.type_bool    = type_make(string_make("bool", 4), TYPE_BOOL, nil, nil, 0);
 	ctx.type_nil     = type_make(string_make("nil", 3),  TYPE_NIL,  nil, nil, 0);
-	ctx.type_str     = type_make(string_make("str", 3),  TYPE_STR,  nil, nil, 0);
+	ctx.type_u8      = type_make(string_make("u8", 2),   TYPE_U8,   nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3),  TYPE_U32,  nil, nil, 0);
 	ctx.type_i32     = type_make(string_make("i32", 3),  TYPE_I32,  nil, nil, 0);
-	ctx.type_u8      = type_make(string_make("u8", 2),   TYPE_U8,   nil, nil, 0);
+	// treat str as an alias for []u8 for the time being
+	ctx.type_str     = type_make(string_make("str", 3),  TYPE_ARRAY, ctx.type_u8, nil, 0);
 
 	ctx.str_new_fn       = string_make("__new", 5);
 	ctx.str_type_unknown = string_make("???", 3);
@@ -260,17 +263,16 @@ fn ctx_find_source_file(id i32) str {
 
 fn type_size(type Type) i32 {
 	var kind i32 = type.kind;
+	if kind == TYPE_U8 { return 1; }
 	if kind == TYPE_U32 { return 4; }
 	if kind == TYPE_I32 { return 4; }
 	if kind == TYPE_NIL { return 4; }
 	if kind == TYPE_BOOL { return 4; }
 	if kind == TYPE_POINTER { return 4; }
-	//if kind == TYPE_U8 { return 1; }
 	//if kind == TYPE_SLICE { return 24; }
 	if kind == TYPE_ARRAY { return type_size(type.of) * type.count; }
 	if kind == TYPE_STRUCT { return type.count; }
-	// if kind == TYPE_STR { ? }
+	if kind == TYPE_STR { return type.count; }
 	// VOID, ENUM, FN, UNDEFINED, etc
 	return 0;
 }
-
