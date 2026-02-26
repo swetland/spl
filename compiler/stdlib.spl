@@ -12,6 +12,8 @@ fn writei(fd i32, n u32);
 fn writex(fd i32, n u32);
 fn write(fd i32, s str, off u32, len u32);
 
+fn __new(n i32) u32;
+
 fn os_exit(n i32);
 
 fn os_arg(n u32) str;
