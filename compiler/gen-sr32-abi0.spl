@@ -301,6 +301,11 @@ fn gen_array_access(node Ast, vr i32) i32 {
 		GenError(node, "index of non-array type");
 	}
 	var sz i32 = type_size(type.of);
+	// HACK: workaround for array-of-strings access
+	// TODO: sort this out in a more regular way
+	if type.of.kind == TYPE_ARRAY {
+		sz = 4;
+	}
 	var ar i32 = gen_addr(node.left);
 	if ptr {
 		emit("    ldw x@, (x@) // array ptr deref\n").n(ar).n(ar);
