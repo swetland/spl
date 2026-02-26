@@ -70,6 +70,9 @@ fn _dump_ast_node(fd i32, node Ast) {
 		print_type(fd, node.type);
 		writes(fd, "]");
 	}
+	//writes(fd, " #");
+	//writei(fd, node.srcloc & 0x000FFFFF);
+
 	writes(fd, "\n");
 
 	dump_ast_node(fd, node.left);
