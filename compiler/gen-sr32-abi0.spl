@@ -144,6 +144,88 @@ fn emit_save_tmp() {
 	}
 }
 
+enum DataChunkKind {
+	DATA_U32,
+	DATA_PTR,
+};
+
+struct DataChunk {
+	next *DataChunk,
+	data *[]u32,
+	count u32,
+	id u32,
+	kind u32,
+};
+
+var data_id u32 = 0;
+var data_list DataChunk;
+
+fn make_data_chunk(kind u32, n u32) DataChunk {
+	var dc DataChunk = new(DataChunk);
+	dc.kind = kind;
+	dc.count = n;
+	dc.id = data_id;
+	dc.data = __new(n * 4);
+	dc.next = data_list;
+	data_list = dc;
+	data_id++;
+	return dc;
+}
+
+fn emit_data_chunk(dc DataChunk) {
+	emit("_D@:\n").n(dc.id);
+	var n u32 = 0;
+	while n < dc.count {
+		var v i32 = dc.data[n];
+		if (dc.kind == DATA_PTR) && n {
+			emit("    .word _D@\n").n(v);
+		} else {
+			emit("    .word @\n").n(v);
+		}
+		n++;
+	}
+}
+
+fn emit_data_chunks() {
+	var dc DataChunk = data_list;
+	while dc != nil {
+		emit_data_chunk(dc);
+		dc = dc.next;
+	}
+	data_list = nil;
+}
+
+fn make_string_chunk(s str) DataChunk {
+	var len i32 = strlen(s);
+	// include terminator and round to multiple of 4
+	var dc DataChunk = make_data_chunk(DATA_U32, (len + 4) >> 2);
+	var n i32 = 0;
+	var i i32 = 0;
+	var shift i32 = 0;
+	while i < len {
+		n |= s[i] << shift;
+		if shift == 24 {
+			dc.data[i >> 2] = n;
+			n = 0;
+			shift = 0;
+		} else {
+			shift += 8;
+		}
+		i++;
+	}
+	if shift {
+		dc.data[i >> 2] = n;
+	}
+	return dc;
+}
+
+fn gen_string_const(s str) i32 {
+	var dc DataChunk = make_string_chunk(s);
+	var r i32 = get_reg();
+	emit("    la x@, _D@\n").n(r).n(dc.id);
+	return r;
+}
+
 fn gen_call(fcall Ast) i32 {
 	var sym Symbol = fcall.left.sym;
 	if sym == nil {
@@ -160,7 +242,7 @@ fn gen_call(fcall Ast) i32 {
 		node = node.next;
 	}
 	if n != sym.type.count {
-		GenError(fcall, "parameter count mismatch: expected @, found @").n(sym.type.count).n(n);
+		GenError(fcall, "parameter count mismatch for '@': expected @, found @").s(fcall.left.name.text).n(sym.type.count).n(n);
 	}
 	emit_save_tmp();
 	emit("    call @\n").s(sym.name.text);
@@ -359,7 +441,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_BOOL_NOT { return gen_unop(node, "not"); }
 	if kind == AST_BOOL_AND { return gen_bool_and(node); }
 	if kind == AST_BOOL_OR { return gen_bool_or(node); }
-	if kind == AST_STRING { }
+	if kind == AST_STRING { return gen_string_const(node.name.text); }
 	if kind == AST_DEREF { }
 	if kind == AST_INDEX { return gen_array_access(node, -1); }
 	if kind == AST_FIELD { return gen_field_load(node); }
@@ -531,6 +613,7 @@ fn gen_fn(node Ast) {
 	emit("    ldw fp, -8(fp)\n");
 	emit("    addi sp, sp, @\n").n(local_max + MaxTmpRegs * 4);
 	emit("    ret\n");
+	emit_data_chunks();
 }
 
 fn gen_functions(node Ast) {
@@ -581,7 +664,10 @@ fn gen_global_inits(node Ast) {
 	while node != nil {
 		if node.kind == AST_ASSIGN {
 			var sym Symbol = node.left.sym;
-			if node.right.kind == AST_ASSIGN {
+			if node.right.kind == AST_STRING {
+				var dc DataChunk = make_string_chunk(node.right.name.text);
+				emit("    .word _D@\n").n(dc.id);
+			} else if node.right.kind == AST_ASSIGN {
 				gen_global_struct_init(sym, node.right);
 			} else {
 				var val i32 = eval_const_expr(node.right);
@@ -590,6 +676,7 @@ fn gen_global_inits(node Ast) {
 		}
 		node = node.next;
 	}
+	emit_data_chunks();
 }
 
 fn gen(outfd i32, node Ast) {

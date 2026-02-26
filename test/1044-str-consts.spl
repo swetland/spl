@@ -1,0 +1,21 @@
+
+var msg str = "1044-str-consts.spl";
+
+fn dump(x str, len i32) {
+	var n i32 = 0;
+	while n < len {
+		_hexout_(x[n]);
+		n++;
+	}
+}
+
+fn start() i32 {
+	var x str = "Hello World";
+	dump("", 0);
+	dump("A", 1);
+	dump("FOO", 3);
+	dump("OOPS", 4);
+	dump(x, 11);
+	dump(msg, 19);
+	return 0;
+}
