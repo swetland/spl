@@ -90,5 +90,5 @@ void fn_abort(void) {
 }
 
 void* fn___new(t$i32 n) {
-	return calloc(n, 0);
+	return calloc(1, n);
 }
