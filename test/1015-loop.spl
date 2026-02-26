@@ -1,0 +1,9 @@
+
+fn start() i32 {
+	var n i32 = 0;
+	while n < 10 {
+		_hexout_(n);
+		n++;
+	}
+	return 5;
+}

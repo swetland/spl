@@ -1,0 +1,14 @@
+
+struct Vector {
+	len u32,
+	cap u32,
+	data *[]u32,
+};
+
+fn start() i32 {
+	var v Vector = new(Vector);
+	v.len = 0x10203040;
+	v.cap = 0xa0b0c0d0;
+	v.data = new([32]u32);
+	return 0;
+}

@@ -1,0 +1,5 @@
+
+fn start() i32 {
+	var foo Foo = nil;
+	return 0;
+}

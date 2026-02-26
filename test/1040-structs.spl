@@ -20,7 +20,7 @@ fn print(p Point) {
 }
 
 var p0 Point = { x: 45, y: 17 };
-var p1 Point = { x: 5, y: 3 };
+var p1 Point = { y: 3, x: 5 };
 
 var line Line = {
 	start: { x: 1, y: 2 },
