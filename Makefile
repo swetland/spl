@@ -25,7 +25,7 @@ out/compiler1: ./out/compiler0 out/asm $(COMPILER1_SRC)
 	@echo '### BUILDING STAGE 1 COMPILER USING TRANSPILER ###'
 	@mkdir -p out/
 	./out/compiler0 -o out/compiler1 $(COMPILER1_SRC)
-	gcc -g -O0 -Wall -Wno-unused-variable -I. -Ibootstrap/inc -Iout -o $@ out/compiler1.impl.c
+	gcc -g -O0 -Wall -Wno-unused-variable -DQUIET -I. -Ibootstrap/inc -Iout -o $@ out/compiler1.impl.c
 
 # compiler2: SPL compiler written in SPL, compiled by compiler1
 #
@@ -43,7 +43,7 @@ out/compiler2.bin: ./out/asm $(COMPILER2_ASM)
 out/compiler3.s32: ./out/compiler2.bin ./out/emu $(COMPILER2_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 3 COMPILER USING STAGE 2 COMPILER ###'
-	./out/emu ./out/compiler2.bin -ast out/compiler3.ast -out $@ $(COMPILER2_SRC)
+	./out/emu -q ./out/compiler2.bin -ast out/compiler3.ast -out $@ $(COMPILER2_SRC)
 
 COMPILER3_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3.s32
 out/compiler3.bin: ./out/asm $(COMPILER3_ASM)

@@ -46,7 +46,9 @@ int main(int argc, char** argv) {
 	os_argc = argc - 1;
 	os_argv = argv + 1;
 	int x = fn_start();
+#if !QUIET
 	printf("X %08x\n", x);
+#endif
 	return 0;
 }
 
