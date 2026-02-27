@@ -43,8 +43,8 @@ static int os_argc;
 static char **os_argv;
 
 int main(int argc, char** argv) {
-	os_argc = argc;
-	os_argv = argv;
+	os_argc = argc - 1;
+	os_argv = argv + 1;
 	int x = fn_start();
 	printf("X %08x\n", x);
 	return 0;

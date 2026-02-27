@@ -121,7 +121,7 @@ fn start() i32 {
 	var astfd i32 = -1;
 	var outfd i32 = 1;
 
-	var n u32 = 1;
+	var n u32 = 0;
 	while n < os_arg_count() {
 		var arg str = os_arg(n);
 		if streq(arg, "-ast") {
@@ -131,6 +131,7 @@ fn start() i32 {
 			if astfd == -1 {
 				Error("cannot open AST list file '@'").s(arg);
 			}
+			n++;
 			continue;
 		}
 		if streq(arg, "-out") {
@@ -140,6 +141,7 @@ fn start() i32 {
 			if outfd == -1 {
 				Error("cannot open output file '@'").s(arg);
 			}
+			n++;
 			continue;
 		}
 		if arg[0] == '-' {
