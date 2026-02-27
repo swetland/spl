@@ -12,7 +12,7 @@
 void sr32core(CpuState *s) {
 	int32_t a, b, n;
 	uint32_t pc = s->pc;
-	uint32_t limit = 10000000;
+	uint32_t limit = 1000000000;
 	for (;;) {
 	if (--limit == 0) {
 		fprintf(stderr, "EXECUTION LIMIT REACHED\n");

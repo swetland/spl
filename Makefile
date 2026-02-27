@@ -1,6 +1,6 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/compiler0 out/compiler1 out/compiler2.bin out/asm out/emu
+all: out/compiler0 out/compiler1 out/compiler2.bin out/compiler3.bin out/asm out/emu
 
 test: out/test/summary.txt
 
@@ -17,8 +17,8 @@ out/compiler0: bootstrap/compiler0.c
 #
 COMPILERX_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl
 COMPILERX_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
-COMPILER1_SRC := $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
-COMPILER2_SRC := build/stdlib-abi0.spl $(COMPILER1_SRC)
+COMPILER1_SRC := build/stdlib-stub.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
+COMPILER2_SRC := build/stdlib-abi0.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
 
 out/compiler1: ./out/compiler0 out/asm $(COMPILER1_SRC)
 	@echo ''
@@ -37,6 +37,17 @@ out/compiler2.s32: ./out/compiler1 $(COMPILER2_SRC)
 COMPILER2_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2.s32
 out/compiler2.bin: ./out/asm $(COMPILER2_ASM)
 	./out/asm -o $@ $(COMPILER2_ASM)
+
+# compiler3: SPL compiler written in SPL, compiled by compiler2
+#
+out/compiler3.s32: ./out/compiler2.bin ./out/emu $(COMPILER2_SRC)
+	@echo ''
+	@echo '### BUILDING STAGE 3 COMPILER USING STAGE 2 COMPILER ###'
+	./out/emu ./out/compiler2.bin -ast out/compiler3.ast -out $@ $(COMPILER2_SRC)
+
+COMPILER3_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3.s32
+out/compiler3.bin: ./out/asm $(COMPILER3_ASM)
+	./out/asm -o $@ $(COMPILER3_ASM)
 
 # rules for building out/.../foo.bin from .../foo.spl
 #

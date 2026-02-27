@@ -170,6 +170,13 @@ fn start() i32 {
 	if outfd != -1 {
 		gen(outfd, ctx.program.left);
 	}
+
+	writes(2, "alloc count: ");
+	writei(2, __alloc_count);
+	writes(2, "\n");
+	writes(2, "alloc bytes: ");
+	writei(2, __alloc_bytes);
+	writes(2, "\n");
 	return 0;
 }
 

@@ -1,5 +1,7 @@
 
 var __heap_base u32 = 4 * 1024 * 1024;
+var __alloc_count u32 = 0;
+var __alloc_bytes u32 = 0;
 
 fn _hexout_(n i32);
 
@@ -10,5 +12,7 @@ fn __new(sz i32) u32 {
 	var addr u32 = __heap_base;
 	sz = (sz + 15) & (~15);
 	__heap_base += sz;
+	__alloc_count++;
+	__alloc_bytes += sz;
 	return addr;
 }
