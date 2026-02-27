@@ -1,0 +1,28 @@
+#!/bin/bash -e
+
+## Copyright 2026, Brian Swetland <swetland@frotz.net>
+## Licensed under the Apache License, Version 2.0.
+
+compile () {
+	local src="$1"
+	local bin="$2"
+	local asm="${bin%.bin}.s32"
+	local ast="${bin%.bin}.ast"
+
+	rm -f ${bin} ${asm} ${ast}
+	echo out/emu out/compiler2.bin -ast ${ast} -out ${asm} build/stdlib-abi0.spl ${src}
+	out/emu out/compiler2.bin -ast ${ast} -out ${asm} build/stdlib-abi0.spl ${src} >/dev/null || return 1;
+	out/asm -o ${bin} build/stdlib-abi0.s32 ${asm} || return 1;
+	return 0
+}
+
+run () {
+	if [ -f "$2" ]; then
+		out/emu -check "$1" <$2 || return 1;
+	else
+		out/emu "$1" || return 1;
+	fi
+	return 0
+}
+
+. build/runtest
