@@ -266,6 +266,7 @@ fn type_size(type Type) i32 {
 	if kind == TYPE_U8 { return 1; }
 	if kind == TYPE_U32 { return 4; }
 	if kind == TYPE_I32 { return 4; }
+	if kind == TYPE_ENUM { return 4; }
 	if kind == TYPE_NIL { return 4; }
 	if kind == TYPE_BOOL { return 4; }
 	if kind == TYPE_POINTER { return 4; }
