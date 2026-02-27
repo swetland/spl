@@ -9,6 +9,8 @@
 
 #include <emulator-sr32.h>
 
+int quiet = 0;
+
 #define RAMSIZE   (8*1024*1024)
 #define RAMMASK8  (RAMSIZE - 1)
 #define RAMMASK32 (RAMMASK8 & (~3))
@@ -81,7 +83,9 @@ void io_wr32(CpuState *cs, uint32_t addr, uint32_t val) {
 		fprintf(stdout, "D %08x\n", val);
 		break;
 	case -3:
-		fprintf(stdout, "X %08x\n", val);
+		if (!quiet) {
+			fprintf(stdout, "X %08x\n", val);
+		}
 		check_state();
 		exit(0);
 	case -4:
@@ -124,7 +128,8 @@ void usage(int status) {
 		"         -tf               Trace Instruction Fetches\n"
 		"         -tr               Trace Register Writes\n"
 		"         -tb               Trace Branches\n"
-		"         -ti               Trace IO Reads & Writes\n");
+		"         -ti               Trace IO Reads & Writes\n"
+		"         -q                Quiet\n");
 	exit(status);
 }
 
@@ -150,6 +155,8 @@ int main(int argc, char** argv) {
 			cs.flags |= F_TRACE_IO;
 		} else if (!strcmp(argv[1], "-check")) {
 			do_check_state = 1;
+		} else if (!strcmp(argv[1], "-q")) {
+			quiet = 1;
 		} else if (argv[1][0] == '-') {
 			fprintf(stderr, "emu: unknown option: %s\n", argv[1]);
 			return -1;
