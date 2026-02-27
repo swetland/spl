@@ -286,7 +286,10 @@ fn gen_field_addr(node Ast) i32 {
 
 fn gen_field_load(node Ast) i32 {
 	var ar i32 = gen_field_addr(node);
-	emit("    ldw x@, (x@)\n").n(ar).n(ar);
+	if node.type.kind != TYPE_ARRAY {
+		// in-place arrays need to not be derferenced further
+		emit("    ldw x@, (x@)\n").n(ar).n(ar);
+	}
 	return ar;
 }
 

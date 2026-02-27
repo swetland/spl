@@ -306,6 +306,7 @@ fn parse_struct_type(name String) Type {
 			ptr = false;
 		}
 		var ftype Type = parse_type(true);
+		if (ftype.kind == TYPE_ARRAY) && (ftype.count == 0) { ptr = true; }
 		if ptr {
 			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) {
 				// use the pointer-to-struct
