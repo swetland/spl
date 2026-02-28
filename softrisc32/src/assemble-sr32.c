@@ -196,8 +196,6 @@ void checklabels(void) {
 	}
 }
 
-void sr32dis(uint32_t pc, uint32_t ins, char *out);
-
 void emit(uint32_t instr) {
 	if (PC & 3) {
 		PC = (PC + 3) & ~3;
@@ -216,16 +214,18 @@ void save(const char *fn) {
 	if (!fp) die("cannot write to '%s'", fn);
 	for (n = image_base; n < PC; n += 4) {
 		uint32_t ins = rd32(n);
-		sr32dis(n, ins, dis);
+		sr32dis(n, ins, dis, getlabel);
 		name = getlabel(n);
+#if 0
 		char bs[8] = "000000 ";
 		for (unsigned i = 0; i < 6; i++) {
 			if (ins & (1<<i)) bs[5-i] = '1';
 		}
+#endif
 		if (name) {
-			fprintf(fp, "%08x: %08x // %s %-25s <- %s\n", n, ins, bs, dis, name);
+			fprintf(fp, "%08x: %08x // %-30s :%s\n", n, ins, dis, name);
 		} else {
-			fprintf(fp, "%08x: %08x // %s %s\n", n, ins, bs, dis);
+			fprintf(fp, "%08x: %08x // %s\n", n, ins, dis);
 		}
 	}
 	fclose(fp);

@@ -41,7 +41,19 @@ static sr32ins_t instab[] = {
 #include <instab-sr32.h>
 };
 
-void sr32dis(uint32_t pc, uint32_t ins, char *out) {
+static char* append_addr(char *out, uint32_t n, const char* name) {
+	if (name) {
+		out = append_str(out, name);
+		out = append_str(out, " <");
+	}
+	out = append_u32(out, n);
+	if (name) {
+		out = append_str(out, ">");
+	}
+	return out;
+}
+
+void sr32dis(uint32_t pc, uint32_t ins, char *out, const char* (lookup)(uint32_t)) {
 	unsigned n = 0;
 	while ((ins & instab[n].mask) != instab[n].bits) n++;
 	const char* fmt = instab[n].fmt;
@@ -59,8 +71,25 @@ void sr32dis(uint32_t pc, uint32_t ins, char *out) {
 		case 'u': out = append_u32(out, get_i16(ins)); break;
 		case 'j': out = append_i32(out, get_i21(ins)); break;
 		case 's': out = append_i32(out, get_rb(ins)); break;
-		case 'J': out = append_u32(out, pc + 4 + get_i21(ins)); break;
-		case 'B': out = append_u32(out, pc + 4 + get_i16(ins)); break;
+		case 'J': {
+			uint32_t n = pc + 4 + get_i21(ins);
+			out = append_addr(out, n, lookup(n));
+			break;
+		}
+		case 'B': {
+			uint32_t n = pc + 4 + get_i16(ins);
+			out = append_addr(out, n, lookup(n));
+			const char *name = lookup(n);
+			if (name) {
+				out = append_str(out, name);
+				out = append_str(out, " <");
+			}
+			out = append_u32(out, n);
+			if (name) {
+				out = append_str(out, ">");
+			}
+			break;
+		}
 		case 'U': out = append_u32(out, get_i16(ins) << 16); break;
 		}
 	}

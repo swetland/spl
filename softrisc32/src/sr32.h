@@ -79,4 +79,4 @@ static inline uint32_t get_rb(uint32_t ins) {
 	return (ins >> 16) & 0x1F;
 }
 
-void sr32dis(uint32_t pc, uint32_t ins, char *out);
+void sr32dis(uint32_t pc, uint32_t ins, char *out, const char* (lookup)(uint32_t));
