@@ -672,6 +672,16 @@ fn parse_block() Ast {
 		} else if ctx.tok == tIF {
 			next();
 			node = parse_if();
+			// simplify forms like: if <const> { ... }
+			// by eliminating them entirely (for false)
+			// or reducing them to the code block only (for true)
+			if (node.left.next == nil) && (node.left.left.kind == AST_CONST) {
+				if node.left.left.ival == 0 {
+					continue;
+				} else {
+					node = node.left.right;
+				}
+			}
 		} else if ctx.tok == tVAR {
 			next();
 			node = parse_var(SYMBOL_LOCAL);

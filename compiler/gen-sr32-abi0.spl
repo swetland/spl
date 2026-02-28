@@ -556,6 +556,8 @@ fn gen_block(node Ast) {
 			gen_return(node);
 		} else if kind == AST_IF {
 			gen_if(node);
+		} else if kind == AST_BLOCK {
+			gen_block(node);
 		} else if ast_is_expr(kind) {
 			put_reg(gen_expr(node));
 		} else {
