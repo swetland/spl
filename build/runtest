@@ -35,7 +35,7 @@ if compile "$src" "$bin" 2> "$msg"; then
 		echo "FAIL: $src" > "$txt"
 	else
 		#echo "TEST: $src: running..."
-		if run "$bin" "$chk" > "$log"; then
+		if run "$bin" "$chk" > "$log" 2>&1; then
 			if diff "$log" "$gold" >/dev/null ; then
 				echo -e "${PASS}: $src"
 				echo "PASS: $src" > "$txt"
@@ -46,6 +46,7 @@ if compile "$src" "$bin" 2> "$msg"; then
 			fi
 		else
 			echo -e "${FAIL}: $src: emulator crashed"
+			tail "$log"
 			echo "FAIL: $src" > "$txt"
 		fi
 	fi
