@@ -539,8 +539,8 @@ fn parse_struct_init(sym Symbol) Ast {
 	return list;
 }
 
-fn parse_array_init(typeof Type) Ast {
-	var list Ast = ast_make_simple(AST_ARRAY, 0);
+fn parse_array_init(typeof Type, size i32) Ast {
+	var list Ast = ast_make_simple(AST_ARRAY, size);
 	var last Ast = nil;
 	var count i32 = 0;
 	while true {
@@ -560,8 +560,15 @@ fn parse_array_init(typeof Type) Ast {
 		}
 		count++;
 	}
+	if count > size {
+		if size == 0 {
+			// unspecied in type, inherit from initializer
+			list.ival = count;
+		} else {
+			Error("array initializer too large: @ > @").n(count).n(size);
+		}
+	}
 	list.type = typeof;
-	list.ival = count;
 	return list;
 }
 
@@ -588,7 +595,7 @@ fn parse_var(kind SymbolKind) Ast {
 			if type.kind == TYPE_STRUCT {
 				node = parse_struct_init(sym);
 			} else if type.kind == TYPE_ARRAY {
-				node = parse_array_init(type.of);
+				node = parse_array_init(type.of, type.count);
 			} else {
 				Error("type @ cannot be initialized with {} expr").s(type.name.text);
 			}
@@ -597,7 +604,12 @@ fn parse_var(kind SymbolKind) Ast {
 		}
 	} else {
 		// default init
-		node = ast_make_simple(AST_CONST, 0);
+		if (type.kind == TYPE_ARRAY) && (type.count > 0) {
+			node = ast_make_simple(AST_ARRAY, type.count);
+			node.type = type.of;
+		} else {
+			node = ast_make_simple(AST_CONST, 0);
+		}
 	}
 	require(tSEMI);
 	node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(name, sym), node), posn);
