@@ -120,28 +120,31 @@ fn start() i32 {
 	parse_init();
 	var astfd i32 = -1;
 	var outfd i32 = 1;
+	var stats i32 = 0;
 
 	var n u32 = 0;
 	while n < os_arg_count() {
 		var arg str = os_arg(n);
+		n++;
+		if streq(arg, "-stats") {
+			continue;
+		}
 		if streq(arg, "-ast") {
-			n++;
 			arg = os_arg(n);
+			n++;
 			astfd = fd_create(arg);
 			if astfd == -1 {
 				Error("cannot open AST list file '@'").s(arg);
 			}
-			n++;
 			continue;
 		}
 		if streq(arg, "-out") {
-			n++;
 			arg = os_arg(n);
+			n++;
 			outfd = fd_create(arg);
 			if outfd == -1 {
 				Error("cannot open output file '@'").s(arg);
 			}
-			n++;
 			continue;
 		}
 		if arg[0] == '-' {
@@ -159,8 +162,6 @@ fn start() i32 {
 
 		fd_close(ctx.fd_in);
 		ctx.fd_in = -1;
-
-		n++;
 	}
 
 	if astfd != -1 {
@@ -171,12 +172,23 @@ fn start() i32 {
 		gen(outfd, ctx.program.left);
 	}
 
-	writes(2, "alloc count: ");
-	writei(2, __alloc_count);
-	writes(2, "\n");
-	writes(2, "alloc bytes: ");
-	writei(2, __alloc_bytes);
-	writes(2, "\n");
+	if stats {
+		writes(2, "alloc count:  ");
+		writei(2, __alloc_count);
+		writes(2, "\nalloc bytes:  ");
+		writei(2, __alloc_bytes);
+		writes(2, "\nalloc string: ");
+		writei(2, __alloc_string);
+		writes(2, "\nalloc scope:  ");
+		writei(2, __alloc_scope);
+		writes(2, "\nalloc symbol: ");
+		writei(2, __alloc_symbol);
+		writes(2, "\nalloc type:   ");
+		writei(2, __alloc_type);
+		writes(2, "\nalloc node:   ");
+		writei(2, __alloc_node);
+		writes(2, "\n");
+	}
 	return 0;
 }
 
