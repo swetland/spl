@@ -1,6 +1,6 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/compiler0 out/compiler1 out/compiler2.bin out/compiler3.bin out/asm out/emu
+all: out/compiler0 out/compiler1 out/compiler2a.bin out/compiler2b.bin out/asm out/emu
 
 test: out/test/summary.txt
 
@@ -27,27 +27,27 @@ out/compiler1: ./out/compiler0 out/asm $(COMPILER1_SRC)
 	./out/compiler0 -o out/compiler1 $(COMPILER1_SRC)
 	gcc -g -O0 -Wall -Wno-unused-variable -DQUIET -I. -Ibootstrap/inc -Iout -o $@ out/compiler1.impl.c
 
-# compiler2: SPL compiler written in SPL, compiled by compiler1
+# compiler2a: SPL compiler written in SPL, compiled by compiler1
 #
-out/compiler2.s32: ./out/compiler1 $(COMPILER2_SRC)
+out/compiler2a.s32: ./out/compiler1 $(COMPILER2_SRC)
 	@echo ''
-	@echo '### BUILDING STAGE 2 COMPILER USING STAGE 1 COMPILER ###'
-	./out/compiler1 -ast out/compiler2.ast -out $@ $(COMPILER2_SRC)
+	@echo '### BUILDING STAGE 2A COMPILER USING STAGE 1 COMPILER ###'
+	./out/compiler1 -ast out/compiler2a.ast -out $@ $(COMPILER2_SRC)
 
-COMPILER2_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2.s32
-out/compiler2.bin: ./out/asm $(COMPILER2_ASM)
+COMPILER2_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2a.s32
+out/compiler2a.bin: ./out/asm $(COMPILER2_ASM)
 	./out/asm -o $@ $(COMPILER2_ASM)
 
-# compiler3: SPL compiler written in SPL, compiled by compiler2
+# compiler2b: SPL compiler written in SPL, compiled by compiler2a
 #
-out/compiler3.s32: ./out/compiler2.bin ./out/emu $(COMPILER2_SRC)
+out/compiler2b.s32: ./out/compiler2a.bin ./out/emu $(COMPILER2_SRC)
 	@echo ''
-	@echo '### BUILDING STAGE 3 COMPILER USING STAGE 2 COMPILER ###'
-	./out/emu -q ./out/compiler2.bin -ast out/compiler3.ast -out $@ $(COMPILER2_SRC)
+	@echo '### BUILDING STAGE 2B COMPILER USING STAGE 2A COMPILER ###'
+	./out/emu -q ./out/compiler2a.bin -ast out/compiler2b.ast -out $@ $(COMPILER2_SRC)
 
-COMPILER3_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3.s32
-out/compiler3.bin: ./out/asm $(COMPILER3_ASM)
-	./out/asm -o $@ $(COMPILER3_ASM)
+COMPILER2B_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2b.s32
+out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
+	./out/asm -o $@ $(COMPILER2B_ASM)
 
 # rules for building out/.../foo.bin from .../foo.spl
 #
@@ -75,7 +75,7 @@ TESTDEPS0 += $(wildcard bootstrap/inc/*.h) $(wildcard bootstrap/inc/*.c)
 TESTDEPS1 := out/compiler1 out/asm out/emu build/runtest build/runtest1
 TESTDEPS1 += build/stdlib-abi0.spl build/stdlib-abi0.spl
 
-TESTDEPS2 := out/compiler2.bin out/asm out/emu build/runtest build/runtest2
+TESTDEPS2 := out/compiler2a.bin out/asm out/emu build/runtest build/runtest2
 TESTDEPS2 += build/stdlib-abi0.spl build/stdlib-abi0.spl
 
 out/test0/%.txt: test/%.spl test/%.log
