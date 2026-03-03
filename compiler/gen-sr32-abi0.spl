@@ -451,7 +451,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_LSR { return gen_binop(node, "srl"); }
 	if kind == AST_NOT { return gen_unop(node, "not"); }
 	if kind == AST_NEG { return gen_unop(node, "neg"); }
-	if kind == AST_BOOL_NOT { return gen_unop(node, "not"); }
+	if kind == AST_BOOL_NOT { return gen_unop(node, "seqz"); }
 	if kind == AST_BOOL_AND { return gen_bool_and(node); }
 	if kind == AST_BOOL_OR { return gen_bool_or(node); }
 	if kind == AST_STRING { return gen_string_const(node.sval.text); }

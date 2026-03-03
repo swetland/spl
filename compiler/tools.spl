@@ -170,12 +170,12 @@ fn types_match(a Type, b Type) bool {
 	// cannot match if counts differ
 	if a.count != b.count { return false; }
 	// cannot match if -of types differ
-	if types_match(a.of, b.of) != true { return false; }
+	if !types_match(a.of, b.of) { return false; }
 	// cannot match if field/param type lists differ
 	var aa Symbol = a.list;
 	var bb Symbol = b.list;
 	while aa != nil {
-		if types_match(aa.type, bb.type) != true { return false; }
+		if !types_match(aa.type, bb.type) { return false; }
 		aa = aa.next;
 		bb = bb.next;
 	}

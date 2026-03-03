@@ -51,6 +51,9 @@ fn start() i32 {
 		and_test(n);
 		n = n + 1;
 	}
+	_hexout_(!true);
+	_hexout_(!false);
+	_hexout_(!42);
 	return 0x42;
 }
 
