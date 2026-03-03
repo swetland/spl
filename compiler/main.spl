@@ -127,6 +127,7 @@ fn start() i32 {
 		var arg str = os_arg(n);
 		n++;
 		if streq(arg, "-stats") {
+			stats = 1;
 			continue;
 		}
 		if streq(arg, "-ast") {
