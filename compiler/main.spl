@@ -35,7 +35,7 @@ fn _dump_ast_node(fd i32, node Ast) {
 	if kind == AST_CONST {
 		writex(fd, node.ival);
 	} else if kind == AST_FUNC {
-		writes(fd, node.name.text);
+		writes(fd, node.sym.name.text);
 		writes(fd, "(");
 		var param Symbol = node.sym.type.list;
 		while param != nil {
@@ -59,9 +59,9 @@ fn _dump_ast_node(fd i32, node Ast) {
 		}
 		writes(fd, ") ");
 	} else if kind == AST_STRING {
-		printstr(fd, node.name.text);
+		printstr(fd, node.sval.text);
 	} else if kind == AST_SYMBOL {
-		writes(fd, node.name.text);
+		writes(fd, node.sym.name.text);
 	} else if kind == AST_NEW {
 		print_type(fd, node.type);
 	}

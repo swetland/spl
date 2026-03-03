@@ -35,7 +35,7 @@ fn parse_name(what str) String {
 fn parse_symbol(what str) Ast {
 	var name String = parse_name(what);
 	var sym Symbol = symbol_find(name);
-	return ast_make_symbol(name, sym);
+	return ast_make_symbol(sym);
 }
 
 fn parse_fcall(fnode Ast, self Ast) Ast {
@@ -81,7 +81,7 @@ fn parse_field_ref(node Ast, name String) Ast {
 	var sym Symbol = type.list;
 	while sym != nil {
 		if sym.name == name {
-			node = ast_make_lr(AST_FIELD, node, ast_make_symbol(name, sym));
+			node = ast_make_lr(AST_FIELD, node, ast_make_symbol(sym));
 			node.type = sym.type;
 			return node;
 		}
@@ -110,7 +110,7 @@ fn parse_ident() Ast {
 	var node Ast = parse_symbol("identifier");
 
 	if (node.sym == nil) {
-		Error("undefined identifier '@'").s(node.name.text);
+		Error("undefined identifier '@'").s(node.sym.name.text);
 	}
 
 	if ctx.tok == tOPAREN {
@@ -124,7 +124,7 @@ fn parse_ident() Ast {
 			if ctx.tok == tOPAREN {
 				// method call
 				var sym Symbol = find_method(node.type, name);
-				node = parse_fcall(ast_make_symbol(name, sym), node);
+				node = parse_fcall(ast_make_symbol(sym), node);
 			} else {
 				// field access
 				node = parse_field_ref(node, name);
@@ -149,7 +149,7 @@ fn parse_primary_expr() Ast {
 		next();
 	} else if ctx.tok == tSTR {
 		node = ast_make_simple(AST_STRING, 0);
-		node.name = string_make(ctx.tmp, strlen(ctx.tmp));
+		node.sval = string_make(ctx.tmp, strlen(ctx.tmp));
 		next();
 	} else if ctx.tok == tTRUE {
 		node = ast_make_const(1, ctx.type_bool);
@@ -168,7 +168,7 @@ fn parse_primary_expr() Ast {
 		next();
 		require(tOPAREN);
 		var type Type = parse_type(false);
-		node = ast_make_symbol(ctx.str_new_fn, symbol_find(ctx.str_new_fn));
+		node = ast_make_symbol(symbol_find(ctx.str_new_fn));
 		node = ast_make_lr(AST_CALL, node, ast_make_simple(AST_CONST, type_size(type)));
 		if type.kind == TYPE_STRUCT {
 			node.type = type.of;
@@ -529,7 +529,7 @@ fn parse_struct_init(sym Symbol) Ast {
 		} else {
 			node = parse_expr();
 		}
-		node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(name, field), node), posn);
+		node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(field), node), posn);
 		node.ival = field.ival;
 		list = ast_insert_by_ival(list, node);
 		if ctx.tok != tCBRACE {
@@ -612,7 +612,7 @@ fn parse_var(kind SymbolKind) Ast {
 		}
 	}
 	require(tSEMI);
-	node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(name, sym), node), posn);
+	node = ast_posn(ast_make_lr(AST_ASSIGN, ast_make_symbol(sym), node), posn);
 	return node;
 }
 
@@ -792,7 +792,6 @@ fn parse_fn() Ast {
 	var prev Symbol = symbol_find_in(fname, ctx.global);
 	var sym Symbol = symbol_make_global(fname, type, SYMBOL_FN, 0);
 	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
-	node.name = fname;
 	node.sym = sym;
 
 	if ctx.tok == tSEMI {

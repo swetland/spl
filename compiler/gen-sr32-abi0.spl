@@ -231,7 +231,8 @@ fn gen_string_const(s str) i32 {
 fn gen_call(fcall Ast) i32 {
 	var sym Symbol = fcall.left.sym;
 	if sym == nil {
-		GenError(fcall, "calling undefined function '@'").s(fcall.left.name.text);
+		// TODO: should be impossible
+		GenError(fcall, "calling undefined function");
 	}
 	emit("    subi sp, sp, @\n").n(sym.type.count * 4);
 	var node Ast = fcall.right;
@@ -244,7 +245,7 @@ fn gen_call(fcall Ast) i32 {
 		node = node.next;
 	}
 	if n != sym.type.count {
-		GenError(fcall, "parameter count mismatch for '@': expected @, found @").s(fcall.left.name.text).n(sym.type.count).n(n);
+		GenError(fcall, "parameter count mismatch for '@': expected @, found @").s(sym.name.text).n(sym.type.count).n(n);
 	}
 	emit_save_tmp();
 	// TODO: possibly better way to get the (mangled) canonical
@@ -453,7 +454,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_BOOL_NOT { return gen_unop(node, "not"); }
 	if kind == AST_BOOL_AND { return gen_bool_and(node); }
 	if kind == AST_BOOL_OR { return gen_bool_or(node); }
-	if kind == AST_STRING { return gen_string_const(node.name.text); }
+	if kind == AST_STRING { return gen_string_const(node.sval.text); }
 	if kind == AST_DEREF { }
 	if kind == AST_INDEX { return gen_array_access(node, -1); }
 	if kind == AST_FIELD { return gen_field_load(node); }
@@ -654,7 +655,7 @@ fn gen_global_addrs(node Ast) {
 fn gen_global_array_init(node Ast) u32 {
 	var kind i32 = DATA_U32;
 	if node.kind == AST_STRING {
-		return make_string_chunk(node.name.text);
+		return make_string_chunk(node.sval.text);
 	} else if node.kind == AST_ARRAY {
 		if type_size(node.type) == 1 {
 			kind = DATA_U8;
@@ -687,7 +688,7 @@ fn gen_global_inits(node Ast) {
 		if node.kind == AST_ASSIGN {
 			var sym Symbol = node.left.sym;
 			if node.right.kind == AST_STRING {
-				var id u32 = make_string_chunk(node.right.name.text);
+				var id u32 = make_string_chunk(node.right.sval.text);
 				emit("    .word _D@ // @\n").n(id).s(sym.name.text);
 			} else if node.right.kind == AST_ARRAY {
 				var id u32 = gen_global_array_init(node.right);

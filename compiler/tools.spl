@@ -183,11 +183,11 @@ fn types_match(a Type, b Type) bool {
 	return true;
 }
 
-fn ast_make(kind AstKind, ival u32, name String, sym Symbol, type Type) Ast {
+fn ast_make(kind AstKind, ival u32, sval String, sym Symbol, type Type) Ast {
 	var node Ast = new(Ast);
 	node.kind = kind;
 	node.ival = ival;
-	node.name = name;
+	node.sval = sval;
 	node.sym = sym;
 	node.type = type;
 	node.srcloc = ctx.srcloc;
@@ -216,13 +216,8 @@ fn ast_make_const(value u32, type Type) Ast {
 	return ast_make(AST_CONST, value, nil, nil, type);
 }
 
-fn ast_make_symbol(name String, sym Symbol) Ast {
-	// TODO maybe handle nil sym differently?
-	var type Type = nil;
-	if sym != nil {
-		type = sym.type;
-	}
-	return ast_make(AST_SYMBOL, 0, name, sym, type);
+fn ast_make_symbol(sym Symbol) Ast {
+	return ast_make(AST_SYMBOL, 0, nil, sym, sym.type);
 }
 
 fn ast_posn(node Ast, srcloc u32) Ast {

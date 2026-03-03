@@ -178,7 +178,7 @@ struct Ast {
 	next *Ast, // intrusive list
 
 	ival u32,
-	name *String,
+	sval *String,
 	sym *Symbol,
 	type *Type,
 
