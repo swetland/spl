@@ -21,6 +21,8 @@ enum SymbolKind {
 	SYMBOL_LOCAL     = 0x010,
 	SYMBOL_PARAM     = 0x020,
 	SYMBOL_GLOBAL    = 0x040,
+	// flags: function decl (vs defn)
+	SYMBOL_DECL      = 0x080,
 };
 
 struct Symbol {
@@ -30,6 +32,7 @@ struct Symbol {
 	kind SymbolKind,
 	// var: offset from param/frame/global base
 	// fld: offset from struct base
+	// fn: srcloc of decl or defn
 	ival i32,
 };
 

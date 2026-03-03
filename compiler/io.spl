@@ -1,7 +1,7 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-fn print_srcloc(fd i32, loc i32);
+fn print_srcloc(fd i32, loc u32);
 
 struct ErrorStream {
 	msg str,

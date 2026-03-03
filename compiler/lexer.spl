@@ -317,6 +317,14 @@ fn print_srcloc(fd i32, loc u32) {
 	writei(2, loc & 0x000FFFFF);
 }
 
+fn srcloc_line(loc u32) u32 {
+	return loc & 0x000FFFFF;
+}
+
+fn srcloc_file(loc u32) str {
+	return ctx_find_source_file(loc >> 20);
+}
+
 fn token_print(fd i32) {
 	if ctx.tok == tNUM {
 		writec(fd, '#');

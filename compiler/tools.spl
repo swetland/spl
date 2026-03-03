@@ -160,6 +160,29 @@ fn type_find_field(type Type, name String) Symbol {
 	return nil;
 }
 
+fn types_match(a Type, b Type) bool {
+	// simple case: same object
+	if a == b { return true; }
+	// not the same, but one is nil
+	if (a == nil) || (b == nil) { return false; }
+	// cannot match if of different kind
+	if a.kind != b.kind { return false; }
+	// cannot match if counts differ
+	if a.count != b.count { return false; }
+	// cannot match if -of types differ
+	if types_match(a.of, b.of) != true { return false; }
+	// cannot match if field/param type lists differ
+	var aa Symbol = a.list;
+	var bb Symbol = b.list;
+	while aa != nil {
+		if types_match(aa.type, bb.type) != true { return false; }
+		aa = aa.next;
+		bb = bb.next;
+	}
+	// match!
+	return true;
+}
+
 fn ast_make(kind AstKind, ival u32, name String, sym Symbol, type Type) Ast {
 	var node Ast = new(Ast);
 	node.kind = kind;

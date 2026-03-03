@@ -789,13 +789,14 @@ fn parse_fn() Ast {
 		type.name = fname;
 	}
 
+	var prev Symbol = symbol_find_in(fname, ctx.global);
 	var sym Symbol = symbol_make_global(fname, type, SYMBOL_FN, 0);
 	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
 	node.name = fname;
 	node.sym = sym;
 
-	// TODO: differentiated handling for fwd / actual decls
 	if ctx.tok == tSEMI {
+		sym.kind |= SYMBOL_DECL;
 		next();
 	} else {
 		node.left = parse_fn_body(sym);
@@ -803,7 +804,17 @@ fn parse_fn() Ast {
 
 	// save parameters
 	sym.type.list = scope_pop();
+	sym.ival = posn;
 
+	if prev != nil {
+		if ((prev.kind & SYMBOL_DECL) == 0) && ((sym.kind & SYMBOL_DECL) == 0) {
+			Error("fn @ redefined").s(sym.name.text);
+		}
+		if types_match(prev.type, sym.type) == false {
+			Error("fn @ differs from previous definition at @:@")
+			.s(sym.name.text).s(srcloc_file(prev.ival)).n(srcloc_line(prev.ival));
+		}
+	}
 	return node;
 }
 
