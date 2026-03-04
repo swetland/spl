@@ -1,8 +1,12 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/compiler0 out/compiler1 out/compiler2a.bin out/compiler2b.bin out/asm out/emu
+all: out/asm out/emu out/compiler0 out/compiler1 out/compiler2a.bin out/compiler2b.bin
 
 test: out/test/summary.txt
+
+freeze: out/compiler2a.bin
+	@mkdir -p frozen/
+	cp -f out/compiler2a.bin frozen/compiler2a.bin
 
 # compiler0: bootstrap SPL->C transpiler
 #
@@ -34,9 +38,18 @@ out/compiler2a.s32: ./out/compiler1 $(COMPILER2_SRC)
 	@echo '### BUILDING STAGE 2A COMPILER USING STAGE 1 COMPILER ###'
 	./out/compiler1 -ast out/compiler2a.ast -out $@ $(COMPILER2_SRC)
 
+ifneq ($(wildcard frozen/compiler2a.bin),)
+out/compiler2a.bin: frozen/compiler2a.bin
+	@mkdir -p out
+	@echo ''
+	@echo '### USING FROZEN STAGE 2A COMPILER ###'
+	cp -f $< $@
+else
 COMPILER2_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2a.s32
 out/compiler2a.bin: ./out/asm $(COMPILER2_ASM)
+	@mkdir -p out/
 	./out/asm -o $@ $(COMPILER2_ASM)
+endif
 
 # compiler2b: SPL compiler written in SPL, compiled by compiler2a
 #
@@ -60,6 +73,9 @@ out/%.bin: out/%.impl.c out/%.type.h out/%.decl.h
 
 clean::
 	rm -rf bin out
+
+spotless::
+	rm -rf bin out frozen
 
 runtests0:: out/test0/summary.txt
 runtests1:: out/test1/summary.txt
