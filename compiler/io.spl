@@ -54,6 +54,14 @@ fn (self ErrorStream) x(n u32) ErrorStream {
 	return self;
 }
 
+fn print_type(fd i32, type Type);
+
+fn (self ErrorStream) t(type Type) ErrorStream {
+	print_type(2, type);
+	es_advance(self);
+	return self;
+}
+
 fn Error(msg str) ErrorStream {
 	var s ErrorStream = new(ErrorStream);
 	s.msg = msg;

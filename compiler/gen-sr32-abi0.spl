@@ -21,6 +21,7 @@ fn GenError(node Ast, msg str) ErrorStream {
 	var s ErrorStream = new(ErrorStream);
 	s.msg = msg;
 	s.idx = 0;
+	s.fatal = true;
 	writes(2, "\n");
 	print_srcloc(2, node.srcloc);
 	writes(2, ": error: ");
