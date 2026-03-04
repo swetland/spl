@@ -12,13 +12,18 @@ fn print_indent(fd i32) {
 }
 
 fn print_type(fd i32, type Type) {
-	if type.kind == TYPE_POINTER {
-		writes(fd, "*");
-		type = type.of;
-	}
-	if type.kind == TYPE_ARRAY {
-		writes(fd, "[]");
-		type = type.of;
+	while true {
+		if type.kind == TYPE_POINTER {
+			writes(fd, "*");
+			type = type.of;
+		} else if type.kind == TYPE_ARRAY {
+			writes(fd, "[");
+			if type.count { writei(fd, type.count); }
+			writes(fd, "]");
+			type = type.of;
+		} else {
+			break;
+		}
 	}
 	writes(fd, type.name.text);
 }
