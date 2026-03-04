@@ -1,12 +1,18 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/asm out/emu out/compiler0 out/compiler1 out/compiler2a.bin out/compiler2b.bin
+all: out/asm out/emu out/compiler1 out/compiler2a.bin out/compiler2b.bin
 
 test: out/test/summary.txt
 
-freeze: out/compiler2a.bin
+freeze1: out/compiler1
+	@mkdir -p frozen/
+	cp -f out/compiler1 frozen/compiler1
+
+freeze2a: out/compiler2a.bin
 	@mkdir -p frozen/
 	cp -f out/compiler2a.bin frozen/compiler2a.bin
+
+freeze:: freeze1 freeze2a
 
 # compiler0: bootstrap SPL->C transpiler
 #
@@ -24,19 +30,20 @@ COMPILERX_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
 COMPILER1_SRC := build/stdlib-stub.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
 COMPILER2_SRC := build/stdlib-abi0.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
 
-out/compiler1: ./out/compiler0 out/asm $(COMPILER1_SRC)
+ifneq ($(wildcard frozen/compiler2a.bin),)
+out/compiler1: frozen/compiler1
+	@mkdir -p out
+	@echo ''
+	@echo '### USING FROZEN STAGE 1 COMPILER ###'
+	cp -f $< $@
+else
+out/compiler1: out/compiler0 $(COMPILER1_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 1 COMPILER USING TRANSPILER ###'
 	@mkdir -p out/
 	./out/compiler0 -o out/compiler1 $(COMPILER1_SRC)
 	gcc -g -O0 -Wall -Wno-unused-variable -DQUIET -I. -Ibootstrap/inc -Iout -o $@ out/compiler1.impl.c
-
-# compiler2a: SPL compiler written in SPL, compiled by compiler1
-#
-out/compiler2a.s32: ./out/compiler1 $(COMPILER2_SRC)
-	@echo ''
-	@echo '### BUILDING STAGE 2A COMPILER USING STAGE 1 COMPILER ###'
-	./out/compiler1 -ast out/compiler2a.ast -out $@ $(COMPILER2_SRC)
+endif
 
 ifneq ($(wildcard frozen/compiler2a.bin),)
 out/compiler2a.bin: frozen/compiler2a.bin
@@ -45,15 +52,22 @@ out/compiler2a.bin: frozen/compiler2a.bin
 	@echo '### USING FROZEN STAGE 2A COMPILER ###'
 	cp -f $< $@
 else
+# compiler2a: SPL compiler written in SPL, compiled by compiler1
+#
+out/compiler2a.s32: out/compiler1 $(COMPILER2_SRC)
+	@echo ''
+	@echo '### BUILDING STAGE 2A COMPILER USING STAGE 1 COMPILER ###'
+	./out/compiler1 -ast out/compiler2a.ast -out $@ $(COMPILER2_SRC)
+
 COMPILER2_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2a.s32
-out/compiler2a.bin: ./out/asm $(COMPILER2_ASM)
+out/compiler2a.bin: out/asm $(COMPILER2_ASM)
 	@mkdir -p out/
 	./out/asm -o $@ $(COMPILER2_ASM)
 endif
 
 # compiler2b: SPL compiler written in SPL, compiled by compiler2a
 #
-out/compiler2b.s32: ./out/compiler2a.bin ./out/emu $(COMPILER2_SRC)
+out/compiler2b.s32: out/compiler2a.bin out/emu $(COMPILER2_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 2B COMPILER USING STAGE 2A COMPILER ###'
 	./out/emu -q ./out/compiler2a.bin -ast out/compiler2b.ast -out $@ $(COMPILER2_SRC)
@@ -64,7 +78,7 @@ out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
 
 # rules for building out/.../foo.bin from .../foo.spl
 #
-out/%.impl.c out/%.type.h out/%.decl.h: %.spl ./out/compiler0
+out/%.impl.c out/%.type.h out/%.decl.h: %.spl out/compiler0
 	@mkdir -p $(dir $(patsubst %.spl,out/%.impl.c,$<))
 	./out/compiler0 -o $(patsubst %.spl,out/%,$<) $<
 
