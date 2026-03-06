@@ -342,13 +342,28 @@ fn parse_struct_type(name String) Type {
 }
 
 
+// arrays may be of pointer-to-Struct similar to how
+// structs may contain pointer-to-Struct members
+fn parse_array_typeof() Type {
+	if ctx.tok == tSTAR {
+		next();
+		var type Type = parse_type(false);
+		if type.kind != TYPE_STRUCT {
+			Error("pointer to non-struct");
+		}
+		return type.of;
+	} else {
+		return parse_type(false);
+	}
+}
+
 fn parse_array_type() Type {
 	var type Type;
 	var nelem u32 = 0;
 	if ctx.tok == tCBRACK {
 		// TODO: slices
 		next();
-		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, 0);
+		type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, 0);
 	} else {
 		if ctx.tok != tNUM {
 			Error("array size must be numeric");
@@ -356,7 +371,7 @@ fn parse_array_type() Type {
 		nelem = ctx.num;
 		next();
 		require(tCBRACK);
-		type = type_make(nil, TYPE_ARRAY, parse_type(false), nil, nelem);
+		type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, nelem);
 	}
 	// TODO: type.name?
 	return type;

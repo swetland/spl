@@ -20,5 +20,14 @@ fn start() i32 {
 		w[i].b = z[i].b;
 		i++;
 	}
+
+	var q [3]*Stuff = new([3]*Stuff);
+	i = 0;
+	while i < 3 {
+		q[i] = new(Stuff);
+		q[i].a = 1 << i;
+		q[i].b = 3 - i;
+		i++;
+	}
 	return 0;
 }
