@@ -35,6 +35,9 @@ fn parse_name(what str) String {
 fn parse_symbol(what str) Ast {
 	var name String = parse_name(what);
 	var sym Symbol = symbol_find(name);
+	if sym == nil {
+		Error("unknown @ '@'").s(what).s(name.text);
+	}
 	return ast_make_symbol(sym);
 }
 
