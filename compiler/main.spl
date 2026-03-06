@@ -13,7 +13,10 @@ fn print_indent(fd i32) {
 
 fn print_type(fd i32, type Type) {
 	while true {
-		if type.kind == TYPE_POINTER {
+		if type == ctx.type_str {
+			writes(fd, type.name.text);
+			return;
+		} else if type.kind == TYPE_POINTER {
 			writes(fd, "*");
 			type = type.of;
 		} else if type.kind == TYPE_ARRAY {
@@ -97,24 +100,31 @@ fn dump_ast_node(fd i32, node Ast) {
 	}
 }
 
+fn dump_type(fd i32, type Type) {
+	if type.kind == TYPE_FN { return; }
+	print_type(fd, type);
+	writes(fd, ": sz=");
+	writei(fd, type_size(type));
+	writes(fd, "\n");
+	if type.kind == TYPE_STRUCT {
+		var sym Symbol = type.list;
+		while sym != nil {
+			writes(fd, "    ");
+			writes(fd, sym.name.text);
+			writes(fd, ": ");
+			print_type(fd, sym.type);
+			writes(fd, " sz=");
+			writei(fd, sym.ival);
+			writes(fd, "\n");
+			sym = sym.next;
+		}
+	}
+}
+
 fn dump_types(fd i32) {
 	var type Type = ctx.typelist;
 	while type != nil {
-		writes(fd, type.name.text);
-		writes(fd, ": ");
-		writei(fd, type_size(type));
-		writes(fd, "\n");
-		if type.kind == TYPE_STRUCT {
-			var sym Symbol = type.list;
-			while sym != nil {
-				writes(fd, "    ");
-				writes(fd, sym.name.text);
-				writes(fd, ": ");
-				writei(fd, sym.ival);
-				writes(fd, "\n");
-				sym = sym.next;
-			}
-		}
+		dump_type(fd, type);
 		type = type.next;
 	}
 }

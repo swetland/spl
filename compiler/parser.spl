@@ -70,13 +70,13 @@ fn parse_fcall(fnode Ast, self Ast) Ast {
 fn parse_field_ref(node Ast, name String) Ast {
 	var type Type = node.type;
 	if type == nil {
-		Error("BOGUS NODE TYPE");
+		Error("BOGUS NODE TYPE @").s(ast_kind[node.kind]);
 	}
 	if type.kind == TYPE_POINTER {
 		type = type.of;
 	}
 	if type.kind != TYPE_STRUCT {
-		Error("expected struct");
+		Error("expected struct found @").t(type);
 	}
 	var sym Symbol = type.list;
 	while sym != nil {
@@ -597,7 +597,7 @@ fn parse_var(kind SymbolKind) Ast {
 			} else if type.kind == TYPE_ARRAY {
 				node = parse_array_init(type.of, type.count);
 			} else {
-				Error("type @ cannot be initialized with {} expr").s(type.name.text);
+				Error("type @ cannot be initialized with {} expr").t(type);
 			}
 		} else {
 			node = parse_expr();

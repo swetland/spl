@@ -252,8 +252,8 @@ fn ctx_init() {
 	ctx.type_u8      = type_make(string_make("u8", 2),   TYPE_U8,   nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3),  TYPE_U32,  nil, nil, 0);
 	ctx.type_i32     = type_make(string_make("i32", 3),  TYPE_I32,  nil, nil, 0);
-	// treat str as an alias for []u8 for the time being
-	ctx.type_str     = type_make(string_make("str", 3),  TYPE_ARRAY, ctx.type_u8, nil, 0);
+	// treat str as an alias for *[]u8 for the time being
+	ctx.type_str     = type_make(string_make("str", 3), TYPE_POINTER, type_make(nil, TYPE_ARRAY, ctx.type_u8, nil, 0), nil, 0);
 
 	ctx.str_new_fn       = string_make("__new", 5);
 	ctx.str_type_unknown = string_make("???", 3);
