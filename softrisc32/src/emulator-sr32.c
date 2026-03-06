@@ -6,6 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <time.h>
 
 #include <emulator-sr32.h>
 
@@ -223,6 +225,7 @@ void usage(int status) {
 		"usage:    emu <options> <image.hex> <arguments>\n"
 		"options: -check            Check Machine State\n"
 		"         -panic            Print Backtrace on Exit\n"
+		"         -limit <s>        Impose Time Limit (Seconds)\n"
 		"         -tf               Trace Instruction Fetches\n"
 		"         -tr               Trace Register Writes\n"
 		"         -tb               Trace Branches\n"
@@ -231,12 +234,42 @@ void usage(int status) {
 	exit(status);
 }
 
+void timeout_handler(int sig, siginfo_t *si, void *uc) {
+	if (write(2, "\nTIMEOUT\n", 9) != 9) ;
+	exit(1);
+}
+
+void set_time_limit(int seconds) {
+	timer_t tid;
+	struct sigevent sev;
+	struct sigaction sa;
+	struct itimerspec its;
+
+	sa.sa_flags = SA_SIGINFO;
+	sa.sa_sigaction = timeout_handler;
+	sigemptyset(&sa.sa_mask);
+	if (sigaction(SIGRTMIN, &sa, NULL) < 0) exit(1);
+
+	sev.sigev_notify = SIGEV_SIGNAL;
+	sev.sigev_signo = SIGRTMIN;
+	sev.sigev_value.sival_ptr = &tid;
+	if (timer_create(CLOCK_MONOTONIC, &sev, &tid) < 0) exit(1);
+
+	its.it_value.tv_sec = seconds;
+	its.it_value.tv_nsec = 0;
+	its.it_interval.tv_sec = 0;
+	its.it_interval.tv_nsec = 0;
+	if (timer_settime(tid, 0, &its, NULL) < 0) exit(1);
+}
+
+
 void sys_init(uint32_t argc, uint32_t argv);
 
 int main(int argc, char** argv) {
 	uint32_t entry = 0x100000;
 	const char* fn = NULL;
 	int args = 0;
+	int timeout = 0;
 
 	CpuState *cs = &CS;
 	memset(cs, 0, sizeof(CpuState));
@@ -255,6 +288,12 @@ int main(int argc, char** argv) {
 			do_check_state = 1;
 		} else if (!strcmp(argv[1], "-panic")) {
 			do_dump_state = 1;
+		} else if (!strcmp(argv[1], "-limit")) {
+			if (argc > 1) {
+				argc--;
+				argv++;
+				timeout = atoi(argv[1]);
+			}
 		} else if (!strcmp(argv[1], "-q")) {
 			quiet = 1;
 		} else if (argv[1][0] == '-') {
@@ -311,6 +350,9 @@ int main(int argc, char** argv) {
 	// cs->r[10] = guest_argc;
 	// cs->r[11] = guest_argv;
 
+	if (timeout > 0) {
+		set_time_limit(timeout);
+	}
 	sys_init(guest_argc, guest_argv);
 
 	sr32core(cs);
