@@ -1,0 +1,126 @@
+
+
+// fn md5_fast(hash [4]u32, M [16]u32, K [64]u32, s [64]u8);
+md5_fast:
+	ldw t0, 0(sp)
+	ldw t1, 4(sp)
+	ldw t2, 8(sp)
+	ldw t3, 12(sp)
+
+	// hash t0  M t1  K t2  s t3
+	// A t4     B t5  C t6  D t7
+	// i t8     g t9  F t10
+
+	ldw t4, 0(t0)
+	ldw t5, 4(t0)
+	ldw t6, 8(t0)
+	ldw t7, 12(t0)
+
+	li t20, 16 // constants
+	li t21, 32
+	li t22, 48
+	li t23, 64
+
+	li t8, 0
+md5_loop:
+	blt t8, t20, md5_lt16
+	blt t8, t21, md5_lt32
+	blt t8, t22, md5_lt48
+md5_lt64:
+	not t11, t7        // F = C ^ (B | (~D))
+	or  t11, t11, t5
+	xor t10, t11, t6
+	muli t9, t8, 7     // g = 7 * i
+	j md5_pt2
+
+md5_lt16:
+	and t11, t5, t6    // F = (B & C) | ((~B) & D)
+	not t12, t5
+	and t12, t12, t7
+	or  t10, t11, t12
+	mv  t9, t8         // g = i
+	j md5_pt2
+
+md5_lt32:
+	and t11, t7, t5    // F = (D & B) | ((~D) & C)
+	not t12, t7
+	and t12, t12, t6
+	or  t10, t11, t12
+	muli t9, t8, 5     // g = 5 * i + 1
+	addi t9, t9, 1
+	j md5_pt2
+
+md5_lt48:
+	xor t10, t5, t6    // F = B ^ C ^ D
+	xor t10, t10, t7
+	muli t9, t8, 3     // g = 3 * i + 5
+	addi t9, t9, 5
+
+md5_pt2:
+	andi t9, t9, 15    // t9 = M[g & 15]
+	slli t9, t9, 2
+	add t9, t1, t9
+	ldw t9, (t9)
+	add t14, t3, t8    // t14 = s[i]
+	ldb t14, (t14)
+	slli t11, t8, 2    // t11 = K[i]
+	add t11, t2, t11
+	ldw t11, (t11)
+
+	add t12, t10, t4   // F = F + A + K[i] + M[g & 15]
+	add t13, t9, t11
+	add t10, t12, t13
+
+	mv t4, t7  // A = D
+	mv t7, t6  // D = C
+	mv t6, t5  // C = B
+
+	sll t11, t10, t14  // F << s[i]
+	sub t14, t21, t14
+	srl t12, t10, t14  // F >> (32 - s[i])
+	or  t13, t11, t12
+	add t5, t5, t13    // B = B + leftrot(F, s[i])
+
+	// loop until 64
+	addi t8, t8, 1
+	blt t8, t23, md5_loop
+
+	ldw t8, 0(t0)
+	add t8, t8, t4
+	stw t8, 0(t0)
+	ldw t8, 4(t0)
+	add t8, t8, t5
+	stw t8, 4(t0)
+	ldw t8, 8(t0)
+	add t8, t8, t6
+	stw t8, 8(t0)
+	ldw t8, 12(t0)
+	add t8, t8, t7
+	stw t8, 12(t0)
+
+	ret
+
+
+// fn md5_fast_pack(bdata [64]u8, wdata [16]u32);
+md5_fast_pack:
+	ldw t0, 0(sp)
+	ldw t1, 4(sp)
+
+	addi t2, t0, 64 // end point
+md5_pack_loop:
+	ldb t5, 0(t0)
+	ldb t6, 1(t0)
+	ldb t7, 2(t0)
+	ldb t8, 3(t0)
+	slli t6, t6, 8
+	slli t7, t7, 16
+	slli t8, t8, 24
+	or t10, t5, t6
+	or t11, t7, t8
+	or t12, t10, t11
+	stw t12, 0(t1)
+	addi t0, t0, 4
+	addi t1, t1, 4
+	blt t0, t2, md5_pack_loop
+
+	ret
