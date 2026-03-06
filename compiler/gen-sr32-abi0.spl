@@ -295,40 +295,48 @@ fn gen_field_load(node Ast) i32 {
 	return ar;
 }
 
-// load:  vr < 0  (returns an allocated vr)
-// store: vr >= 0 (returns vr, vr not consumed)
-fn gen_array_access(node Ast, vr i32) i32 {
+fn gen_index_addr(node Ast) i32 {
 	var type Type = node.left.type;
-	var ptr bool = false;
+	var ar i32 = gen_addr(node.left);
 	if type.kind == TYPE_POINTER {
 		type = type.of;
-		ptr = true;
+		emit("    ldw x@, (x@) // array ptr deref\n").n(ar).n(ar);
 	}
 	if type.kind != TYPE_ARRAY {
 		GenError(node, "index of non-array type");
 	}
-	var sz i32 = type_size(type.of);
-	var ar i32 = gen_addr(node.left);
-	if ptr {
-		emit("    ldw x@, (x@) // array ptr deref\n").n(ar).n(ar);
-	}
 	var ir i32 = gen_expr(node.right);
-	if sz == 2 { emit("    slli x@, x@, 1\n").n(ir).n(ir); }
-	if sz == 4 { emit("    slli x@, x@, 2\n").n(ir).n(ir); }
+	var sz i32 = type_size(type.of);
+	if sz == 2 {
+		emit("    slli x@, x@, 1\n").n(ir).n(ir);
+	} else if sz == 4 {
+		emit("    slli x@, x@, 2\n").n(ir).n(ir);
+	} else if sz != 1 {
+		emit("    muli x@, x@, @\n").n(ir).n(ir).n(sz);
+	}
 	emit("    add x@, x@, x@\n").n(ar).n(ar).n(ir);
 	put_reg(ir);
-	if vr < 0 {
-		if sz == 1 { emit("    ldbu x@, (x@)\n").n(ar).n(ar); }
-		if sz == 2 { emit("    ldhu x@, (x@)\n").n(ar).n(ar); }
-		if sz == 4 { emit("    ldw x@, (x@)\n").n(ar).n(ar); }
-		return ar;
-	} else {
-		if sz == 1 { emit("    stb x@, (x@)\n").n(vr).n(ar); }
-		if sz == 2 { emit("    sth x@, (x@)\n").n(vr).n(ar); }
-		if sz == 4 { emit("    stw x@, (x@)\n").n(vr).n(ar); }
-		put_reg(ar);
-		return vr;
-	}
+	return ar;
+}
+
+fn gen_array_load(node Ast) i32 {
+	var ar i32 = gen_index_addr(node);
+	var sz i32 = type_size(node.type);
+	if sz == 1 { emit("    ldbu x@, (x@)\n").n(ar).n(ar); }
+	if sz == 2 { emit("    ldhu x@, (x@)\n").n(ar).n(ar); }
+	if sz == 4 { emit("    ldw x@, (x@)\n").n(ar).n(ar); }
+	return ar;
+}
+
+// vr is not consumed
+fn gen_array_store(node Ast, vr i32) i32 {
+	var ar i32 = gen_index_addr(node);
+	var sz i32 = type_size(node.type);
+	if sz == 1 { emit("    stb x@, (x@)\n").n(vr).n(ar); }
+	if sz == 2 { emit("    sth x@, (x@)\n").n(vr).n(ar); }
+	if sz == 4 { emit("    stw x@, (x@)\n").n(vr).n(ar); }
+	put_reg(ar);
+	return vr;
 }
 
 fn gen_addr(node Ast) i32 {
@@ -350,6 +358,9 @@ fn gen_addr(node Ast) i32 {
 	}
 	if kind == AST_FIELD {
 		return gen_field_addr(node);
+	}
+	if kind == AST_INDEX {
+		return gen_index_addr(node);
 	}
 	if kind == AST_CALL {
 		if node.type.kind == TYPE_POINTER {
@@ -379,7 +390,7 @@ fn gen_load(node Ast) i32 {
 
 fn gen_assign(node Ast) i32 {
 	if (node.left.kind == AST_INDEX) {
-		return gen_array_access(node.left, gen_expr(node.right));
+		return gen_array_store(node.left, gen_expr(node.right));
 	}
 	var ar i32 = gen_addr(node.left);
 	var vr i32 = gen_expr(node.right);
@@ -452,7 +463,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_BOOL_OR { return gen_bool_or(node); }
 	if kind == AST_STRING { return gen_string_const(node.sval.text); }
 	if kind == AST_DEREF { }
-	if kind == AST_INDEX { return gen_array_access(node, -1); }
+	if kind == AST_INDEX { return gen_array_load(node); }
 	if kind == AST_FIELD { return gen_field_load(node); }
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }
@@ -652,19 +663,25 @@ fn gen_global_array_init(node Ast) u32 {
 	var kind i32 = DATA_U32;
 	if node.kind == AST_STRING {
 		return make_string_chunk(node.sval.text);
-	} else if node.kind == AST_ARRAY {
-		if type_size(node.type) == 1 {
-			kind = DATA_U8;
-		} else if !type_is_scalar(node.type) {
+	}
+	var sz i32 = node.ival;
+	if node.kind == AST_ARRAY {
+		var tsz i32 = type_size(node.type);
+		if node.type.kind == TYPE_POINTER {
 			kind = DATA_PTR;
+		} else if type_size(node.type) == 1 {
+			kind = DATA_U8;
+		} else {
+			sz = sz * tsz / 4;
 		}
 	} else {
 		GenError(node, "illegal array init");
 	}
-	var dc DataChunk = make_data_chunk(kind, node.ival);
+	var dc DataChunk = make_data_chunk(kind, sz);
 	node = node.left;
 	var n i32 = 0;
 	while node != nil {
+		//TODO: advance by stride
 		var v u32;
 		if kind == DATA_PTR {
 			v = gen_global_array_init(node);

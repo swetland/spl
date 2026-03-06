@@ -132,7 +132,16 @@ fn parse_ident() Ast {
 		} else if ctx.tok == tOBRACK {
 			// array access
 			next();
+			// check for array?
+			var type Type = node.type;
+			if type.kind == TYPE_POINTER {
+				type = type.of;
+			}
+			if type.kind != TYPE_ARRAY {
+				Error("indexing a non-array type @").t(type);
+			}
 			node = ast_make_lr(AST_INDEX, node, parse_expr());
+			node.type = type.of;
 			require(tCBRACK);
 		} else {
 			return node;
