@@ -79,15 +79,6 @@ void sr32dis(uint32_t pc, uint32_t ins, char *out, const char* (lookup)(uint32_t
 		case 'B': {
 			uint32_t n = pc + 4 + get_i16(ins);
 			out = append_addr(out, n, lookup(n));
-			const char *name = lookup(n);
-			if (name) {
-				out = append_str(out, name);
-				out = append_str(out, " <");
-			}
-			out = append_u32(out, n);
-			if (name) {
-				out = append_str(out, ">");
-			}
 			break;
 		}
 		case 'U': out = append_u32(out, get_i16(ins) << 16); break;
