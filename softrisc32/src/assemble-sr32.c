@@ -559,7 +559,7 @@ int parse_line(State *s) {
 		break;
 	case tADDI: case tSUBI: case tANDI: case tORI:
 	case tXORI: case tSLLI: case tSRLI: case tSRAI:
-	case tSLTI: case tSLTUI:
+	case tSLTI: case tSLTUI: case tMULI:
 		o = tok - tADDI;
 		parse_2r_c(s, &t, &a);
 		parse_num(s, &i);
