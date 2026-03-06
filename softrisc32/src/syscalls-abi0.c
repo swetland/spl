@@ -11,6 +11,7 @@
 
 #include "emulator-sr32.h"
 
+void exit_emu(int status);
 void *mem_dma(uint32_t addr, uint32_t len);
 
 void die(const char *fmt, ...) {
@@ -18,7 +19,7 @@ void die(const char *fmt, ...) {
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
-	exit(1);
+	exit_emu(1);
 }
 
 #define SYS_MAX_FDS 64
@@ -154,7 +155,7 @@ int sys_fd_writex(uint32_t _fd, uint32_t n) {
 static inline uint32_t _do_syscall(uint32_t sp, uint32_t n) {
 	//fprintf(stderr, "SYSCALL #0x%x 0x%x 0x%x 0x%x 0x%x\n", n, ARG(0), ARG(1), ARG(2), ARG(3));
 	switch (n) {
-	case 0x100: exit(ARG(0));
+	case 0x100: exit_emu(ARG(0));
 	case 0x101: return mem_rd32(guest_argv + 4 * ARG(0));
 	case 0x102: return guest_argc;
 	case 0x200: return sys_fd_open(ARG(0));

@@ -24,6 +24,7 @@ void sr32core(CpuState *s) {
 		fprintf(stderr,"%08x %08x\n", pc, ins);
 	}
 #endif
+	s->pc = pc;
 	pc += 4;
 	switch ((ins >> 3) & 7) {
 	case 0b000:
