@@ -1,0 +1,5 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+fn gen(outfd i32, node Ast) {
+}
