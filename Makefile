@@ -1,6 +1,6 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/asm out/emu out/compiler1 out/compiler2a.bin out/compiler2b.bin
+all: out/asm out/emu out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.bin
 
 test: out/test/summary.txt
 
@@ -22,14 +22,24 @@ out/compiler0: bootstrap/compiler0.c
 	@mkdir -p out
 	gcc -g -O0 -Wall -o out/compiler0 bootstrap/compiler0.c
 
+# front end and common code shared among stage1 and later
+COMPILERX_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl
+COMPILERX_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
+
+# full compiler backend used by stage3
+COMPILERY_SRC := compiler/ir-types-sr32.spl compiler/ir-types.spl compiler/ir-gen.spl
+
+# stage1 which is built by the transpiler
+COMPILER1_SRC := build/stdlib-stub.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
+
+# stage2 which is built by stage1
+COMPILER2_SRC := build/stdlib-abi0.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
+
+# stage3 which is built by stage2
+COMPILER3_SRC := build/stdlib-abi0.spl $(COMPILERX_SRC) $(COMPILERY_SRC) compiler/main.spl
 
 # compiler1: SPL compiler written in SPL
 #
-COMPILERX_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl
-COMPILERX_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
-COMPILER1_SRC := build/stdlib-stub.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
-COMPILER2_SRC := build/stdlib-abi0.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
-
 ifneq ($(wildcard frozen/compiler2a.bin),)
 out/compiler1: frozen/compiler1
 	@mkdir -p out
@@ -76,6 +86,18 @@ COMPILER2B_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2b.s3
 out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
 	./out/asm -o $@ $(COMPILER2B_ASM)
 
+# compiler3a: SPL compiler written in SPL, compiled by compiler2a
+#
+out/compiler3a.s32: out/compiler2b.bin out/emu $(COMPILER3_SRC)
+	@echo ''
+	@echo '### BUILDING STAGE 3A COMPILER USING STAGE 2B COMPILER ###'
+	./out/emu -q ./out/compiler2b.bin -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
+
+COMPILER3A_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3a.s32
+out/compiler3a.bin: ./out/asm $(COMPILER3A_ASM)
+	./out/asm -o $@ $(COMPILER3A_ASM)
+
+
 # rules for building out/.../foo.bin from .../foo.spl
 #
 out/%.impl.c out/%.type.h out/%.decl.h: %.spl out/compiler0
@@ -91,70 +113,39 @@ clean::
 spotless::
 	rm -rf bin out frozen
 
-runtests0:: out/test0/summary.txt
-runtests1:: out/test1/summary.txt
-runtests2:: out/test2/summary.txt
+TESTDEPS0 := out/compiler0 build/runtest build/compile0
+TESTDEPS0 += $(wildcard bootstrap/inc/*.h) $(wildcard bootstrap/inc/*.c)
+TESTDEPSX := out/asm out/emu build/runtest build/stdlib-abi0.spl build/stdlib-abi0.s32
+TESTDEPS1 := $(TESTDEPSX) out/compiler1
+TESTDEPS2 := $(TESTDEPSX) out/compiler2a.bin
+TESTDEPS3 := $(TESTDEPSX) out/compiler3a.bin
+
+SRCTESTS := $(sort $(wildcard test/*.spl))
 
 # have to have two rules here otherwise tests without .log files
 # fail to be compiled by the rule that depends on spl+log *or*
 # we fail to depend on the .log for tests with both...
 
-TESTDEPS0 := out/compiler0 build/runtest0 build/compile0
-TESTDEPS0 += $(wildcard bootstrap/inc/*.h) $(wildcard bootstrap/inc/*.c)
+define mktestrule
+$(eval ALLTESTS$1 := $(patsubst test/%.spl,out/test$1/%.txt,$(SRCTESTS)))
 
-TESTDEPS1 := out/compiler1 out/asm out/emu build/runtest build/runtest1
-TESTDEPS1 += build/stdlib-abi0.spl build/stdlib-abi0.spl
+runtests$1:: out/test$1/summary.txt
 
-TESTDEPS2 := out/compiler2a.bin out/asm out/emu build/runtest build/runtest2
-TESTDEPS2 += build/stdlib-abi0.spl build/stdlib-abi0.spl
+out/test$1/%.txt: test/%.spl test/%.log
+	@mkdir -p out/test$1
+	@rm -f $$@
+	@build/runtest$1 $$< $$@
 
-out/test0/%.txt: test/%.spl test/%.log
-	@mkdir -p out/test0
-	@rm -f $@
-	@build/runtest0 $< $@
+out/test$1/%.txt: test/%.spl
+	@mkdir -p out/test$1
+	@rm -f $$@
+	@build/runtest$1 $$< $$@
 
-out/test0/%.txt: test/%.spl
-	@mkdir -p out/test0
-	@rm -f $@
-	@build/runtest0 $< $@
+$(ALLTESTS$1) : build/runtest$1 $(TESTDEPS$1)
 
-out/test1/%.txt: test/%.spl test/%.log
-	@mkdir -p out/test1
-	@rm -f $@
-	@build/runtest1 $< $@
-
-out/test1/%.txt: test/%.spl
-	@mkdir -p out/test1
-	@rm -f $@
-	@build/runtest1 $< $@
-
-out/test2/%.txt: test/%.spl test/%.log
-	@mkdir -p out/test2
-	@rm -f $@
-	@build/runtest2 $< $@
-
-out/test2/%.txt: test/%.spl
-	@mkdir -p out/test2
-	@rm -f $@
-	@build/runtest2 $< $@
-
-SRCTESTS := $(sort $(wildcard test/*.spl))
-ALLTESTS0 := $(patsubst test/%.spl,out/test0/%.txt,$(SRCTESTS))
-ALLTESTS1 := $(patsubst test/%.spl,out/test1/%.txt,$(SRCTESTS))
-ALLTESTS2 := $(patsubst test/%.spl,out/test2/%.txt,$(SRCTESTS))
-
-$(ALLTESTS0) : $(TESTDEPS0)
-$(ALLTESTS1) : $(TESTDEPS1)
-$(ALLTESTS2) : $(TESTDEPS2)
-
-out/test0/summary.txt: $(ALLTESTS0)
-	@cat $(ALLTESTS0) > $@
-
-out/test1/summary.txt: $(ALLTESTS1)
-	@cat $(ALLTESTS1) > $@
-
-out/test2/summary.txt: $(ALLTESTS2)
-	@cat $(ALLTESTS2) > $@
+out/test$1/summary.txt: $(ALLTESTS$1)
+	@cat $$(ALLTESTS$1) > $$@
+endef
 
 # generate a rule, but only if it's a current goal
 define mkrule
@@ -164,12 +155,17 @@ $(2): __FORCE__
 endif
 endef
 
-__FORCE__: ;
+# generate implicit rules and runtest rules for running
+# all the tests against the various compiler stages
+$(foreach n,0 1 2 3,$(eval $(call mktestrule,$n)))
 
 # generate shortcut runtest rules for the tests
-$(foreach x,$(ALLTESTS0),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test0/%,%,$(x)))).0,$(x))))
-$(foreach x,$(ALLTESTS1),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test1/%,%,$(x)))).1,$(x))))
-$(foreach x,$(ALLTESTS2),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test2/%,%,$(x)))).2,$(x))))
+# for example, test/1024-fibonnaci.spl gets the shortcut
+# rules 1025.0, 1025.1, 1025.2, and 1025.3 defined to run
+# that test against stage0, stage1, etc compilers
+$(foreach n,0 1 2 3,$(foreach x,$(ALLTESTS$n),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test$n/%,%,$(x)))).$n,$(x)))))
+
+__FORCE__: ;
 
 TOP := softrisc32/
 BIN := out/
