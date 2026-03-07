@@ -3,136 +3,98 @@
 
 fn print_srcloc(fd i32, loc u32);
 
-struct ErrorStream {
+struct OutStream {
 	msg str,
 	idx u32,
+	fd i32,
 	fatal bool,
 };
 
-fn es_prologue(msg str) {
-	writes(2, "\n");
-	print_srcloc(2, ctx.linenumber);
-	writes(2, msg);
-}
-
-fn es_advance(s ErrorStream) {
-	var n u32 = s.idx;
-	while (s.msg[n] != 0) && (s.msg[n] != '@') {
+fn os_advance(os OutStream) {
+	var n u32 = os.idx;
+	while (os.msg[n] != 0) && (os.msg[n] != '@') {
 		n++;
 	}
-	if n - s.idx != 0 {
-		write(2, s.msg, s.idx, n - s.idx);
-		if s.msg[n] == '@' {
-			s.idx = n + 1;
-			return;
-		}
-		s.idx = n;
+	if n - os.idx != 0 {
+		write(os.fd, os.msg, os.idx, n - os.idx);
 	}
-	if s.msg[n] == 0 {
-		writec(2, '\n');
-		if s.fatal {
+	if os.msg[n] == '@' {
+		os.idx = n + 1;
+		return;
+	}
+	os.idx = n;
+	if os.msg[n] == 0 {
+		writec(os.fd, '\n');
+		if os.fatal {
 			os_exit(1);
 		}
 	}
 }
 
-fn (self ErrorStream) s(x str) ErrorStream {
-	writes(2, x);
-	es_advance(self);
-	return self;
+fn (os OutStream) s(x str) OutStream {
+	writes(os.fd, x);
+	os_advance(os);
+	return os;
 }
 
-fn (self ErrorStream) n(n i32) ErrorStream {
-	writei(2, n);
-	es_advance(self);
-	return self;
+fn (os OutStream) n(n i32) OutStream {
+	writei(os.fd, n);
+	os_advance(os);
+	return os;
 }
 
-fn (self ErrorStream) x(n u32) ErrorStream {
-	writex(2, n);
-	es_advance(self);
-	return self;
+fn (os OutStream) x(n u32) OutStream {
+	writex(os.fd, n);
+	os_advance(os);
+	return os;
 }
 
 fn print_type(fd i32, type Type);
 
-fn (self ErrorStream) t(type Type) ErrorStream {
-	print_type(2, type);
-	es_advance(self);
-	return self;
+fn (os OutStream) t(type Type) OutStream {
+	print_type(os.fd, type);
+	os_advance(os);
+	return os;
 }
 
-fn Error(msg str) ErrorStream {
-	var s ErrorStream = new(ErrorStream);
-	s.msg = msg;
-	s.idx = 0;
-	s.fatal = true;
-	es_prologue(": error: ");
-	es_advance(s);
-	return s;
-}
-
-fn Warn(msg str) ErrorStream {
-	var s ErrorStream = new(ErrorStream);
-	s.msg = msg;
-	s.idx = 0;
-	s.fatal = false;
-	es_prologue(": warning: ");
-	es_advance(s);
-	return s;
-}
-
-struct OutStream {
-	msg str,
-	idx u32,
-	fd i32,
-};
-
-fn os_advance(s OutStream) {
-	var n u32 = s.idx;
-	while (s.msg[n] != 0) && (s.msg[n] != '@') {
-		n++;
+fn make_OutStream(msg str, fd i32, fatal bool, tag str) OutStream {
+	var os OutStream = new(OutStream);
+	os.msg = msg;
+	os.idx = 0;
+	os.fatal = fatal;
+	os.fd = fd;
+	if tag != nil {
+		writes(fd, "\n");
+		print_srcloc(fd, ctx.linenumber);
+		writes(fd, tag);
 	}
-	if n - s.idx != 0 {
-		write(s.fd, s.msg, s.idx, n - s.idx);
-		if s.msg[n] == '@' {
-			s.idx = n + 1;
-			return;
-		}
-		s.idx = n;
-	}
+	os_advance(os);
+	return os;
 }
 
-fn (self OutStream) s(x str) OutStream {
-	writes(self.fd, x);
-	os_advance(self);
-	return self;
+fn Error(msg str) OutStream {
+	return make_OutStream(msg, 2, true, ": error: ");
 }
 
-fn (self OutStream) n(n i32) OutStream {
-	writei(self.fd, n);
-	os_advance(self);
-	return self;
-}
-
-fn (self OutStream) x(n u32) OutStream {
-	writex(self.fd, n);
-	os_advance(self);
-	return self;
-}
-
-fn (self OutStream) fmt(msg str) OutStream {
-	self.msg = msg;
-	self.idx = 0;
-	os_advance(self);
-	return self;
+fn Warn(msg str) OutStream {
+	return make_OutStream(msg, 2, false, ": warning: ");
 }
 
 fn OutFd(fd i32) OutStream {
-	var s OutStream = new(OutStream);
-	s.msg = "";
-	s.idx = 0;
-	s.fd = fd;
-	return s;
+	return make_OutStream("", fd, false, nil);
+}
+
+fn (os OutStream) fmt(msg str) OutStream {
+	os.msg = msg;
+	os.idx = 0;
+	os_advance(os);
+	return os;
+}
+
+fn Fmt(os OutStream, msg str) OutStream {
+	os.msg = msg;
+	os.idx = 0;
+	os_advance(os);
+	return os;
 }
 

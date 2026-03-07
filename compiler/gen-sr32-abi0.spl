@@ -17,16 +17,11 @@ enum CodeGenConfig {
 	FirstTmpReg = 8,
 };
 
-fn GenError(node Ast, msg str) ErrorStream {
-	var s ErrorStream = new(ErrorStream);
-	s.msg = msg;
-	s.idx = 0;
-	s.fatal = true;
+fn GenError(node Ast, msg str) OutStream {
 	writes(2, "\n");
 	print_srcloc(2, node.srcloc);
 	writes(2, ": error: ");
-	es_advance(s);
-	return s;
+	return make_OutStream(msg, 2, true, nil);
 }
 
 var os OutStream;

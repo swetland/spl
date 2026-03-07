@@ -100,35 +100,26 @@ fn dump_ast_node(fd i32, node Ast) {
 	}
 }
 
-fn dump_type(fd i32, type Type) {
+fn dump_type(os OutStream, type Type) {
 	if type.kind == TYPE_FN { return; }
-	print_type(fd, type);
-	writes(fd, ": sz=");
-	writei(fd, type_size(type));
-	writes(fd, "\n");
+	Fmt(os,"@: sz=@").t(type).n(type_size(type));
 	if type.kind == TYPE_STRUCT {
 		var sym Symbol = type.list;
 		while sym != nil {
-			writes(fd, "    ");
-			writes(fd, sym.name.text);
-			writes(fd, ": ");
-			print_type(fd, sym.type);
-			writes(fd, " sz=");
-			writei(fd, sym.ival);
-			writes(fd, "\n");
+			Fmt(os, "    @: @ sz=@").s(sym.name.text).t(sym.type).n(sym.ival);
 			sym = sym.next;
 		}
 	}
 }
 
 fn dump_types(fd i32) {
+	var os OutStream = OutFd(fd);
 	var type Type = ctx.typelist;
 	while type != nil {
-		dump_type(fd, type);
+		dump_type(os, type);
 		type = type.next;
 	}
 }
-
 
 fn start() i32 {
 	ctx_init();
@@ -136,6 +127,7 @@ fn start() i32 {
 	var astfd i32 = -1;
 	var outfd i32 = 1;
 	var stats i32 = 0;
+	var err OutStream = OutFd(2);
 
 	var n u32 = 0;
 	while n < os_arg_count() {
@@ -189,21 +181,13 @@ fn start() i32 {
 	}
 
 	if stats {
-		writes(2, "alloc count:  ");
-		writei(2, __alloc_count);
-		writes(2, "\nalloc bytes:  ");
-		writei(2, __alloc_bytes);
-		writes(2, "\nalloc string: ");
-		writei(2, __alloc_string);
-		writes(2, "\nalloc scope:  ");
-		writei(2, __alloc_scope);
-		writes(2, "\nalloc symbol: ");
-		writei(2, __alloc_symbol);
-		writes(2, "\nalloc type:   ");
-		writei(2, __alloc_type);
-		writes(2, "\nalloc node:   ");
-		writei(2, __alloc_node);
-		writes(2, "\n");
+		Fmt(err, "alloc count:  @").n(__alloc_count);
+		Fmt(err, "alloc bytes:  @").n(__alloc_bytes);
+		Fmt(err, "alloc string: @").n(__alloc_string);
+		Fmt(err, "alloc scope:  @").n(__alloc_scope);
+		Fmt(err, "alloc symbol: @").n(__alloc_symbol);
+		Fmt(err, "alloc type:   @").n(__alloc_type);
+		Fmt(err, "alloc node:   @").n(__alloc_node);
 	}
 	return 0;
 }
