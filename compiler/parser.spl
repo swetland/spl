@@ -359,7 +359,7 @@ fn parse_array_typeof() Type {
 
 fn parse_array_type() Type {
 	var type Type;
-	var nelem u32 = 0;
+	var nelem i32 = 0;
 	if ctx.tok == tCBRACK {
 		// TODO: slices
 		next();
@@ -367,6 +367,9 @@ fn parse_array_type() Type {
 	} else {
 		var node Ast = parse_expr();
 		nelem = eval_const_expr(node);
+		if nelem < 0 {
+			Error("negative array size");
+		}
 		require(tCBRACK);
 		type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, nelem);
 	}

@@ -1,6 +1,7 @@
 
-var blarg [256]byte;
+var blarg [256]u8;
 
-fn bad() {
+fn start() i32 {
 	var n i32 = blarg[256];
+	return 0;
 }
