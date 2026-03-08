@@ -365,11 +365,8 @@ fn parse_array_type() Type {
 		next();
 		type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, 0);
 	} else {
-		if ctx.tok != tNUM {
-			Error("array size must be numeric");
-		}
-		nelem = ctx.num;
-		next();
+		var node Ast = parse_expr();
+		nelem = eval_const_expr(node);
 		require(tCBRACK);
 		type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, nelem);
 	}
