@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0.
 
 enum IRflag {
-	// arg c is immediate, for ALU and Bcc ops
+	// arg c is immediate, for ALU and CMP ops
 	INF_C_IMM =     0x0100,
 
 	// size flags for LD/ST ops
@@ -25,8 +25,8 @@ enum IRflag {
 };
 
 enum IRop {
-	INS_ADD,   // ADD Ra, Rb, Rc       Ra = Rb + Rc
-	INS_SUB,   // SUBI Ra, Rb, IMMc    Ra = Rb - IMMc
+	INS_ADD,     // ADD Ra, Rb, Rc       Ra = Rb + Rc
+	INS_SUB,     // SUBI Ra, Rb, IMMc    Ra = Rb - IMMc
 	INS_MUL,
 	INS_UDIV,
 	INS_SDIV,
@@ -40,48 +40,48 @@ enum IRop {
 	INS_OR,
 	INS_XOR,
 
-	INS_MOV,   // MOV Ra, Rc           Ra = Rc
+	INS_CMP_EQ,  // CEQ Ra, Rb, RC      Ra = (Rb == Rc) ? 0 : ~0
+	INS_CMP_NE,
+	INS_CMP_LT,
+	INS_CMP_LE,
+	INS_CMP_GT,
+	INS_CMP_GE,
 
-	INS_LD,    // LDW Ra, Rb, Rc       Ra = MEM[Rb + Rc]
-	INS_ST,    // STBI Ra, Rb, IMMc    MEM[Rb + IMMc] = Ra
+	INS_MOV,     // MOV Ra, Rc           Ra = Rc
 
-	INS_PHI,
+	INS_LOAD,    // LDW Ra, Rb, Rc       Ra = MEM[Rb + Rc]
+	INS_STORE,   // STBI Ra, Rb, IMMc    MEM[Rb + IMMc] = Ra
 
-	INS_LABEL, // La: b=Placed c=EdgeCount
+	INS_PHI,     // PHI Ta, Rb, Rc
 
-	INS_B,     // B La
-	INS_BEQ,   // BEQ La, Rb, Rc       BEQI La, Rb, IMMc
-	INS_BNE,   // ...
-	INS_BLT,
-	INS_BLE,
-	INS_BGT,
-	INS_BGE,
-	INS_CALL,
-	INS_RET,
+	INS_LABEL,   // La: b=Placed c=EdgeCount
 
-	INS_COUNT, // total unique opcodes (27)
+	INS_JUMP,    // JUMP La
+	INS_BRANCH,  // BRANCH Ca, Lb, Lc    if Ca != 0 then ->Lb else ->Lc
+	INS_CALL,    // CALL La
+	INS_RET,     // RET Ra
+
+	INS_COUNT, // total unique opcodes (28)
 
 	INS_OP_MASK = 0x3f,
 };
 
-var iop_name []str = { //INS_COUNT
+var iop_name [INS_COUNT]str = {
 	"add", "sub", "mul", "udiv", "sdiv",
 	"urem", "srem", "lsl", "lsr", "asr",
-	"and", "or", "xor", "mov",
-	"ld", "st", "phi", "label", "b",
-	"beq", "bne", "blt",
-	"ble", "bgt", "bge",
-	"call", "ret", "dead",
+	"and", "or", "xor",
+	"cmpeq", "cmpne", "cmplt", "cmple", "cmpgt", "cmpge",
+	"mov", "load", "store",
+	"phi", "label", "jump", "branch", "call", "ret",
 };
 
-var iop_props []u32 = { //INS_COUNT
+var iop_props [INS_COUNT]u32 = {
 	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
 	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
-	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, 0,
-	INF_IS_MEM, INF_IS_MEM, INF_IS_PHI, INF_IS_LABEL, INF_IS_B_UC,
-	INF_IS_B_CC, INF_IS_B_CC, INF_IS_B_CC,
-	INF_IS_B_CC, INF_IS_B_CC, INF_IS_B_CC,
-	0, INF_IS_RET, 0,
+	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
+	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
+	0, INF_IS_MEM, INF_IS_MEM,
+	INF_IS_PHI, INF_IS_LABEL, INF_IS_B_UC, INF_IS_B_CC, 0, INF_IS_RET,
 };
 
 var isz_name [4]str = { "b", "h", "w", "d" };
@@ -95,17 +95,6 @@ struct Inst {
 	c i32,
 };
 
-struct BasicBlock {
-	first *Inst,
-	last *Inst,
-	flags u32,
-	id u32,
-	pcount u32,
-	list *BasicBlock,
-	next [2]*BasicBlock,
-	prev [1]*BasicBlock,
-};
-
 var reg_next i32 = REG_VIRT_0;
 
 fn reg_get() i32 {
@@ -114,27 +103,102 @@ fn reg_get() i32 {
 	return r;
 }
 
+struct Phi {
+	next *Phi,
+	sym *Symbol,
+
+};
+
+struct BlockList {
+	next *BlockList,
+	bb *BasicBlock,
+};
+
+enum BBFlags {
+	// Filled blocks contain all their instructions
+	// Filled blocks may provide defs for successors
+	// Successors may only be added to Filled blocks
+	BB_FILLED = 1,
+	// Sealed blocks will have no additional successors added
+	// Sealed blocks may look up defs in predecessors since
+	// they are all known (they must be Filled blocks).
+	BB_SEALED = 2,
+
+	// general purpose flag
+	BB_MARK = 4,
+};
+
+struct BasicBlock {
+	first *Inst,
+	last *Inst,
+	phy *Phi,
+	flags u32,
+	// List of Predecessor blocks
+	prev *BlockList,
+	id u32,
+	//pcount u32,
+	//list *BasicBlock,
+	//next [2]*BasicBlock,
+	//prev [1]*BasicBlock,
+};
+
+var bb_next_id i32 = 0;
+var bb_idx [1024]*BasicBlock;
+
+// target for new instructions
+var bb_active BasicBlock = nil;
+
+fn bb_make() BasicBlock {
+	var bb BasicBlock = new(BasicBlock);
+	bb.id = bb_next_id;
+	bb_next_id++;
+	bb_idx[bb.id] = bb;
+	return bb;
+}
+
+fn (bb BasicBlock) append(ins Inst) {
+	if bb.last == nil {
+		ins.prev = nil;
+		bb.first = ins;
+	} else {
+		ins.prev = bb.last;
+		bb.last.next = ins;
+	}
+	bb.last = ins;
+	ins.next = nil;
+}
+
+fn inst_jump(bb BasicBlock);
+
+// terminate the current bb with a jump to this
+// one and make it active for accumulating instructions
+fn (bb BasicBlock) activate() {
+	if bb_active != nil {
+		inst_jump(bb);
+	}
+	bb_active = bb;
+	// housekeeping
+}
+
 var global_next i32 = 1;
 var global_names [1024]*String;
 
-// allocate a global label (negative)
-fn label_get_global(name String) i32 {
-	var n i32 = 1;
+// obtain a global identifier for call instruction use
+fn get_global_id(name String) i32 {
+	var n i32 = 0;
 	while n < global_next {
 		if global_names[n] == name {
-			return -n;
+			return n;
 		}
 		n++;
 	}
 	global_next = n + 1;
 	global_names[n] = name;
-	return -n;
+	return n;
 }
 
 var label_next i32 = 0;
 var label_idx [1024]*Inst;
-
-var ins_last_placed Inst = nil;
 
 fn _inst_make(op u32, a i32, b i32, c i32) Inst {
 	// add opcode-specific property bitflags to allow
@@ -151,68 +215,38 @@ fn _inst_make(op u32, a i32, b i32, c i32) Inst {
 	return ins;
 }
 
-// obtain a (detached) label instruction
-// branches may target it before it is placed
-// with inst_label()
-fn label_get() i32 {
-	var a i32 = label_next;
-	var ins Inst = _inst_make(INS_LABEL, a, 0, 0);
-	label_idx[a] = ins;
-	label_next = a + 1;
-	return a;
-}
-
 // allocate an instruction and add it to the graph
 fn inst_make(op u32, a i32, b i32, c i32) i32 {
 	var ins Inst = _inst_make(op, a, b, c);
-	ins.prev = ins_last_placed;
-	ins_last_placed.next = ins;
-	ins_last_placed = ins;
+	bb_active.append(ins);
 	return a;
 }
 
-// place a label obtained with label_get()
-fn inst_label(a i32) i32 {
-	if (a < 0) || (a >= label_next) {
-		Error("invalid label #@").n(a);
-	}
-	var ins Inst = label_idx[a];
-	if ins.b != 0 {
-		Error("label #@ placed twice!").n(a);
-	}
-	// mark as placed
-	ins.b = 1;
-	// add to graph
-	ins.prev = ins_last_placed;
-	ins_last_placed.next = ins;
-	ins_last_placed = ins;
-	return a;
+fn inst_target_bb(bb BasicBlock) i32 {
+	// do other housekeeping
+	return bb.id;
 }
 
-// branch instructions use this to validate targets
-fn inst_use_label(a i32) {
-	if (a < 0) || (a >= label_next) {
-		Error("invalid label #@").n(a);
-	}
-	// bump edge count
-	label_idx[a].c++;
-}
-
+// declare a function entrypoint
 fn inst_label_global(name String) i32 {
-	return inst_make(INS_LABEL, label_get_global(name), 1, 0);
+	return inst_make(INS_LABEL, get_global_id(name), 1, 0);
 }
 
 // ALU instructions
+// Default variant allocates a register for the target
+// and returns that register.
+// X variant is passed the target register and uses that.
+// I variant treats second argument as an immediate
 fn inst_alu(op u32, b i32, c i32) i32 {
-	if op > INS_XOR { Error("inst_alu invalid alu op"); }
+	if op < INS_MOV { Error("inst_alu invalid alu op"); }
 	return inst_make(op, reg_get(), b, c);
 }
 fn inst_alui(op u32, b i32, imm i32) i32 {
-	if op > INS_XOR { Error("inst_alui invalid alu op"); }
+	if op < INS_MOV { Error("inst_alui invalid alu op"); }
 	return inst_make(op | INF_C_IMM, reg_get(), b, imm);
 }
 fn inst_aluix(op u32, a i32, b i32, imm i32) {
-	if op > INS_XOR { Error("inst_alui invalid alu op"); }
+	if op < INS_MOV { Error("inst_alui invalid alu op"); }
 	inst_make(op | INF_C_IMM, a, b, imm);
 }
 fn inst_movi(imm i32) i32 {
@@ -226,61 +260,44 @@ fn inst_movx(a i32, c i32) i32 {
 }
 
 // load/store instructions
+// Load instructions allocate and return a target register.
 fn inst_ldb(b i32, c i32) i32 {
-	return inst_make(INS_LD | INF_SZ_U8, reg_get(), b, c);
+	return inst_make(INS_LOAD | INF_SZ_U8, reg_get(), b, c);
 }
 fn inst_ldw(b i32, c i32) i32 {
-	return inst_make(INS_LD | INF_SZ_U32, reg_get(), b, c);
+	return inst_make(INS_LOAD | INF_SZ_U32, reg_get(), b, c);
 }
 fn inst_ldbi(b i32, imm i32) i32 {
-	return inst_make(INS_LD | INF_SZ_U8 | INF_C_IMM, reg_get(), b, imm);
+	return inst_make(INS_LOAD | INF_SZ_U8 | INF_C_IMM, reg_get(), b, imm);
 }
 fn inst_ldwi(b i32, imm i32) i32 {
-	return inst_make(INS_LD | INF_SZ_U32 | INF_C_IMM, reg_get(), b, imm);
+	return inst_make(INS_LOAD | INF_SZ_U32 | INF_C_IMM, reg_get(), b, imm);
 }
 fn inst_ldwix(a i32, b i32, imm i32) {
-	inst_make(INS_LD | INF_SZ_U32 | INF_C_IMM, a, b, imm);
+	inst_make(INS_LOAD | INF_SZ_U32 | INF_C_IMM, a, b, imm);
 }
 fn inst_stb(a i32, b i32, c i32) {
-	inst_make(INS_ST | INF_SZ_U8, a, b, c);
+	inst_make(INS_STORE | INF_SZ_U8, a, b, c);
 }
 fn inst_stw(a i32, b i32, c i32) {
-	inst_make(INS_ST | INF_SZ_U32, a, b, c);
+	inst_make(INS_STORE | INF_SZ_U32, a, b, c);
 }
 fn inst_stbi(a i32, b i32, imm i32) {
-	inst_make(INS_ST | INF_SZ_U8 | INF_C_IMM, a, b, imm);
+	inst_make(INS_STORE | INF_SZ_U8 | INF_C_IMM, a, b, imm);
 }
 fn inst_stwi(a i32, b i32, imm i32) {
-	inst_make(INS_ST | INF_SZ_U32 | INF_C_IMM, a, b, imm);
+	inst_make(INS_STORE | INF_SZ_U32 | INF_C_IMM, a, b, imm);
 }
 
 // flow control
-fn inst_phi(b i32, c i32) i32 {
-	return inst_make(INS_PHI, reg_get(), b, c);
+fn inst_jump(bb BasicBlock) {
+	inst_make(INS_JUMP, inst_target_bb(bb), 0, 0);
 }
-fn inst_br(label i32) i32 {
-	inst_use_label(label);
-	return inst_make(INS_B, label, 0, 0);
+fn inst_branch(cond i32, ttrue BasicBlock, tfalse BasicBlock) {
+	inst_make(INS_BRANCH, cond, inst_target_bb(ttrue), inst_target_bb(tfalse));
 }
-fn inst_br_cmp(op u32, label i32, b i32, c i32) i32 {
-	inst_use_label(label);
-	if (op < INS_BEQ) || (op > INS_BGE) {
-		Error("inst_branch_cond inavlid branch op");
-	}
-	return inst_make(op, label, b, c);
-}
-fn inst_br_cmpi(op u32, label i32, b i32, imm i32) i32 {
-	inst_use_label(label);
-	if (op < INS_BEQ) || (op > INS_BGE) {
-		Error("inst_branch_condi inavlid branch op");
-	}
-	return inst_make(op | INF_C_IMM, label, b, imm);
-}
-fn inst_call(label i32) {
-	if label >= 0 {
-		Error("cannot CALL local label #@").n(label);
-	}
-	inst_make(INS_CALL, label, 0, 0);
+fn inst_call(name String) {
+	inst_make(INS_CALL, get_global_id(name), 0, 0);
 }
 fn inst_ret(a i32) {
 	inst_make(INS_RET, a, 0, 0);
@@ -332,13 +349,8 @@ fn (os OutStream) arg(n i32, op i32) OutStream {
 }
 
 fn (os OutStream) label(n i32) OutStream {
-	if n >= 0 {
-		writec(os.fd, 'L');
-		writei(os.fd, 0); // label_idx[n].a
-	} else {
-		writec(os.fd, '@');
-		writes(os.fd, "name"); // global_names[-1]
-	}
+	writes(os.fd, "bb#");
+	writei(os.fd, n);
 	os_advance(os);
 	return os;
 }
@@ -346,21 +358,24 @@ fn (os OutStream) label(n i32) OutStream {
 fn inst_disasm(os OutStream, ins Inst) {
 	var op u32 = ins.op & INS_OP_MASK;
 
-	if op == INS_LABEL {
-		os.fmt("@:").label(ins.a);
+	if op < INS_MOV {
+		// ALU and CMP instructions
+		os.fmt("    @ @, @, @").s(iop_name[op]).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_MOV {
 		os.fmt("    mov @, @").reg(ins.a).arg(ins.c,ins.op);
-	} else if (op == INS_LD) | (op == INS_ST) {
+	} else if (op == INS_LOAD) | (op == INS_STORE) {
 		var sz str = isz_name[(ins.op & INF_SZ_MASK) >> INF_SZ_SHIFT];
 		os.fmt("    @@ @, [@, @]").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op <= INS_PHI {
-		os.fmt("    @ @, @, @").s(iop_name[op]).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
-	} else if op == INS_B {
-		os.fmt("    b @").label(ins.a);
-	} else if (op >= INS_BEQ) && (op <= INS_BGE) {
-		os.fmt("    @ @, @, @").s(iop_name[op]).label(ins.a).reg(ins.b).arg(ins.c,ins.op);
+		os.fmt("    phi @, @, @").reg(ins.a).reg(ins.b).reg(ins.c);
+	} else if op == INS_LABEL {
+		os.fmt("    func @").s(global_names[ins.a]);
+	} else if op == INS_JUMP {
+		os.fmt("    jump @").label(ins.a);
+	} else if op == INS_BRANCH {
+		os.fmt("    @ @, @, @").s(iop_name[op]).reg(ins.a).label(ins.b).label(ins.c);
 	} else if op == INS_CALL {
-		os.fmt("    call @").label(ins.a);
+		os.fmt("    call @").s(global_names[ins.a]);
 	} else if op == INS_RET {
 		os.fmt("    ret @").reg(ins.a);
 	} else {

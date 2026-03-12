@@ -1,5 +1,245 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
+
+
+var os OutStream;
+
+fn emit(msg str) OutStream {
+	os.msg = msg;
+	os.idx = 0;
+	os_advance(os);
+	return os;
+}
+
+fn GenError(node Ast, msg str) OutStream {
+	writes(2, "\n");
+	print_srcloc(2, node.srcloc);
+	writes(2, ": error: ");
+	return make_OutStream(msg, 2, true, nil);
+}
+
+// ----
+
+var func_exit BasicBlock = nil;
+var func_type Type = nil;
+var loop_exit BasicBlock = nil;
+var loop_cont BasicBlock = nil;
+
+fn gen_expr(node Ast) i32 {
+	return inst_movi(0);
+}
+
+fn gen_block(node Ast);
+
+fn gen_return(node Ast) {
+	if node.left == nil {
+		//TODO ensure void return
+	} else {
+		//TODO ensure non-void return
+		inst_movx(REG_RV, gen_expr(node.left));
+	}
+	inst_jump(func_exit);
+}
+
+fn gen_break(node Ast) {
+	if loop_exit == nil {
+		GenError(node, "break used outside of loop");
+	}
+	inst_jump(loop_exit);
+}
+
+fn gen_continue(node Ast) {
+	if loop_cont == nil {
+		GenError(node, "continue used outside of loop");
+	}
+	inst_jump(loop_cont);
+}
+
+fn gen_while(node Ast) {
+	// push break/continue points
+	var save_exit BasicBlock = loop_exit;
+	var save_cont BasicBlock = loop_cont;
+	var loop_body BasicBlock;
+	var save BasicBlock;
+
+	loop_body = bb_make();
+	loop_cont = bb_make();
+	loop_exit = bb_make();
+
+	loop_cont.activate();
+	var cv i32 = gen_expr(node.left);
+	inst_branch(cv, loop_body, loop_exit);
+
+	loop_body.activate();
+	gen_block(node.right);
+	inst_jump(loop_cont);
+
+	loop_exit.activate();
+
+	// pop break/continue points
+	loop_exit = save_exit;
+	loop_cont = save_cont;
+}
+
+fn gen_if(node Ast) {
+	var exit BasicBlock = bb_make();
+
+	// next basic block to use
+	var bb BasicBlock = bb_make();
+
+	while node != nil {
+		if node.kind == AST_ELSE {
+			// can only be the last child,
+			// after one or more CASE nodes
+			bb.activate();
+			gen_block(node.left);
+			inst_jump(exit);
+		} else {
+			var if_t BasicBlock = bb_make();
+			var if_f BasicBlock;
+			if node.next != nil {
+				if_f = bb_make();
+			} else {
+				// TODO if this is = exit() 2b codegen is bogus
+				if_f = exit;
+			}
+
+			bb.activate();
+			var cv i32 = gen_expr(node.left);
+			inst_branch(cv, if_t, if_f);
+
+			if_t.activate();
+			gen_block(node.right);
+			inst_jump(exit);
+
+			bb = if_f;
+		}
+		node = node.next;
+	}
+
+	exit.activate();
+}
+
+fn gen_block(node Ast) { //dup
+	node = node.left;
+	while node != nil {
+		var kind i32 = node.kind;
+		if kind == AST_WHILE {
+			gen_while(node);
+		} else if kind == AST_BREAK {
+			gen_break(node);
+		} else if kind == AST_CONTINUE {
+			gen_continue(node);
+		} else if kind == AST_RETURN {
+			gen_return(node);
+		} else if kind == AST_IF {
+			gen_if(node);
+		} else if kind == AST_BLOCK {
+			gen_block(node);
+		} else if ast_is_expr(kind) {
+			gen_expr(node);
+		} else {
+			GenError(node, "unsupported @ in block").s(ast_kind[kind]);
+		}
+		node = node.next;
+	}
+}
+
+var local_max i32;
+
+fn setup_locals(node Ast, n i32) { //dup
+	if node.kind == AST_BLOCK {
+		var sym Symbol = node.sym;
+		while sym != nil {
+			// emit("// local @ @\n").n(n).s(sym.name.text);
+			sym.ival = n;
+			n += 4;
+			sym = sym.next;
+		}
+	}
+	var node2 Ast = node.left;
+	while node2 != nil {
+		setup_locals(node2, n);
+		node2 = node2.next;
+	}
+	node2 = node.right;
+	while node2 != nil {
+		setup_locals(node2, n);
+		node2 = node2.next;
+	}
+	if n > local_max {
+		local_max = n;
+	}
+}
+
+fn dump_bb(bb BasicBlock) {
+	if bb.flags & BB_MARK { return; }
+	bb.flags |= BB_MARK;
+
+	os.fmt("\nbb#@:").n(bb.id);
+	var ins Inst = bb.first;
+	while ins != nil {
+		inst_disasm(os, ins);
+		if inst_is_uncond_branch(ins) {
+			dump_bb(bb_idx[ins.a]);
+		} else if inst_is_cond_branch(ins) {
+			dump_bb(bb_idx[ins.b]);
+			dump_bb(bb_idx[ins.c]);
+		}
+		ins = ins.next;
+	}
+}
+
+fn gen_fn(node Ast) {
+	if node.left == nil { return; }
+
+	func_exit = bb_make();
+	var func_enter BasicBlock = bb_make();
+
+	func_enter.activate();
+	// housekeeping
+	inst_label_global(node.sym.name.text);
+	local_max = 0;
+	setup_locals(node.left, 12);
+
+	// prologue
+	gen_block(node.left);
+
+	// epilogue
+	func_exit.activate();
+	inst_ret(REG_RA);
+
+	dump_bb(func_enter);
+
+	bb_active = nil;
+}
+
+fn gen_functions(node Ast) {
+	while node != nil {
+		if node.kind == AST_FUNC {
+			gen_fn(node);
+		}
+		node = node.next;
+	}
+}
+
+fn gen_global_addrs(node Ast) { //dup
+	var n i32 = 0;
+	while node != nil {
+		if node.kind == AST_ASSIGN {
+			var sym Symbol = node.left.sym;
+			sym.ival = n;
+			n += 4;
+		}
+		node = node.next;
+	}
+}
+
 fn gen(outfd i32, node Ast) {
+	os = OutFd(outfd);
+	emit("// ir-gen\n");
+	gen_global_addrs(node);
+	gen_functions(node);
+	// gen_global_inits(node);
 }
