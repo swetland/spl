@@ -176,19 +176,23 @@ fn gen_while(node Ast) {
 	var loop_body BasicBlock;
 	var save BasicBlock;
 
-	loop_body = bb_make();
-	loop_cont = bb_make();
-	loop_exit = bb_make();
+	loop_body = bb_make("while-body");
+	loop_cont = bb_make("while-loop");
+	loop_exit = bb_make("while-exit");
 
-	loop_cont.activate();
+	loop_cont.activate_and_seal_prev();
 	var cv i32 = gen_expr(node.left);
 	inst_branch(cv, loop_body, loop_exit);
 
 	loop_body.activate();
+	loop_body.seal();
 	gen_block(node.right);
 	inst_jump(loop_cont);
 
+	loop_cont.seal();
+
 	loop_exit.activate();
+	loop_exit.seal();
 
 	// pop break/continue points
 	loop_exit = save_exit;
@@ -196,33 +200,37 @@ fn gen_while(node Ast) {
 }
 
 fn gen_if(node Ast) {
-	var exit BasicBlock = bb_make();
+	var exit BasicBlock = bb_make("if-exit");
 
 	// next basic block to use
-	var bb BasicBlock = bb_make();
+	var bb BasicBlock = bb_make("if-cond-expr");
 
+	node = node.left;
 	while node != nil {
 		if node.kind == AST_ELSE {
 			// can only be the last child,
 			// after one or more CASE nodes
-			bb.activate();
+			bb.activate_and_seal_prev();
+			bb.seal();
 			gen_block(node.left);
 			inst_jump(exit);
 		} else {
-			var if_t BasicBlock = bb_make();
+			var if_t BasicBlock = bb_make("if-case-true");
 			var if_f BasicBlock;
 			if node.next != nil {
-				if_f = bb_make();
+				if_f = bb_make("if-case-false");
 			} else {
 				// TODO if this is = exit() 2b codegen is bogus
 				if_f = exit;
 			}
 
-			bb.activate();
+			bb.activate_and_seal_prev();
+			bb.seal();
 			var cv i32 = gen_expr(node.left);
 			inst_branch(cv, if_t, if_f);
 
 			if_t.activate();
+			if_t.seal();
 			gen_block(node.right);
 			inst_jump(exit);
 
@@ -232,6 +240,7 @@ fn gen_if(node Ast) {
 	}
 
 	exit.activate();
+	exit.seal();
 }
 
 fn gen_block(node Ast) { //dup
@@ -291,37 +300,42 @@ fn dump_bb(bb BasicBlock) {
 	if bb.flags & BB_MARK { return; }
 	bb.flags |= BB_MARK;
 
-	os.fmt("bb$@:").n(bb.id);
+	if !(bb.flags & BB_FILLED) {
+		Warn("bb.@ is not filled").n(bb.id);
+	}
+	if !(bb.flags & BB_SEALED) {
+		Warn("bb.@ is not sealed").n(bb.id);
+	}
+
+	os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
+	var bl BlockList = bb.prev;
+	while bl != nil {
+		os.fmt("// pred bb.@").n(bl.bb.id);
+		bl = bl.next;
+	}
 	var ins Inst = bb.first;
 	while ins != nil {
 		inst_disasm(os, ins);
-		if inst_is_uncond_branch(ins) {
-			dump_bb(bb_idx[ins.a]);
-			return;
-		}
-		if inst_is_cond_branch(ins) {
-			dump_bb(bb_idx[ins.b]);
-			dump_bb(bb_idx[ins.c]);
-			return;
-		}
-		if inst_is_return(ins) {
-			return;
-		}
 		ins = ins.next;
 	}
+	if bb.next0 { dump_bb(bb.next0); }
+	if bb.next1 { dump_bb(bb.next1); }
 }
 
 fn gen_fn(node Ast) {
 	if node.left == nil { return; }
 
-	//Warn("gen_fn() @").s(node.sym.name.text);
+	Warn("gen_fn() @").s(node.sym.name.text);
 	bb_reset();
 
 	// bb #0 and #1 are always function entry and exit
-	var func_enter BasicBlock = bb_make();
-	func_exit = bb_make();
+	var func_enter BasicBlock = bb_make("fn-entry");
+	func_exit = bb_make("fn-exit");
+	func_exit.flags |= BB_EXIT;
 
+	func_enter.flags |= BB_ENTRY;
 	func_enter.activate();
+	func_enter.seal();
 
 	// housekeeping
 	inst_label_global(node.sym.name.text);
@@ -329,10 +343,14 @@ fn gen_fn(node Ast) {
 	setup_locals(node.left, 12);
 
 	// prologue
+	inst_stwi(REG_RA, REG_SP, -4);
+	inst_stwi(REG_FP, REG_SP, -8);
+	inst_movx(REG_FP, REG_SP);
+
 	var sym Symbol = node.sym.type.list;
 	var n i32 = 0;
 	while sym != nil {
-		sym.vid = inst_ldwi(REG_SP, n * 4);
+		sym.vid = inst_ldwi(REG_FP, n * 4);
 		sym = sym.next;
 		n++;
 	}
@@ -340,7 +358,10 @@ fn gen_fn(node Ast) {
 	gen_block(node.left);
 
 	// epilogue
-	func_exit.activate();
+	func_exit.activate_and_seal_prev();
+	func_exit.seal();
+	inst_ldwix(REG_RA, REG_FP, -4);
+	inst_ldwix(REG_FP, REG_FP, -8);
 	inst_ret(REG_RA);
 
 	bb_active = nil;

@@ -13,8 +13,8 @@ enum IRflag {
 	INF_SZ_SHIFT =  6,
 
 	// property bits
-	INF_IS_B_UC =   0x0200, // is unconditional branch
-	INF_IS_B_CC =   0x0400, // is conditional branch
+	INF_IS_B_U =    0x0200, // is unconditional branch
+	INF_IS_B_C =    0x0400, // is conditional branch
 	INF_IS_B =      0x0600, // is any kind of branch
 	INF_IS_RET =    0x0800, // is a return op
 	INF_IS_EOBB =   0x0E00, // is an end of a bb (a branch or return)
@@ -88,7 +88,7 @@ var iop_props [INS_COUNT]u32 = {
 	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
 	INF_IS_ALU, INF_IS_ALU,
 	0, INF_IS_MEM, INF_IS_MEM,
-	INF_IS_PHI, INF_IS_LABEL, INF_IS_B_UC, INF_IS_B_CC, 0, INF_IS_RET,
+	INF_IS_PHI, INF_IS_LABEL, INF_IS_B_U, INF_IS_B_C, 0, INF_IS_RET,
 };
 
 var isz_name [4]str = { "b", "h", "w", "d" };
@@ -125,14 +125,24 @@ enum BBFlags {
 	// Filled blocks contain all their instructions
 	// Filled blocks may provide defs for successors
 	// Successors may only be added to Filled blocks
-	BB_FILLED = 1,
+	BB_FILLED = 0x001,
+
 	// Sealed blocks will have no additional successors added
 	// Sealed blocks may look up defs in predecessors since
 	// they are all known (they must be Filled blocks).
-	BB_SEALED = 2,
+	BB_SEALED = 0x002,
+
+	// no path into this block
+	// it is SEALED and has no predecessors
+	BB_DEAD =   0x004,
+
+	// first and last blocks in a function
+	BB_ENTRY =  0x010,
+	BB_EXIT =   0x020,
 
 	// general purpose flag
-	BB_MARK = 4,
+	BB_MARK =   0x800,
+
 };
 
 struct BasicBlock {
@@ -140,13 +150,14 @@ struct BasicBlock {
 	last *Inst,
 	phy *Phi,
 	flags u32,
-	// List of Predecessor blocks
+	// List of predecessor blocks
 	prev *BlockList,
+	// up to two succesor blocks
+	next0 *BasicBlock,
+	next1 *BasicBlock,
 	id u32,
 	//pcount u32,
-	//list *BasicBlock,
-	//next [2]*BasicBlock,
-	//prev [1]*BasicBlock,
+	tag str,
 };
 
 var bb_next_id i32 = 0;
@@ -163,17 +174,38 @@ fn bb_reset() {
 	bb_active = nil;
 }
 
-fn bb_make() BasicBlock {
+fn bb_make(tag str) BasicBlock {
 	var bb BasicBlock = new(BasicBlock);
 	bb.id = bb_next_id;
+	bb.tag = tag;
 	bb_next_id++;
 	bb_idx[bb.id] = bb;
+	Warn("make bb.@: @").n(bb.id).s(tag);
 	return bb;
+}
+
+fn (os OutStream) ins(i Inst) OutStream;
+
+fn (bb BasicBlock) link_to(target BasicBlock) {
+	if target.flags & BB_SEALED {
+		Warn("cannot link bb.@ to sealed bb.@").n(bb.id).n(target.id);
+	}
+	if bb.next0 == nil {
+		bb.next0 = target;
+	} else {
+		bb.next1 = target;
+	}
+	var bl BlockList = new(BlockList);
+	bl.bb = bb;
+	bl.next = target.prev;
+	target.prev = bl;
 }
 
 fn (bb BasicBlock) append(ins Inst) {
 	if bb.flags & BB_FILLED {
-		Error("cannot add instructions to filled basic block @").n(bb.id);
+		//Warn("cannot add instructions to filled bb.@").n(bb.id);
+		//Warn("discarding: @").ins(ins);
+		return;
 	}
 	if bb.last == nil {
 		ins.prev = nil;
@@ -186,22 +218,57 @@ fn (bb BasicBlock) append(ins Inst) {
 	ins.next = nil;
 	if ins.op & INF_IS_EOBB {
 		bb.flags |= BB_FILLED;
+		if ins.op & INF_IS_B_U {
+			bb.link_to(bb_idx[ins.a]);
+		}
+		if ins.op & INF_IS_B_C {
+			bb.link_to(bb_idx[ins.b]);
+			bb.link_to(bb_idx[ins.c]);
+		}
 	}
 }
 
 fn inst_jump(bb BasicBlock);
 
+fn (bb BasicBlock) seal() {
+	if bb.flags & BB_SEALED {
+		Error("bb.@ sealed twice").n(bb.id);
+	}
+	bb.flags |= BB_SEALED;
+	if bb.prev == nil {
+		if !(bb.flags & BB_ENTRY) {
+			bb.flags |= BB_DEAD;
+			Warn("bb.@ is dead").n(bb.id);
+		}
+	}
+}
+
 // terminate the current bb with a jump to this
 // one and make it active for accumulating instructions
-fn (bb BasicBlock) activate() {
+fn (bb BasicBlock) _activate(seal_prev bool) {
 	if bb_active != nil {
 		if !(bb_active.flags & BB_FILLED) {
-			inst_jump(bb);
-			Warn("bb #@ chained to #@").n(bb_active.id).n(bb.id);
+			if !(bb_active.flags & BB_DEAD) {
+				inst_jump(bb);
+				Warn("bb.@ chained to bb.@").n(bb_active.id).n(bb.id);
+			}
+		}
+		if seal_prev {
+			if !(bb_active.flags & BB_SEALED) {
+				bb_active.seal();
+			}
 		}
 	}
 	bb_active = bb;
 	// housekeeping
+}
+
+fn (bb BasicBlock) activate() {
+	bb._activate(false);
+}
+
+fn (bb BasicBlock) activate_and_seal_prev() {
+	bb._activate(true);
 }
 
 var global_next i32 = 1;
@@ -332,10 +399,10 @@ fn inst_is_label(ins Inst) bool {
 	return ins.op & INF_IS_LABEL;
 }
 fn inst_is_uncond_branch(ins Inst) bool {
-	return ins.op & INF_IS_B_UC;
+	return ins.op & INF_IS_B_U;
 }
 fn inst_is_cond_branch(ins Inst) bool {
-	return ins.op & INF_IS_B_CC;
+	return ins.op & INF_IS_B_C;
 }
 fn inst_is_branch(ins Inst) bool {
 	return ins.op & INF_IS_B;
@@ -379,7 +446,7 @@ fn (os OutStream) arg(n i32, op i32) OutStream {
 }
 
 fn (os OutStream) label(n i32) OutStream {
-	writes(os.fd, "bb#");
+	writes(os.fd, "bb.");
 	writei(os.fd, n);
 	os_advance(os);
 	return os;
@@ -416,3 +483,9 @@ fn inst_disasm(os OutStream, ins Inst) {
 		os.fmt("    inval 0x@").x(ins.op);
 	}
 }
+
+fn (os OutStream) ins(i Inst) OutStream {
+	inst_disasm(os, i);
+	return os;
+}
+
