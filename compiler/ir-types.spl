@@ -25,6 +25,7 @@ enum IRflag {
 };
 
 enum IRop {
+	// binary ALU ops
 	INS_ADD,     // ADD Ra, Rb, Rc       Ra = Rb + Rc
 	INS_SUB,     // SUBI Ra, Rb, IMMc    Ra = Rb - IMMc
 	INS_MUL,
@@ -47,6 +48,10 @@ enum IRop {
 	INS_CMP_GT,
 	INS_CMP_GE,
 
+	// unary ALU ops
+	INS_NOT,
+	INS_NEG,
+
 	INS_MOV,     // MOV Ra, Rc           Ra = Rc
 
 	INS_LOAD,    // LDW Ra, Rb, Rc       Ra = MEM[Rb + Rc]
@@ -61,7 +66,7 @@ enum IRop {
 	INS_CALL,    // CALL La
 	INS_RET,     // RET Ra
 
-	INS_COUNT, // total unique opcodes (28)
+	INS_COUNT, // total unique opcodes (30)
 
 	INS_OP_MASK = 0x3f,
 };
@@ -71,7 +76,8 @@ var iop_name [INS_COUNT]str = {
 	"urem", "srem", "lsl", "lsr", "asr",
 	"and", "or", "xor",
 	"cmpeq", "cmpne", "cmplt", "cmple", "cmpgt", "cmpge",
-	"mov", "load", "store",
+	"not", "neg",
+	"mv", "ld", "st",
 	"phi", "label", "jump", "branch", "call", "ret",
 };
 
@@ -80,6 +86,7 @@ var iop_props [INS_COUNT]u32 = {
 	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
 	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
 	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
+	INF_IS_ALU, INF_IS_ALU,
 	0, INF_IS_MEM, INF_IS_MEM,
 	INF_IS_PHI, INF_IS_LABEL, INF_IS_B_UC, INF_IS_B_CC, 0, INF_IS_RET,
 };
@@ -148,6 +155,14 @@ var bb_idx [1024]*BasicBlock;
 // target for new instructions
 var bb_active BasicBlock = nil;
 
+// reset all global state
+// used at the start of a new function
+fn bb_reset() {
+	reg_next = REG_VIRT_0;
+	bb_next_id = 0;
+	bb_active = nil;
+}
+
 fn bb_make() BasicBlock {
 	var bb BasicBlock = new(BasicBlock);
 	bb.id = bb_next_id;
@@ -157,6 +172,9 @@ fn bb_make() BasicBlock {
 }
 
 fn (bb BasicBlock) append(ins Inst) {
+	if bb.flags & BB_FILLED {
+		Error("cannot add instructions to filled basic block @").n(bb.id);
+	}
 	if bb.last == nil {
 		ins.prev = nil;
 		bb.first = ins;
@@ -166,6 +184,9 @@ fn (bb BasicBlock) append(ins Inst) {
 	}
 	bb.last = ins;
 	ins.next = nil;
+	if ins.op & INF_IS_EOBB {
+		bb.flags |= BB_FILLED;
+	}
 }
 
 fn inst_jump(bb BasicBlock);
@@ -174,7 +195,10 @@ fn inst_jump(bb BasicBlock);
 // one and make it active for accumulating instructions
 fn (bb BasicBlock) activate() {
 	if bb_active != nil {
-		inst_jump(bb);
+		if !(bb_active.flags & BB_FILLED) {
+			inst_jump(bb);
+			Warn("bb #@ chained to #@").n(bb_active.id).n(bb.id);
+		}
 	}
 	bb_active = bb;
 	// housekeeping
@@ -238,15 +262,15 @@ fn inst_label_global(name String) i32 {
 // X variant is passed the target register and uses that.
 // I variant treats second argument as an immediate
 fn inst_alu(op u32, b i32, c i32) i32 {
-	if op < INS_MOV { Error("inst_alu invalid alu op"); }
+	if op >= INS_MOV { Error("inst_alu invalid alu op"); }
 	return inst_make(op, reg_get(), b, c);
 }
 fn inst_alui(op u32, b i32, imm i32) i32 {
-	if op < INS_MOV { Error("inst_alui invalid alu op"); }
+	if op >= INS_MOV { Error("inst_alui invalid alu op"); }
 	return inst_make(op | INF_C_IMM, reg_get(), b, imm);
 }
 fn inst_aluix(op u32, a i32, b i32, imm i32) {
-	if op < INS_MOV { Error("inst_alui invalid alu op"); }
+	if op >= INS_MOV { Error("inst_alui invalid alu op"); }
 	inst_make(op | INF_C_IMM, a, b, imm);
 }
 fn inst_movi(imm i32) i32 {
@@ -322,17 +346,23 @@ fn inst_is_return(ins Inst) bool {
 
 
 // helpers for printing instructions
-fn (os OutStream) reg(n i32) OutStream {
-	if n < 0 {
+fn (os OutStream) reg(id i32) OutStream {
+	var n i32 = id & VF_MASK;
+	if id & VF_PHYS {
+		if n >= REG_COUNT {
+			writes(os.fd, "$BOGUS");
+		} else {
+			writec(os.fd, '$');
+			writes(os.fd, reg_names[n]);
+		}
+	} else if id & VF_UNDEF {
+		writes(os.fd, "$UNDEF");
+	} else if id & VF_INVAL {
 		writes(os.fd, "$ERROR");
-	} else if n < REG_VIRT_0 {
-		// physical register
-		writec(os.fd, '$');
-		writes(os.fd, reg_names[n]);
 	} else {
 		// virtual register
 		writec(os.fd, '%');
-		writei(os.fd, n - REG_VIRT_0);
+		writei(os.fd, n);
 	}
 	os_advance(os);
 	return os;
@@ -358,7 +388,11 @@ fn (os OutStream) label(n i32) OutStream {
 fn inst_disasm(os OutStream, ins Inst) {
 	var op u32 = ins.op & INS_OP_MASK;
 
-	if op < INS_MOV {
+	if op == INS_NOT {
+		os.fmt("    not @, @").reg(ins.a).reg(ins.b);
+	} else if op == INS_NEG {
+		os.fmt("    neg @, @").reg(ins.a).reg(ins.b);
+	} else if op < INS_MOV {
 		// ALU and CMP instructions
 		os.fmt("    @ @, @, @").s(iop_name[op]).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_MOV {

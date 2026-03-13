@@ -34,6 +34,8 @@ struct Symbol {
 	// fld: offset from struct base
 	// fn: srcloc of decl or defn
 	ival i32,
+	// used by IR generation
+	vid i32,
 };
 
 enum ScopeKind {

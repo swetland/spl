@@ -26,8 +26,121 @@ var func_type Type = nil;
 var loop_exit BasicBlock = nil;
 var loop_cont BasicBlock = nil;
 
+fn gen_expr(node Ast) i32;
+
+fn gen_relop(node Ast, op IRop) i32 {
+	return inst_alu(op, gen_expr(node.left), gen_expr(node.right));
+}
+
+fn gen_binop(node Ast, op IRop) i32 {
+	return inst_alu(op, gen_expr(node.left), gen_expr(node.right));
+}
+
+fn gen_unop(node Ast, op IRop) i32 {
+	return inst_alu(op, gen_expr(node.left), 0);
+}
+
+fn gen_bool_not(node Ast) i32 {
+	return inst_alui(INS_CMP_EQ, gen_expr(node.left), 0);
+}
+
+fn gen_load(node Ast) i32 {
+	var sym Symbol = node.sym;
+	if sym.kind & SYMBOL_DEF {
+		return inst_movi(sym.ival);
+	}
+	if sym.kind & SYMBOL_GLOBAL {
+		inst_ldwi(REG_GP, sym.ival);
+	}
+	// param or local
+	return node.sym.vid;
+}
+
+fn gen_store(sym Symbol, val i32) i32 {
+	if sym.kind & SYMBOL_GLOBAL {
+		return inst_stwi(val, REG_GP, sym.ival);
+	}
+	var vid i32 = sym.vid;
+	sym.vid = inst_mov(val);
+	if vid >= 0 {
+		Warn("mutating @: @ to @").s(sym.name.text).reg(vid).reg(sym.vid);
+	}
+	return sym.vid;
+}
+
+fn gen_assign(node Ast) i32 {
+	if node.left.kind == AST_SYMBOL {
+		gen_store(node.left.sym, gen_expr(node.right));
+	} else {
+		GenError(node, "unsupported assignment");
+	}
+}
+
+fn gen_call(fcall Ast) i32 {
+	var sym Symbol = fcall.left.sym;
+	if sym == nil {
+		// TODO: should be impossible
+		GenError(fcall, "calling undefined function");
+	}
+
+	inst_aluix(INS_SUB, REG_SP, REG_SP, sym.type.count * 4);
+	var n i32 = 0;
+	var node Ast = fcall.right;
+	while node != nil {
+		inst_stwi(gen_expr(node), REG_SP, n * 4);
+		node = node.next;
+		n++;
+	}
+	if n != sym.type.count {
+		GenError(fcall, "parameter count mismatch for '@': expected @, found @").s(sym.name.text).n(sym.type.count).n(n);
+	}
+
+
+	// TODO: possibly better way to get the (mangled) canonical
+	// function name from a method than indirecting through the type?
+	inst_call(sym.type.name.text);
+	inst_aluix(INS_ADD, REG_SP, REG_SP, sym.type.count * 4);
+	return inst_mov(REG_RV);
+
+	// TODO: terminate bb after call?
+}
+
 fn gen_expr(node Ast) i32 {
-	return inst_movi(0);
+	var kind i32 = node.kind;
+
+	if kind == AST_CONST { return inst_movi(node.ival); }
+	if kind == AST_SYMBOL { return gen_load(node); }
+	if kind == AST_EQ  { return gen_relop(node, INS_CMP_EQ); }
+	if kind == AST_NE  { return gen_relop(node, INS_CMP_NE); }
+	if kind == AST_LT  { return gen_relop(node, INS_CMP_LT); }
+	if kind == AST_LE  { return gen_relop(node, INS_CMP_LE); }
+	if kind == AST_GT  { return gen_relop(node, INS_CMP_GT); }
+	if kind == AST_GE  { return gen_relop(node, INS_CMP_GE); }
+	if kind == AST_ADD { return gen_binop(node, INS_ADD); }
+	if kind == AST_SUB { return gen_binop(node, INS_SUB); }
+	if kind == AST_OR  { return gen_binop(node, INS_OR); }
+	if kind == AST_XOR { return gen_binop(node, INS_XOR); }
+	if kind == AST_MUL { return gen_binop(node, INS_MUL); }
+	if kind == AST_DIV { return gen_binop(node, INS_SDIV); }
+	if kind == AST_MOD { return gen_binop(node, INS_SREM); }
+	if kind == AST_AND { return gen_binop(node, INS_AND); }
+	if kind == AST_LSL { return gen_binop(node, INS_LSL); }
+	if kind == AST_LSR { return gen_binop(node, INS_LSR); }
+	if kind == AST_NOT { return gen_unop(node, INS_NOT); }
+	if kind == AST_NEG { return gen_unop(node, INS_NEG); }
+	if kind == AST_BOOL_NOT { return gen_bool_not(node); }
+	//if kind == AST_BOOL_AND { return gen_bool_and(node); }
+	//if kind == AST_BOOL_OR { return gen_bool_or(node); }
+	//if kind == AST_STRING { return gen_string_const(node.sval.text); }
+	//if kind == AST_DEREF { }
+	//if kind == AST_INDEX { return gen_array_load(node); }
+	//if kind == AST_FIELD { return gen_field_load(node); }
+	if kind == AST_CALL { return gen_call(node); }
+	if kind == AST_ASSIGN { return gen_assign(node); }
+	//if kind == AST_NEW { }
+	//GenError(node, "unsupported @ in expr").s(ast_kind[kind]);
+	Warn("unsupported @ in expr").s(ast_kind[kind]);
+	return 0;
 }
 
 fn gen_block(node Ast);
@@ -152,8 +265,9 @@ fn setup_locals(node Ast, n i32) { //dup
 	if node.kind == AST_BLOCK {
 		var sym Symbol = node.sym;
 		while sym != nil {
-			// emit("// local @ @\n").n(n).s(sym.name.text);
+			Warn("local @ @\n").n(n).s(sym.name.text);
 			sym.ival = n;
+			sym.vid = VF_UNDEF;
 			n += 4;
 			sym = sym.next;
 		}
@@ -177,15 +291,21 @@ fn dump_bb(bb BasicBlock) {
 	if bb.flags & BB_MARK { return; }
 	bb.flags |= BB_MARK;
 
-	os.fmt("\nbb#@:").n(bb.id);
+	os.fmt("bb$@:").n(bb.id);
 	var ins Inst = bb.first;
 	while ins != nil {
 		inst_disasm(os, ins);
 		if inst_is_uncond_branch(ins) {
 			dump_bb(bb_idx[ins.a]);
-		} else if inst_is_cond_branch(ins) {
+			return;
+		}
+		if inst_is_cond_branch(ins) {
 			dump_bb(bb_idx[ins.b]);
 			dump_bb(bb_idx[ins.c]);
+			return;
+		}
+		if inst_is_return(ins) {
+			return;
 		}
 		ins = ins.next;
 	}
@@ -194,25 +314,39 @@ fn dump_bb(bb BasicBlock) {
 fn gen_fn(node Ast) {
 	if node.left == nil { return; }
 
-	func_exit = bb_make();
+	//Warn("gen_fn() @").s(node.sym.name.text);
+	bb_reset();
+
+	// bb #0 and #1 are always function entry and exit
 	var func_enter BasicBlock = bb_make();
+	func_exit = bb_make();
 
 	func_enter.activate();
+
 	// housekeeping
 	inst_label_global(node.sym.name.text);
 	local_max = 0;
 	setup_locals(node.left, 12);
 
 	// prologue
+	var sym Symbol = node.sym.type.list;
+	var n i32 = 0;
+	while sym != nil {
+		sym.vid = inst_ldwi(REG_SP, n * 4);
+		sym = sym.next;
+		n++;
+	}
+
 	gen_block(node.left);
 
 	// epilogue
 	func_exit.activate();
 	inst_ret(REG_RA);
 
-	dump_bb(func_enter);
-
 	bb_active = nil;
+
+	os.fmt("\n// fn @").s(node.sym.name.text);
+	dump_bb(func_enter);
 }
 
 fn gen_functions(node Ast) {

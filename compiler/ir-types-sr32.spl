@@ -2,17 +2,22 @@
 // Licensed under the Apache License, Version 2.0.
 
 enum SoftRisc32 {
-	REG_ERROR = -1,
-	REG_ZERO = 0,
-	REG_RA = 1,
-	REG_SP = 2,
-	REG_GP = 3,
-	REG_TP = 4,
-	REG_RV = 5,
-	REG_RW = 6,
-	REG_FP = 7,
-	REG_COUNT = 32,
-	REG_VIRT_0 = 32,
+	VF_PHYS  =   0x10000000,
+	VF_UNDEF =   0x20000000,
+	VF_INVAL =   0x40000000,
+	VF_MASK =    0x0FFFFFFF,
+
+	REG_ERROR =  0x11111111,
+	REG_ZERO =   0x10000000,
+	REG_RA =     0x10000001,
+	REG_SP =     0x10000002,
+	REG_GP =     0x10000003,
+	REG_TP =     0x10000004,
+	REG_RV =     0x10000005,
+	REG_RW =     0x10000006,
+	REG_FP =     0x10000007,
+	REG_COUNT =  32,
+	REG_VIRT_0 = 0,
 };
 
 var reg_names []str = {
