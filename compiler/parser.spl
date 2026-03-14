@@ -688,6 +688,26 @@ fn parse_expr_statement() Ast {
 	return stmt;
 }
 
+fn maybe_const(node Ast) i32 {
+	if node.kind == AST_CONST {
+		if node.ival == 0 {
+			return 0;
+		} else {
+			return 1;
+		}
+	}
+	if node.kind == AST_SYMBOL {
+		if node.sym.kind & SYMBOL_DEF {
+			if node.sym.ival == 0 {
+				return 0;
+			} else {
+				return 1;
+			}
+		}
+	}
+	return -1;
+}
+
 fn parse_block() Ast {
 	var block Ast = ast_make_simple(AST_BLOCK, 0);
 	var last Ast = nil;
@@ -714,10 +734,12 @@ fn parse_block() Ast {
 			// simplify forms like: if <const> { ... }
 			// by eliminating them entirely (for false)
 			// or reducing them to the code block only (for true)
-			if (node.left.next == nil) && (node.left.left.kind == AST_CONST) {
-				if node.left.left.ival == 0 {
+			if (node.left.next == nil) {
+				var c i32 = maybe_const(node.left.left);
+				if c == 0 {
 					continue;
-				} else {
+				}
+				if c == 1 {
 					node = node.left.right;
 				}
 			}
