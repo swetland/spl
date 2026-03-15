@@ -3,11 +3,20 @@
 
 fn print_srcloc(fd i32, loc u32);
 
+enum OutStreamFlags {
+	// exit when done formatting:
+	OS_FATAL = 1,
+	// emit a newline when done formatting:
+	OS_NEWLINE = 2,
+	// emit a newline ahead of the error tag:
+	OS_INTERRUPT = 4,
+};
+
 struct OutStream {
 	msg str,
 	idx u32,
 	fd i32,
-	fatal bool,
+	flags u32,
 };
 
 fn os_advance(os OutStream) {
@@ -24,8 +33,10 @@ fn os_advance(os OutStream) {
 	}
 	os.idx = n;
 	if os.msg[n] == 0 {
-		writec(os.fd, '\n');
-		if os.fatal {
+		if os.flags & OS_NEWLINE {
+			writec(os.fd, '\n');
+		}
+		if os.flags & OS_FATAL {
 			os_exit(1);
 		}
 	}
@@ -57,14 +68,16 @@ fn (os OutStream) t(type Type) OutStream {
 	return os;
 }
 
-fn make_OutStream(msg str, fd i32, fatal bool, tag str) OutStream {
+fn make_OutStream(msg str, fd i32, flags u32, tag str) OutStream {
 	var os OutStream = new(OutStream);
 	os.msg = msg;
 	os.idx = 0;
-	os.fatal = fatal;
+	os.flags = flags;
 	os.fd = fd;
 	if tag != nil {
-		writes(fd, "\n");
+		if flags & OS_INTERRUPT {
+			writes(fd, "\n");
+		}
 		print_srcloc(fd, ctx.linenumber);
 		writes(fd, tag);
 	}
@@ -73,15 +86,15 @@ fn make_OutStream(msg str, fd i32, fatal bool, tag str) OutStream {
 }
 
 fn Error(msg str) OutStream {
-	return make_OutStream(msg, 2, true, ": error: ");
+	return make_OutStream(msg, 2, OS_FATAL | OS_NEWLINE | OS_INTERRUPT, ": error: ");
 }
 
 fn Warn(msg str) OutStream {
-	return make_OutStream(msg, 2, false, ": warning: ");
+	return make_OutStream(msg, 2, OS_NEWLINE, ": warning: ");
 }
 
 fn OutFd(fd i32) OutStream {
-	return make_OutStream("", fd, false, nil);
+	return make_OutStream("", fd, 0, nil);
 }
 
 fn (os OutStream) fmt(msg str) OutStream {
