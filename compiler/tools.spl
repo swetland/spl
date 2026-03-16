@@ -8,8 +8,16 @@ var __alloc_scope u32 = 0;
 var __alloc_symbol u32 = 0;
 var __alloc_type u32 = 0;
 var __alloc_node u32 = 0;
+var __lookup_string u32 = 0;
+var __lookup_symbol u32 = 0;
+var __lookup_global u32 = 0;
+
+enum Config {
+	WITH_STATS = 1,
+};
 
 fn string_make(text str, len u32) String {
+	if WITH_STATS { __lookup_string++; }
 	var s String = ctx.stringlist;
 	while s != nil {
 		if (s.len == len) && strneq(text, s.text, len) {
@@ -22,7 +30,7 @@ fn string_make(text str, len u32) String {
 	strcpyn(s.text, text, len + 1);
 	s.next = ctx.stringlist;
 	ctx.stringlist = s;
-	__alloc_string++;
+	if WITH_STATS { __alloc_string++; }
 	return s;
 }
 
@@ -33,7 +41,7 @@ fn scope_push(kind ScopeKind) Scope {
 	scope.parent = ctx.scope;
 	scope.kind = kind;
 	ctx.scope = scope;
-	__alloc_scope++;
+	if WITH_STATS { __alloc_scope++; }
 	return scope;
 }
 
@@ -56,6 +64,10 @@ fn scope_find(kind ScopeKind) Scope {
 }
 
 fn symbol_find_in(name String, scope Scope) Symbol {
+	if WITH_STATS {
+		if scope == ctx.global { __lookup_global++; }
+		__lookup_symbol++;
+	}
 	var sym Symbol = scope.first;
 	while sym != nil {
 		if sym.name == name {
@@ -94,7 +106,7 @@ fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival i32, scope
 		}
 		scope.last = sym;
 	}
-	__alloc_symbol++;
+	if WITH_STATS { __alloc_symbol++; }
 	return sym;
 }
 
@@ -126,7 +138,7 @@ fn type_make(name String, kind TypeKind, of Type, list Symbol, count u32) Type {
 			type.name = ctx.str_type_unknown;
 		}
 	}
-	__alloc_type++;
+	if WITH_STATS { __alloc_type++; }
 	return type;
 }
 
@@ -191,7 +203,7 @@ fn ast_make(kind AstKind, ival u32, sval String, sym Symbol, type Type) Ast {
 	node.sym = sym;
 	node.type = type;
 	node.srcloc = ctx.srcloc;
-	__alloc_node++;
+	if WITH_STATS { __alloc_node++; }
 	return node;
 }
 

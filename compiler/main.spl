@@ -181,13 +181,23 @@ fn start() i32 {
 	}
 
 	if stats {
-		Fmt(err, "alloc count:  @").n(__alloc_count);
-		Fmt(err, "alloc bytes:  @").n(__alloc_bytes);
-		Fmt(err, "alloc string: @").n(__alloc_string);
-		Fmt(err, "alloc scope:  @").n(__alloc_scope);
-		Fmt(err, "alloc symbol: @").n(__alloc_symbol);
-		Fmt(err, "alloc type:   @").n(__alloc_type);
-		Fmt(err, "alloc node:   @").n(__alloc_node);
+		var gsc i32 = 0;
+		var sym Symbol = ctx.global.first;
+		while sym != nil {
+			sym = sym.next;
+			gsc++;
+		}
+		FmtLn(err, "alloc count:  @").n(__alloc_count);
+		FmtLn(err, "alloc bytes:  @").n(__alloc_bytes);
+		FmtLn(err, "alloc string: @").n(__alloc_string);
+		FmtLn(err, "alloc scope:  @").n(__alloc_scope);
+		FmtLn(err, "alloc symbol: @").n(__alloc_symbol);
+		FmtLn(err, "alloc type:   @").n(__alloc_type);
+		FmtLn(err, "alloc node:   @").n(__alloc_node);
+		FmtLn(err, "find string:  @").n(__lookup_string);
+		FmtLn(err, "find symbol:  @").n(__lookup_symbol);
+		FmtLn(err, "find global:  @").n(__lookup_global);
+		FmtLn(err, "global syms:  @").n(gsc);
 	}
 	return 0;
 }
