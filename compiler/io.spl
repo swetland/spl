@@ -10,6 +10,8 @@ enum OutStreamFlags {
 	OS_NEWLINE = 2,
 	// emit a newline ahead of the error tag:
 	OS_INTERRUPT = 4,
+	// emit a newline when done formatting (once):
+	OS_NEWLINE_ONCE = 8,
 };
 
 struct OutStream {
@@ -33,8 +35,9 @@ fn os_advance(os OutStream) {
 	}
 	os.idx = n;
 	if os.msg[n] == 0 {
-		if os.flags & OS_NEWLINE {
+		if os.flags & (OS_NEWLINE | OS_NEWLINE_ONCE) {
 			writec(os.fd, '\n');
+			os.flags &= (~OS_NEWLINE_ONCE);
 		}
 		if os.flags & OS_FATAL {
 			os_exit(1);
@@ -109,5 +112,10 @@ fn Fmt(os OutStream, msg str) OutStream {
 	os.idx = 0;
 	os_advance(os);
 	return os;
+}
+
+fn FmtLn(os OutStream, msg str) OutStream {
+	os.flags |= OS_NEWLINE_ONCE;
+	return Fmt(os, msg);
 }
 
