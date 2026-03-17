@@ -196,6 +196,20 @@ void checklabels(void) {
 	}
 }
 
+uint32_t find_label(const char *name) {
+	struct label *l;
+	for (l = labels; l; l = l->next) {
+		if (!strcmp(l->name, name)) {
+			if (l->defined) {
+				return l->pc;
+			} else {
+				break;
+			}
+		}
+	}
+	return 0xffffffff;
+}
+
 void emit(uint32_t instr) {
 	if (PC & 3) {
 		PC = (PC + 3) & ~3;
@@ -209,6 +223,7 @@ void save(const char *fn) {
 	const char *name;
 	uint32_t n;
 	char dis[128];
+	uint32_t dseg = find_label("__global_segment");
 
 	FILE *fp = fopen(fn, "w");
 	if (!fp) die("cannot write to '%s'", fn);
@@ -222,6 +237,9 @@ void save(const char *fn) {
 			if (ins & (1<<i)) bs[5-i] = '1';
 		}
 #endif
+		if (n >= dseg) {
+			sprintf(dis, ".word 0x%08x", ins);
+		}
 		if (name) {
 			fprintf(fp, "%08x: %08x // %-30s :%s\n", n, ins, dis, name);
 		} else {
