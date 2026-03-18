@@ -113,7 +113,13 @@ fn reg_get() i32 {
 struct Phi {
 	next *Phi,
 	sym *Symbol,
-
+	// initial vid
+	vini i32,
+	// most recent vid
+	vcur i32,
+	// vids from predecessor blocks
+	args []i32,
+	count i32,
 };
 
 struct BlockList {
@@ -136,6 +142,9 @@ enum BBFlags {
 	// it is SEALED and has no predecessors
 	BB_DEAD =   0x004,
 
+	// block has been placed into the linear instruction stream
+	BB_PLACED = 0x008,
+
 	// first and last blocks in a function
 	BB_ENTRY =  0x010,
 	BB_EXIT =   0x020,
@@ -148,10 +157,11 @@ enum BBFlags {
 struct BasicBlock {
 	first *Inst,
 	last *Inst,
-	phy *Phi,
+	phi *Phi,
 	flags u32,
 	// List of predecessor blocks
 	prev *BlockList,
+	count i32,
 	// up to two succesor blocks
 	next0 *BasicBlock,
 	next1 *BasicBlock,
@@ -160,11 +170,102 @@ struct BasicBlock {
 	tag str,
 };
 
+// TODO alloc at runtime, reduce program size, allow for growth
 var bb_next_id i32 = 0;
-var bb_idx [1024]*BasicBlock;
+var bb_idx []*BasicBlock;
+
+var bb_order_first BlockList;
+var bb_order_last BlockList;
 
 // target for new instructions
 var bb_active BasicBlock = nil;
+
+fn (os OutStream) ins(i Inst) OutStream;
+fn (os OutStream) reg(id i32) OutStream;
+
+fn phi_lookup(bb BasicBlock, sym Symbol) Phi;
+
+// search a sealed block's predecessors
+// for the value(s) for a phi node
+fn phi_resolve(bb BasicBlock, phi Phi) {
+	Warn("phi_resolve(@,@)").n(bb.id).s(phi.sym.name.text);
+	if bb.count == 0 {
+		Error("phi_resolve(@) no predecessors?!").n(bb.id);
+	}
+
+	var n i32 = 0;
+	var args []i32 = __new(4 * bb.count);
+	var bl BlockList = bb.prev;
+	while bl != nil {
+		var p Phi = phi_lookup(bl.bb, phi.sym);
+		args[n] = p.vcur;
+		n++;
+		bl = bl.next;
+	}
+	phi.args = args;
+	phi.count = bb.count;
+
+	// simplify node if trivial
+}
+
+// search any block for a phi node for a symbol,
+// creating one if necessary, and recursing if sealed
+fn phi_lookup(bb BasicBlock, sym Symbol) Phi {
+	// first check for an existing phi node
+	var phi Phi = bb.phi;
+	while phi != nil {
+		if phi.sym == sym {
+			Warn("phi_lookup(@,@) cached").n(bb.id).s(sym.name.text);
+			return phi;
+		}
+		phi = phi.next;
+	}
+
+	// otherwise create a new phi node
+	phi = new(Phi);
+	phi.sym = sym;
+	phi.next = bb.phi;
+	bb.phi = phi;
+	phi.args = nil;
+	phi.count = 0;
+
+	if bb.flags & BB_ENTRY {
+		// special case for the function entry block
+		Warn("phi_lookup(@,@) entry").n(bb.id).s(sym.name.text);
+		phi.vini = sym.vid;
+		phi.vcur = sym.vid;
+		return phi;
+	}
+
+	phi.vini = reg_get();
+	phi.vcur = phi.vini;
+
+	if bb.flags & BB_SEALED {
+		// sealed block so we can search our predecessors
+		Warn("phi_lookup(@,@) recurse").n(bb.id).s(sym.name.text);
+		phi_resolve(bb, phi);
+	} else {
+		// unsealed block, so we install a placeholder
+		Warn("phi_lookup(@,@) defer").n(bb.id).s(sym.name.text);
+	}
+	return phi;
+}
+
+fn sym_to_vid_load(sym Symbol) i32 {
+	Warn("sym_to_vid(@) ?").s(sym.name.text);
+	var phi Phi = phi_lookup(bb_active, sym);
+	Warn("sym_load(@) @, @").s(sym.name.text).reg(phi.vini).reg(phi.vcur);
+	return phi.vcur;
+}
+
+fn sym_to_vid_store(sym Symbol) i32 {
+	Warn("sym_to_vid(@) ?").s(sym.name.text);
+	var phi Phi = phi_lookup(bb_active, sym);
+	var old i32 = phi.vcur;
+	phi.vcur = reg_get();
+	Warn("sym_store(@) @, @ > @").s(sym.name.text).reg(phi.vini).reg(old).reg(phi.vcur);
+	return phi.vcur;
+}
 
 // reset all global state
 // used at the start of a new function
@@ -172,6 +273,8 @@ fn bb_reset() {
 	reg_next = REG_VIRT_0;
 	bb_next_id = 0;
 	bb_active = nil;
+	bb_order_first = nil;
+	bb_order_last = nil;
 }
 
 fn bb_make(tag str) BasicBlock {
@@ -180,11 +283,24 @@ fn bb_make(tag str) BasicBlock {
 	bb.tag = tag;
 	bb_next_id++;
 	bb_idx[bb.id] = bb;
-	Warn("make bb.@: @").n(bb.id).s(tag);
+	Warn("make bb.@: @ @").n(bb.id).s(tag).x(bb);
 	return bb;
 }
 
-fn (os OutStream) ins(i Inst) OutStream;
+fn (bb BasicBlock) place() {
+	if bb.flags & BB_PLACED {
+		Error("bb.@ placed twice").n(bb.id);
+	}
+	bb.flags |= BB_PLACED;
+	var bl BlockList = new(BlockList);
+	bl.bb = bb;
+	if bb_order_last == nil {
+		bb_order_first = bl;
+	} else {
+		bb_order_last.next = bl;
+	}
+	bb_order_last = bl;
+}
 
 fn (bb BasicBlock) link_to(target BasicBlock) {
 	if target.flags & BB_SEALED {
@@ -199,6 +315,7 @@ fn (bb BasicBlock) link_to(target BasicBlock) {
 	bl.bb = bb;
 	bl.next = target.prev;
 	target.prev = bl;
+	target.count++;
 }
 
 fn (bb BasicBlock) append(ins Inst) {
@@ -241,6 +358,21 @@ fn (bb BasicBlock) seal() {
 			Warn("bb.@ is dead").n(bb.id);
 		}
 	}
+	var bl BlockList = bb.prev;
+	while bl != nil {
+		if !(bl.bb.flags & BB_FILLED) {
+			Error("bb.@ sealed, but pred bb.@ is not filled").n(bb.id).n(bl.bb.id);
+		}
+		bl = bl.next;
+	}
+	var phi Phi = bb.phi;
+	while phi != nil {
+		if phi.count == 0 {
+			Warn("phi_lookup(@) post-seal").n(bb.id);
+			phi_resolve(bb, phi);
+		}
+		phi = phi.next;
+	}
 }
 
 // terminate the current bb with a jump to this
@@ -271,8 +403,67 @@ fn (bb BasicBlock) activate_and_seal_prev() {
 	bb._activate(true);
 }
 
+fn dump_phis(os OutStream, bb BasicBlock) {
+	var tag str = "    phi @";
+	if bb.flags & BB_ENTRY {
+		tag = "    ini @";
+	}
+	var phi Phi = bb.phi;
+	while phi != nil {
+		os.fmt(tag).reg(phi.vini);
+		var n i32 = 0;
+		while n < phi.count {
+			os.fmt(", @").reg(phi.args[n]);
+			n++;
+		}
+		os.fmt(" // @\n").s(phi.sym.name.text);
+		phi = phi.next;
+	}
+}
+
+fn inst_disasm(os OutStream, ins Inst);
+
+fn dump_bb(os OutStream, bb BasicBlock) {
+	if !(bb.flags & BB_FILLED) {
+		Warn("bb.@ is not filled").n(bb.id);
+	}
+	if !(bb.flags & BB_SEALED) {
+		Warn("bb.@ is not sealed").n(bb.id);
+	}
+	if bb.flags & BB_DEAD {
+		return;
+	}
+	os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
+	if bb.prev != nil {
+		os.fmt(" << ");
+		var bl BlockList = bb.prev;
+		while bl != nil {
+			os.fmt("bb.@").n(bl.bb.id);
+			bl = bl.next;
+			if bl != nil {
+				os.fmt(", ");
+			}
+		}
+	}
+	os.fmt("\n");
+	dump_phis(os, bb);
+	var ins Inst = bb.first;
+	while ins != nil {
+		inst_disasm(os, ins);
+		ins = ins.next;
+	}
+}
+
+fn dump_bb_list(os OutStream, bl BlockList) {
+	while bl != nil {
+		dump_bb(os, bl.bb);
+		bl = bl.next;
+	}
+}
+
+
 var global_next i32 = 1;
-var global_names [1024]*String;
+var global_names []*String;
 
 // obtain a global identifier for call instruction use
 fn get_global_id(name String) i32 {
@@ -289,7 +480,7 @@ fn get_global_id(name String) i32 {
 }
 
 var label_next i32 = 0;
-var label_idx [1024]*Inst;
+var label_idx []*Inst;
 
 fn _inst_make(op u32, a i32, b i32, c i32) Inst {
 	// add opcode-specific property bitflags to allow
@@ -417,15 +608,15 @@ fn (os OutStream) reg(id i32) OutStream {
 	var n i32 = id & VF_MASK;
 	if id & VF_PHYS {
 		if n >= REG_COUNT {
-			writes(os.fd, "$BOGUS");
+			writes(os.fd, "$bad");
 		} else {
 			writec(os.fd, '$');
 			writes(os.fd, reg_names[n]);
 		}
 	} else if id & VF_UNDEF {
-		writes(os.fd, "$UNDEF");
+		writes(os.fd, "$und");
 	} else if id & VF_INVAL {
-		writes(os.fd, "$ERROR");
+		writes(os.fd, "$err");
 	} else {
 		// virtual register
 		writec(os.fd, '%');
@@ -454,38 +645,47 @@ fn (os OutStream) label(n i32) OutStream {
 
 fn inst_disasm(os OutStream, ins Inst) {
 	var op u32 = ins.op & INS_OP_MASK;
-
+	var imm str = "";
+	if ins.op & INF_C_IMM {
+		imm = "i";
+	}
 	if op == INS_NOT {
-		os.fmt("    not @, @").reg(ins.a).reg(ins.b);
+		os.fmt("    not @, @\n").reg(ins.a).reg(ins.b);
 	} else if op == INS_NEG {
-		os.fmt("    neg @, @").reg(ins.a).reg(ins.b);
+		os.fmt("    neg @, @\n").reg(ins.a).reg(ins.b);
 	} else if op < INS_MOV {
 		// ALU and CMP instructions
-		os.fmt("    @ @, @, @").s(iop_name[op]).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
+		os.fmt("    @@ @, @, @\n").s(iop_name[op]).s(imm).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_MOV {
-		os.fmt("    mov @, @").reg(ins.a).arg(ins.c,ins.op);
+		os.fmt("    mov@ @, @\n").s(imm).reg(ins.a).arg(ins.c,ins.op);
 	} else if (op == INS_LOAD) | (op == INS_STORE) {
 		var sz str = isz_name[(ins.op & INF_SZ_MASK) >> INF_SZ_SHIFT];
-		os.fmt("    @@ @, [@, @]").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
+		os.fmt("    @@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op <= INS_PHI {
-		os.fmt("    phi @, @, @").reg(ins.a).reg(ins.b).reg(ins.c);
+		os.fmt("    phi @, @, @\n").reg(ins.a).reg(ins.b).reg(ins.c);
 	} else if op == INS_LABEL {
-		os.fmt("    func @").s(global_names[ins.a]);
+		os.fmt("    func @\n").s(global_names[ins.a]);
 	} else if op == INS_JUMP {
-		os.fmt("    jump @").label(ins.a);
+		os.fmt("    jump @\n").label(ins.a);
 	} else if op == INS_BRANCH {
-		os.fmt("    @ @, @, @").s(iop_name[op]).reg(ins.a).label(ins.b).label(ins.c);
+		os.fmt("    @ @, @, @\n").s(iop_name[op]).reg(ins.a).label(ins.b).label(ins.c);
 	} else if op == INS_CALL {
-		os.fmt("    call @").s(global_names[ins.a]);
+		os.fmt("    call @\n").s(global_names[ins.a]);
 	} else if op == INS_RET {
-		os.fmt("    ret @").reg(ins.a);
+		os.fmt("    ret @\n").reg(ins.a);
 	} else {
-		os.fmt("    inval 0x@").x(ins.op);
+		os.fmt("    inval 0x@\n").x(ins.op);
 	}
 }
 
 fn (os OutStream) ins(i Inst) OutStream {
 	inst_disasm(os, i);
 	return os;
+}
+
+fn ir_init() {
+	bb_idx = new([1024]*BasicBlock);
+	global_names = new([1024]*String);
+	label_idx = new([1024]*Inst);
 }
 

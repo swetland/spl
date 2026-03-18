@@ -1,8 +1,6 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-
-
 var os OutStream;
 
 fn emit(msg str) OutStream {
@@ -16,7 +14,7 @@ fn GenError(node Ast, msg str) OutStream {
 	writes(2, "\n");
 	print_srcloc(2, node.srcloc);
 	writes(2, ": error: ");
-	return make_OutStream(msg, 2, true, nil);
+	return make_OutStream(msg, 2, OS_FATAL | OS_NEWLINE, nil);
 }
 
 // ----
@@ -50,22 +48,20 @@ fn gen_load(node Ast) i32 {
 		return inst_movi(sym.ival);
 	}
 	if sym.kind & SYMBOL_GLOBAL {
-		inst_ldwi(REG_GP, sym.ival);
+		return inst_ldwi(REG_GP, sym.ival);
 	}
 	// param or local
-	return node.sym.vid;
+	return sym_to_vid_load(sym);
 }
 
 fn gen_store(sym Symbol, val i32) i32 {
 	if sym.kind & SYMBOL_GLOBAL {
 		return inst_stwi(val, REG_GP, sym.ival);
 	}
-	var vid i32 = sym.vid;
-	sym.vid = inst_mov(val);
-	if vid >= 0 {
-		Warn("mutating @: @ to @").s(sym.name.text).reg(vid).reg(sym.vid);
+	if sym.kind & SYMBOL_DEF {
+		Error("cannot store to constant '@'").s(sym.name.text);
 	}
-	return sym.vid;
+	return inst_movx(sym_to_vid_store(sym), val);
 }
 
 fn gen_assign(node Ast) i32 {
@@ -180,10 +176,12 @@ fn gen_while(node Ast) {
 	loop_cont = bb_make("while-loop");
 	loop_exit = bb_make("while-exit");
 
+	loop_cont.place();
 	loop_cont.activate_and_seal_prev();
 	var cv i32 = gen_expr(node.left);
 	inst_branch(cv, loop_body, loop_exit);
 
+	loop_body.place();
 	loop_body.activate();
 	loop_body.seal();
 	gen_block(node.right);
@@ -191,7 +189,8 @@ fn gen_while(node Ast) {
 
 	loop_cont.seal();
 
-	loop_exit.activate();
+	loop_exit.place();
+	loop_exit.activate_and_seal_prev();
 	loop_exit.seal();
 
 	// pop break/continue points
@@ -211,6 +210,7 @@ fn gen_if(node Ast) {
 			// can only be the last child,
 			// after one or more CASE nodes
 			bb.activate_and_seal_prev();
+			bb.place();
 			bb.seal();
 			gen_block(node.left);
 			inst_jump(exit);
@@ -225,10 +225,12 @@ fn gen_if(node Ast) {
 			}
 
 			bb.activate_and_seal_prev();
+			bb.place();
 			bb.seal();
 			var cv i32 = gen_expr(node.left);
 			inst_branch(cv, if_t, if_f);
 
+			if_t.place();
 			if_t.activate();
 			if_t.seal();
 			gen_block(node.right);
@@ -239,7 +241,8 @@ fn gen_if(node Ast) {
 		node = node.next;
 	}
 
-	exit.activate();
+	exit.place();
+	exit.activate_and_seal_prev(); //?
 	exit.seal();
 }
 
@@ -274,7 +277,7 @@ fn setup_locals(node Ast, n i32) { //dup
 	if node.kind == AST_BLOCK {
 		var sym Symbol = node.sym;
 		while sym != nil {
-			Warn("local @ @\n").n(n).s(sym.name.text);
+			Warn("local @ @").n(n).s(sym.name.text);
 			sym.ival = n;
 			sym.vid = VF_UNDEF;
 			n += 4;
@@ -296,36 +299,10 @@ fn setup_locals(node Ast, n i32) { //dup
 	}
 }
 
-fn dump_bb(bb BasicBlock) {
-	if bb.flags & BB_MARK { return; }
-	bb.flags |= BB_MARK;
-
-	if !(bb.flags & BB_FILLED) {
-		Warn("bb.@ is not filled").n(bb.id);
-	}
-	if !(bb.flags & BB_SEALED) {
-		Warn("bb.@ is not sealed").n(bb.id);
-	}
-
-	os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
-	var bl BlockList = bb.prev;
-	while bl != nil {
-		os.fmt("// pred bb.@").n(bl.bb.id);
-		bl = bl.next;
-	}
-	var ins Inst = bb.first;
-	while ins != nil {
-		inst_disasm(os, ins);
-		ins = ins.next;
-	}
-	if bb.next0 { dump_bb(bb.next0); }
-	if bb.next1 { dump_bb(bb.next1); }
-}
-
 fn gen_fn(node Ast) {
 	if node.left == nil { return; }
 
-	Warn("gen_fn() @").s(node.sym.name.text);
+	Warn("gen_fn() @ ---------------------").s(node.sym.name.text);
 	bb_reset();
 
 	// bb #0 and #1 are always function entry and exit
@@ -334,6 +311,7 @@ fn gen_fn(node Ast) {
 	func_exit.flags |= BB_EXIT;
 
 	func_enter.flags |= BB_ENTRY;
+	func_enter.place();
 	func_enter.activate();
 	func_enter.seal();
 
@@ -358,6 +336,7 @@ fn gen_fn(node Ast) {
 	gen_block(node.left);
 
 	// epilogue
+	func_exit.place();
 	func_exit.activate_and_seal_prev();
 	func_exit.seal();
 	inst_ldwix(REG_RA, REG_FP, -4);
@@ -366,8 +345,10 @@ fn gen_fn(node Ast) {
 
 	bb_active = nil;
 
-	os.fmt("\n// fn @").s(node.sym.name.text);
-	dump_bb(func_enter);
+	os.fmt("\n// fn @\n").s(node.sym.name.text);
+
+	//TODO ensure no blocks are unplaced
+	dump_bb_list(os, bb_order_first);
 }
 
 fn gen_functions(node Ast) {
@@ -392,6 +373,7 @@ fn gen_global_addrs(node Ast) { //dup
 }
 
 fn gen(outfd i32, node Ast) {
+	ir_init();
 	os = OutFd(outfd);
 	emit("// ir-gen\n");
 	gen_global_addrs(node);
