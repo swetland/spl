@@ -147,6 +147,15 @@ int sys_fd_writex(uint32_t _fd, uint32_t n) {
 	}
 }
 
+static uint32_t heap_base = 4 * 1024 * 1024;
+
+int sys_alloc(uint32_t sz) {
+	uint32_t addr = heap_base;
+	sz = (sz + 15) & (~15);
+	heap_base += sz;
+	return addr;
+}
+
 #define R_SP 2
 #define R_RV 5
 
@@ -167,6 +176,7 @@ static inline uint32_t _do_syscall(uint32_t sp, uint32_t n) {
 	case 0x206: return sys_fd_writei(ARG(0), ARG(1));
 	case 0x207: return sys_fd_writex(ARG(0), ARG(1));
 	case 0x208: return sys_fd_write(ARG(0), ARG(1), ARG(2), ARG(3));
+	case 0x300: return sys_alloc(ARG(0));
 	}
 	return -1;
 }
