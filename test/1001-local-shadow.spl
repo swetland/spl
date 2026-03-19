@@ -1,0 +1,10 @@
+
+fn start() i32 {
+	var v i32 = 17;
+	while true {
+		var v i32 = 42;
+		break;
+	}
+	return v;
+}
+

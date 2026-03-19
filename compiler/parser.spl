@@ -838,12 +838,19 @@ fn parse_fn() Ast {
 		type.name = fname;
 	}
 
-	var prev Symbol = symbol_find_in(fname, ctx.global);
-	var sym Symbol = symbol_make_global(fname, type, SYMBOL_FN, 0);
+	var sym Symbol = symbol_make_in_scope(fname, type, SYMBOL_FN, 0, nil);
 	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
 	node.sym = sym;
 
+	var prev Symbol = symbol_find_in(fname, ctx.global);
+	if prev == nil {
+		// if no previous definition, add to global before
+		// parsing fn body so recursive calls resolve
+		scope_add(ctx.global, sym);
+	}
+
 	if ctx.tok == tSEMI {
+		// no function body: it's a declaration
 		sym.kind |= SYMBOL_DECL;
 		next();
 	} else {
@@ -854,15 +861,28 @@ fn parse_fn() Ast {
 	sym.type.list = scope_pop();
 	sym.ival = posn;
 
+	// if there is an existing global sharing the name...
 	if prev != nil {
+		// may not be redefined
 		if ((prev.kind & SYMBOL_DECL) == 0) && ((sym.kind & SYMBOL_DECL) == 0) {
 			Error("fn @ redefined").s(sym.name.text);
 		}
+		// signature must not change
 		if types_match(prev.type, sym.type) == false {
 			Error("fn @ differs from previous definition at @:@")
 			.s(sym.name.text).s(srcloc_file(prev.ival)).n(srcloc_line(prev.ival));
 		}
+		// if this is a definition flag that we've been defined
+		// in the symbol that's in the global symbol table
+		if !(sym.kind & SYMBOL_DECL) {
+			prev.kind &= (~SYMBOL_DECL);
+		}
 	}
+
+	// TODO: if previously declared, the symbol in the global table
+	// is *not* the one referenced by the fn definition, though their
+	// names are identical so linkage works out, but this is still a
+	// little weird.  Ideally should fuse them.
 	return node;
 }
 

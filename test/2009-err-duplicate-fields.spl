@@ -1,0 +1,5 @@
+
+struct Bad {
+	field i32,
+	field i32,
+};

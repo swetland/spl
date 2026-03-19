@@ -1,0 +1,8 @@
+
+fn hello(a i32, b bool) bool {
+	return false;
+}
+
+fn hello(a i32, b bool) bool {
+	return false;
+}

@@ -91,6 +91,15 @@ fn symbol_find(name String) Symbol {
 	return nil;
 }
 
+fn scope_add(scope Scope, sym Symbol) {
+	if scope.first == nil {
+		scope.first = sym;
+	} else {
+		scope.last.next = sym;
+	}
+	scope.last = sym;
+}
+
 fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival i32, scope Scope) Symbol {
 	var sym Symbol = new(Symbol);
 	sym.name = name;
@@ -99,12 +108,10 @@ fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival i32, scope
 	sym.kind = kind;
 	sym.ival = ival;
 	if scope != nil {
-		if scope.first == nil {
-			scope.first = sym;
-		} else {
-			scope.last.next = sym;
+		if symbol_find_in(name, scope) != nil {
+			Error("cannot redefine '@'").s(name.text);
 		}
-		scope.last = sym;
+		scope_add(scope, sym);
 	}
 	if WITH_STATS { __alloc_symbol++; }
 	return sym;
