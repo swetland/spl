@@ -102,11 +102,11 @@ fn dump_ast_node(fd i32, node Ast) {
 
 fn dump_type(os OutStream, type Type) {
 	if type.kind == TYPE_FN { return; }
-	Fmt(os,"@: sz=@").t(type).n(type_size(type));
+	FmtLn(os,"@: sz=@").t(type).n(type_size(type));
 	if type.kind == TYPE_STRUCT {
 		var sym Symbol = type.list;
 		while sym != nil {
-			Fmt(os, "    @: @ sz=@").s(sym.name.text).t(sym.type).n(sym.ival);
+			FmtLn(os, "    @: @ sz=@").s(sym.name.text).t(sym.type).n(sym.ival);
 			sym = sym.next;
 		}
 	}
