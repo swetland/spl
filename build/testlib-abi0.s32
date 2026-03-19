@@ -1,0 +1,13 @@
+
+__start:
+	li gp, __global_segment
+	j start
+
+_hexout_:
+	ldw t0, 0(sp)
+	stx t0, -2(x0)
+	ret
+
+__new:
+	syscall 0x300
+	ret

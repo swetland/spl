@@ -10,8 +10,8 @@ compile () {
 	local ast="${bin%.bin}.ast"
 
 	rm -f ${bin} ${asm} ${ast}
-	out/compiler1 -ast ${ast} -out ${asm} build/stdlib-abi0.spl ${src} >/dev/null || return 1;
-	out/asm -o ${bin} build/stdlib-abi0.s32 ${asm} || return 1;
+	out/compiler1 -ast ${ast} -out ${asm} build/testlib-abi0.spl ${src} >/dev/null || return 1;
+	out/asm -o ${bin} build/testlib-abi0.s32 ${asm} || return 1;
 	return 0
 }
 

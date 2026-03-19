@@ -1,0 +1,4 @@
+
+fn _hexout_(n i32);
+
+fn __new(sz i32) u32;
