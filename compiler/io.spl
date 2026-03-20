@@ -97,7 +97,11 @@ fn Warn(msg str) OutStream {
 }
 
 fn OutFd(fd i32) OutStream {
-	return make_OutStream("", fd, 0, nil);
+	if fd >= 0 {
+		return make_OutStream("", fd, 0, nil);
+	} else {
+		return nil;
+	}
 }
 
 fn (os OutStream) fmt(msg str) OutStream {
