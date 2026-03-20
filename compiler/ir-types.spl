@@ -403,13 +403,16 @@ fn (bb BasicBlock) activate_and_seal_prev() {
 	bb._activate(true);
 }
 
-fn dump_phis(os OutStream, bb BasicBlock) {
+fn dump_phis(os OutStream, bb BasicBlock, graph bool) {
 	var tag str = "    phi @";
 	if bb.flags & BB_ENTRY {
 		tag = "    ini @";
 	}
 	var phi Phi = bb.phi;
 	while phi != nil {
+		if graph {
+			os.fmt("<TR><TD ALIGN=\"left\">");
+		}
 		os.fmt(tag).reg(phi.vini);
 		var n i32 = 0;
 		while n < phi.count {
@@ -417,13 +420,16 @@ fn dump_phis(os OutStream, bb BasicBlock) {
 			n++;
 		}
 		os.fmt(" // @\n").s(phi.sym.name.text);
+		if graph {
+			os.fmt("</TD></TR>\n");
+		}
 		phi = phi.next;
 	}
 }
 
 fn inst_disasm(os OutStream, ins Inst);
 
-fn dump_bb(os OutStream, bb BasicBlock) {
+fn dump_bb(os OutStream, bb BasicBlock, graph bool) {
 	if !(bb.flags & BB_FILLED) {
 		Warn("bb.@ is not filled").n(bb.id);
 	}
@@ -433,31 +439,58 @@ fn dump_bb(os OutStream, bb BasicBlock) {
 	if bb.flags & BB_DEAD {
 		return;
 	}
-	os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
-	if bb.prev != nil {
-		os.fmt(" << ");
+	if graph {
 		var bl BlockList = bb.prev;
 		while bl != nil {
-			os.fmt("bb.@").n(bl.bb.id);
+			os.fmt("\"bb.@\":s -> \"bb.@\":n [ ];\n").n(bl.bb.id).n(bb.id);
 			bl = bl.next;
-			if bl != nil {
-				os.fmt(", ");
+		}
+		os.fmt("\"bb.@\" [ label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">\n").n(bb.id);
+		os.fmt("<TR><TD BGCOLOR=\"gray\" ALIGN=\"left\">bb.@: @</TD></TR>\n").n(bb.id).s(bb.tag);
+	} else {
+		os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
+		if bb.prev != nil {
+			os.fmt(" << ");
+			var bl BlockList = bb.prev;
+			while bl != nil {
+				os.fmt("bb.@").n(bl.bb.id);
+				bl = bl.next;
+				if bl != nil {
+					os.fmt(", ");
+				}
 			}
 		}
+		os.fmt("\n");
 	}
-	os.fmt("\n");
-	dump_phis(os, bb);
+	dump_phis(os, bb, graph);
 	var ins Inst = bb.first;
 	while ins != nil {
+		if graph {
+			os.fmt("<TR><TD ALIGN=\"left\">");
+		}
 		inst_disasm(os, ins);
+		if graph {
+			os.fmt("</TD></TR>\n");
+		}
 		ins = ins.next;
+	}
+	if graph {
+		os.fmt("</TABLE>>; ];\n");
 	}
 }
 
-fn dump_bb_list(os OutStream, bl BlockList) {
+fn dump_bb_list(os OutStream, bl BlockList, graph bool) {
+	if graph {
+		os.fmt("digraph g {\n");
+		os.fmt("graph [ rankdir=TB; newrank=true; ];\n");
+		os.fmt("node [ shape=plain; ];\n");
+	}
 	while bl != nil {
-		dump_bb(os, bl.bb);
+		dump_bb(os, bl.bb, graph);
 		bl = bl.next;
+	}
+	if graph {
+		os.fmt("}\n");
 	}
 }
 

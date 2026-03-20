@@ -137,6 +137,14 @@ fn start() i32 {
 			stats = 1;
 			continue;
 		}
+		if streq(arg, "-dot") {
+			ctx.with_graphs = true;
+			continue;
+		}
+		if streq(arg, "-ir") {
+			ctx.with_ir = true;
+			continue;
+		}
 		if streq(arg, "-ast") {
 			arg = os_arg(n);
 			n++;
@@ -144,6 +152,7 @@ fn start() i32 {
 			if astfd == -1 {
 				Error("cannot open AST list file '@'").s(arg);
 			}
+			ctx.out_base = arg;
 			continue;
 		}
 		if streq(arg, "-out") {

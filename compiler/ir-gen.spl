@@ -299,6 +299,8 @@ fn setup_locals(node Ast, n i32) { //dup
 	}
 }
 
+fn get_outfile(enable bool, name str, ext str) OutStream;
+
 fn gen_fn(node Ast) {
 	if node.left == nil { return; }
 
@@ -345,10 +347,23 @@ fn gen_fn(node Ast) {
 
 	bb_active = nil;
 
-	os.fmt("\n// fn @\n").s(node.sym.name.text);
-
 	//TODO ensure no blocks are unplaced
-	dump_bb_list(os, bb_order_first);
+
+	var name str = node.sym.name.text;
+
+	var is OutStream = get_outfile(ctx.with_ir, name, ".ir");
+	if is != nil {
+		is.fmt("\n// fn @\n").s(name);
+		dump_bb_list(is, bb_order_first, false);
+		fd_close(is.fd);
+	}
+
+	var gs OutStream = get_outfile(ctx.with_graphs, name, ".dot");
+	if gs != nil {
+		dump_bb_list(gs, bb_order_first, true);
+		fd_close(gs.fd);
+	}
+
 }
 
 fn gen_functions(node Ast) {
@@ -372,7 +387,30 @@ fn gen_global_addrs(node Ast) { //dup
 	}
 }
 
+fn get_outfile(enable bool, name str, ext str) OutStream {
+	if (!enable) || (ctx.out_base == nil) {
+		return nil;
+	}
+	var fname str = strcat(ctx.out_base, "-");
+	fname = strcat(fname, name);
+	fname = strcat(fname, ext);
+	return OutFd(fd_create(fname));
+}
+
 fn gen(outfd i32, node Ast) {
+	if ctx.out_base != nil {
+		// trim extension from output base name
+		var s str = ctx.out_base;
+		var i i32 = 0;
+		var len i32 = strlen(s);
+		while i < len {
+			if s[i] == '.' {
+				s[i] = 0;
+				break;
+			}
+			i++;
+		}
+	}
 	ir_init();
 	os = OutFd(outfd);
 	emit("// ir-gen\n");

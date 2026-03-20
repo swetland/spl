@@ -313,6 +313,11 @@ struct Context {
 	str_type_unknown *String,
 	str_type_pointer *String,
 	str_type_array *String,
+
+	// output options
+	with_graphs bool,
+	with_ir bool,
+	out_base str,
 };
 
 var ctx Context;
