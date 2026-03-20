@@ -36,4 +36,7 @@ writex:
 write:
 	syscall 0x208
 	ret
+writeu32:
+	syscall 0x209
+	ret
 
