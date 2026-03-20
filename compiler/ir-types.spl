@@ -437,13 +437,18 @@ fn dump_bb(os OutStream, bb BasicBlock, graph bool) {
 		Warn("bb.@ is not sealed").n(bb.id);
 	}
 	if bb.flags & BB_DEAD {
+		if graph {
+			os.fmt("\"bb.@\" [ style=invis ];\n").n(bb.id);
+		}
 		return;
 	}
 	if graph {
+		if false {
 		var bl BlockList = bb.prev;
 		while bl != nil {
-			os.fmt("\"bb.@\":s -> \"bb.@\":n [ ];\n").n(bl.bb.id).n(bb.id);
+			os.fmt("\"bb.@\":sw -> \"bb.@\":ne [ constraint=false; ];\n").n(bl.bb.id).n(bb.id);
 			bl = bl.next;
+		}
 		}
 		os.fmt("\"bb.@\" [ label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">\n").n(bb.id);
 		os.fmt("<TR><TD BGCOLOR=\"gray\" ALIGN=\"left\">bb.@: @</TD></TR>\n").n(bb.id).s(bb.tag);
@@ -476,16 +481,24 @@ fn dump_bb(os OutStream, bb BasicBlock, graph bool) {
 	}
 	if graph {
 		os.fmt("</TABLE>>; ];\n");
+		if bb.next0 {
+			os.fmt("\"bb.@\":sw -> \"bb.@\":nw [ constraint=false; ];\n").n(bb.id).n(bb.next0.id);
+		}
+		if bb.next1 {
+			os.fmt("\"bb.@\":se -> \"bb.@\":ne [ constraint=false; ];\n").n(bb.id).n(bb.next1.id);
+		}
 	}
 }
 
 fn dump_bb_list(os OutStream, bl BlockList, graph bool) {
 	if graph {
 		os.fmt("digraph g {\n");
-		os.fmt("graph [ rankdir=TB; newrank=true; ];\n");
 		os.fmt("node [ shape=plain; ];\n");
 	}
 	while bl != nil {
+		if graph && (bl.next != nil) {
+			os.fmt("\"bb.@\" -> \"bb.@\" [ style=invis ];\n").n(bl.bb.id).n(bl.next.bb.id);
+		}
 		dump_bb(os, bl.bb, graph);
 		bl = bl.next;
 	}
