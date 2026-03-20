@@ -326,6 +326,7 @@ fn gen_fn(node Ast) {
 	inst_stwi(REG_RA, REG_SP, -4);
 	inst_stwi(REG_FP, REG_SP, -8);
 	inst_movx(REG_FP, REG_SP);
+	inst_aluix(INS_SUB, REG_SP, REG_SP, 8);
 
 	var sym Symbol = node.sym.type.list;
 	var n i32 = 0;
@@ -343,6 +344,7 @@ fn gen_fn(node Ast) {
 	func_exit.seal();
 	inst_ldwix(REG_RA, REG_FP, -4);
 	inst_ldwix(REG_FP, REG_FP, -8);
+	inst_aluix(INS_ADD, REG_SP, REG_SP, 8);
 	inst_ret(REG_RA);
 
 	bb_active = nil;
