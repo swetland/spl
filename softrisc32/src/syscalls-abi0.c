@@ -108,6 +108,14 @@ int sys_fd_write(uint32_t _fd, uint32_t _ptr, uint32_t off, uint32_t len) {
 	}
 }
 
+int sys_fd_writeu32(uint32_t _fd, uint32_t n) {
+	if (write(map_fd(_fd), &n, 4) == 4) {
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
 int sys_fd_writec(uint32_t _fd, uint32_t _c) {
 	uint8_t c = _c;
 	if (write(map_fd(_fd), &c, 1) == 1) {
@@ -176,6 +184,7 @@ static inline uint32_t _do_syscall(uint32_t sp, uint32_t n) {
 	case 0x206: return sys_fd_writei(ARG(0), ARG(1));
 	case 0x207: return sys_fd_writex(ARG(0), ARG(1));
 	case 0x208: return sys_fd_write(ARG(0), ARG(1), ARG(2), ARG(3));
+	case 0x209: return sys_fd_writeu32(ARG(0), ARG(1));
 	case 0x300: return sys_alloc(ARG(0));
 	}
 	return -1;
