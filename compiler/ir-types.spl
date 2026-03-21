@@ -1,6 +1,13 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
+enum IRtag {
+	TAG_IR_XIR0 = 0x00524958, // XIR0
+	TAG_IR_FUNC = 0x434e5546, // FUNC <count> <id> <maxvr> Inst * count
+	TAG_IR_DATA = 0x41544144, // DATA <count> Word * count
+	TAG_IR_GLBL = 0x4c424c47, // GLBL <count> <len> * count stringdata
+};
+
 enum IRflag {
 	// arg c is immediate, for ALU and CMP ops
 	INF_C_IMM =     0x0100,
@@ -21,7 +28,6 @@ enum IRflag {
 	INF_IS_LABEL =  0x1000, // is a label (start of a bb)
 	INF_IS_ALU =    0x2000, // is an ALU op
 	INF_IS_MEM =    0x4000, // load or store
-	INF_IS_PHI =    0x8000,
 };
 
 enum IRop {
@@ -49,24 +55,25 @@ enum IRop {
 	INS_CMP_GE,
 
 	// unary ALU ops
-	INS_NOT,
-	INS_NEG,
+	INS_NOT,     // NOT Ra, Rc           Ra = ~Rc
+	INS_NEG,     // NEG Ra, Rc           Ra = -Rc
 
 	INS_MOV,     // MOV Ra, Rc           Ra = Rc
 
 	INS_LOAD,    // LDW Ra, Rb, Rc       Ra = MEM[Rb + Rc]
 	INS_STORE,   // STBI Ra, Rb, IMMc    MEM[Rb + IMMc] = Ra
 
-	INS_PHI,     // PHI Ta, Rb, Rc
-
-	INS_LABEL,   // La: b=Placed c=EdgeCount
+	INS_LABEL,   // LABEL BBa (, Gb)
 
 	INS_JUMP,    // JUMP La
 	INS_BRANCH,  // BRANCH Ca, Lb, Lc    if Ca != 0 then ->Lb else ->Lc
 	INS_CALL,    // CALL La
 	INS_RET,     // RET Ra
 
-	INS_COUNT, // total unique opcodes (30)
+	INS_SET,     // SET Sa, Rb  (aka upsilon)
+	INS_GET,     // GET Ra, Sb  (aka phi)
+
+	INS_COUNT,   // total unique opcodes (31)
 
 	INS_OP_MASK = 0x3f,
 };
@@ -78,7 +85,8 @@ var iop_name [INS_COUNT]str = {
 	"cmpeq", "cmpne", "cmplt", "cmple", "cmpgt", "cmpge",
 	"not", "neg",
 	"mv", "ld", "st",
-	"phi", "label", "jump", "branch", "call", "ret",
+	"label", "jump", "branch", "call", "ret",
+	"set", "get",
 };
 
 var iop_props [INS_COUNT]u32 = {
@@ -88,7 +96,8 @@ var iop_props [INS_COUNT]u32 = {
 	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
 	INF_IS_ALU, INF_IS_ALU,
 	0, INF_IS_MEM, INF_IS_MEM,
-	INF_IS_PHI, INF_IS_LABEL, INF_IS_B_U, INF_IS_B_C, 0, INF_IS_RET,
+	INF_IS_LABEL, INF_IS_B_U, INF_IS_B_C, 0, INF_IS_RET,
+	0, 0,
 };
 
 var isz_name [4]str = { "b", "h", "w", "d" };
@@ -180,6 +189,9 @@ var bb_order_last BlockList;
 // target for new instructions
 var bb_active BasicBlock = nil;
 
+fn (bb BasicBlock) add_set(shadow i32, reg i32);
+fn (bb BasicBlock) add_get(reg i32, shadow i32);
+
 fn (os OutStream) ins(i Inst) OutStream;
 fn (os OutStream) reg(id i32) OutStream;
 
@@ -200,6 +212,7 @@ fn phi_resolve(bb BasicBlock, phi Phi) {
 		var p Phi = phi_lookup(bl.bb, phi.sym);
 		args[n] = p.vcur;
 		n++;
+		bl.bb.add_set(phi.vini, p.vcur);
 		bl = bl.next;
 	}
 	phi.args = args;
@@ -240,6 +253,8 @@ fn phi_lookup(bb BasicBlock, sym Symbol) Phi {
 	phi.vini = reg_get();
 	phi.vcur = phi.vini;
 
+	bb.add_get(phi.vini, phi.vini);
+
 	if bb.flags & BB_SEALED {
 		// sealed block so we can search our predecessors
 		Warn("phi_lookup(@,@) recurse").n(bb.id).s(sym.name.text);
@@ -277,6 +292,9 @@ fn bb_reset() {
 	bb_order_last = nil;
 }
 
+fn (bb BasicBlock) append(ins Inst);
+fn _inst_make(op u32, a i32, b i32, c i32) Inst;
+
 fn bb_make(tag str) BasicBlock {
 	var bb BasicBlock = new(BasicBlock);
 	bb.id = bb_next_id;
@@ -284,7 +302,28 @@ fn bb_make(tag str) BasicBlock {
 	bb_next_id++;
 	bb_idx[bb.id] = bb;
 	Warn("make bb.@: @ @").n(bb.id).s(tag).x(bb);
+	bb.append(_inst_make(INS_LABEL, bb.id, 0, 0));
 	return bb;
+}
+
+fn (bb BasicBlock) add_set(shadow i32, reg i32) {
+	var inst Inst = _inst_make(INS_SET, shadow, reg, 0);
+	inst.prev = bb.last.prev;
+	inst.next = bb.last;
+	inst.prev.next = inst;
+	inst.next.prev = inst;
+}
+
+fn (bb BasicBlock) add_get(reg i32, shadow i32) {
+	var inst Inst = _inst_make(INS_GET, reg, shadow, 0);
+	inst.prev = bb.first;
+	inst.next = bb.first.next;
+	inst.prev.next = inst;
+	if inst.next {
+		inst.next.prev = inst;
+	} else {
+		bb.last = inst;
+	}
 }
 
 fn (bb BasicBlock) place() {
@@ -507,8 +546,56 @@ fn dump_bb_list(os OutStream, bl BlockList, graph bool) {
 	}
 }
 
+var global_ic i32 = 0;
 
-var global_next i32 = 1;
+// TODO: make this nondestructive so we can do it
+// at multiple stages of optimization, etc
+fn serialize_fn(fd i32, blist BlockList) {
+	var bl BlockList = blist;
+	// count the fn header as an instruction, since it'll be
+	// transformed into one on load, but don't include it
+	// in the count
+	global_ic++;
+	var n i32 = global_ic;
+	while bl != nil {
+		// record the instruction number in each block's label
+		bl.bb.first.c = global_ic;
+		var inst Inst = bl.bb.first;
+		while inst != nil {
+			global_ic++;
+			inst = inst.next;
+		}
+		bl = bl.next;
+	}
+
+	bl = blist;
+	writeu32(fd, TAG_IR_FUNC);
+	writeu32(fd, global_ic - n); // ins count
+	writeu32(fd, bl.bb.first.b); // global name id
+	writeu32(fd, reg_next);      // max virtual reg used
+	while bl != nil {
+		var inst Inst = bl.bb.first;
+		while inst != nil {
+			var op u32 = inst.op & INS_OP_MASK;
+			// translate bb.ids to instruction numbers via labels
+			if op == INS_JUMP {
+				inst.a = bb_idx[inst.a].first.c;
+			}
+			if op == INS_BRANCH {
+				inst.b = bb_idx[inst.b].first.c;
+				inst.c = bb_idx[inst.c].first.c;
+			}
+			writeu32(fd, inst.op);
+			writeu32(fd, inst.a);
+			writeu32(fd, inst.b);
+			writeu32(fd, inst.c);
+			inst = inst.next;
+		}
+		bl = bl.next;
+	}
+}
+
+var global_next i32 = 0;
 var global_names []*String;
 
 // obtain a global identifier for call instruction use
@@ -523,6 +610,32 @@ fn get_global_id(name String) i32 {
 	global_next = n + 1;
 	global_names[n] = name;
 	return n;
+}
+
+fn serialize_header(fd i32) {
+	writeu32(fd, TAG_IR_XIR0);
+	writeu32(fd, 0);
+	writeu32(fd, 0);
+	writeu32(fd, 0);
+}
+
+fn serialize_globals(fd i32) {
+	var i i32 = 0;
+	writeu32(fd, TAG_IR_GLBL);
+	writeu32(fd, global_next);
+	while i < global_next {
+		writeu32(fd, strlen(global_names[i]));
+		i++;
+	}
+	i = 0;
+	while i < global_next {
+		write(fd, global_names[i], 0, strlen(global_names[i]) + 1);
+		i++;
+	}
+}
+
+fn (bb BasicBlock) set_name(name str) {
+	bb.first.b = get_global_id(name);
 }
 
 var label_next i32 = 0;
@@ -556,9 +669,9 @@ fn inst_target_bb(bb BasicBlock) i32 {
 }
 
 // declare a function entrypoint
-fn inst_label_global(name String) i32 {
-	return inst_make(INS_LABEL, get_global_id(name), 1, 0);
-}
+//fn inst_label_global(name String) i32 {
+//	return inst_make(INS_LABEL, get_global_id(name), 1, 0);
+//}
 
 // ALU instructions
 // Default variant allocates a register for the target
@@ -696,9 +809,9 @@ fn inst_disasm(os OutStream, ins Inst) {
 		imm = "i";
 	}
 	if op == INS_NOT {
-		os.fmt("    not @, @\n").reg(ins.a).reg(ins.b);
+		os.fmt("    not @, @\n").reg(ins.a).reg(ins.c);
 	} else if op == INS_NEG {
-		os.fmt("    neg @, @\n").reg(ins.a).reg(ins.b);
+		os.fmt("    neg @, @\n").reg(ins.a).reg(ins.c);
 	} else if op < INS_MOV {
 		// ALU and CMP instructions
 		os.fmt("    @@ @, @, @\n").s(iop_name[op]).s(imm).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
@@ -707,10 +820,12 @@ fn inst_disasm(os OutStream, ins Inst) {
 	} else if (op == INS_LOAD) | (op == INS_STORE) {
 		var sz str = isz_name[(ins.op & INF_SZ_MASK) >> INF_SZ_SHIFT];
 		os.fmt("    @@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
-	} else if op <= INS_PHI {
-		os.fmt("    phi @, @, @\n").reg(ins.a).reg(ins.b).reg(ins.c);
 	} else if op == INS_LABEL {
-		os.fmt("    func @\n").s(global_names[ins.a]);
+		if ins.b != 0 {
+			os.fmt("    label bb.@, \"@\"\n").n(ins.a).s(global_names[ins.b]);
+		} else {
+			os.fmt("    label bb.@\n").n(ins.a);
+		}
 	} else if op == INS_JUMP {
 		os.fmt("    jump @\n").label(ins.a);
 	} else if op == INS_BRANCH {
@@ -719,6 +834,10 @@ fn inst_disasm(os OutStream, ins Inst) {
 		os.fmt("    call @\n").s(global_names[ins.a]);
 	} else if op == INS_RET {
 		os.fmt("    ret @\n").reg(ins.a);
+	} else if op == INS_SET {
+		os.fmt("    set '@, @\n").n(ins.a).reg(ins.b);
+	} else if op == INS_GET {
+		os.fmt("    get @, '@\n").reg(ins.a).n(ins.b);
 	} else {
 		os.fmt("    inval 0x@\n").x(ins.op);
 	}

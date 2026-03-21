@@ -35,7 +35,7 @@ fn gen_binop(node Ast, op IRop) i32 {
 }
 
 fn gen_unop(node Ast, op IRop) i32 {
-	return inst_alu(op, gen_expr(node.left), 0);
+	return inst_alu(op, 0, gen_expr(node.left));
 }
 
 fn gen_bool_not(node Ast) i32 {
@@ -313,12 +313,12 @@ fn gen_fn(node Ast) {
 	func_exit.flags |= BB_EXIT;
 
 	func_enter.flags |= BB_ENTRY;
+	func_enter.set_name(node.sym.name.text);
 	func_enter.place();
 	func_enter.activate();
 	func_enter.seal();
 
 	// housekeeping
-	inst_label_global(node.sym.name.text);
 	local_max = 0;
 	setup_locals(node.left, 12);
 
@@ -366,15 +366,18 @@ fn gen_fn(node Ast) {
 		fd_close(gs.fd);
 	}
 
+	serialize_fn(os.fd, bb_order_first);
 }
 
 fn gen_functions(node Ast) {
+	serialize_header(os.fd);
 	while node != nil {
 		if node.kind == AST_FUNC {
 			gen_fn(node);
 		}
 		node = node.next;
 	}
+	serialize_globals(os.fd);
 }
 
 fn gen_global_addrs(node Ast) { //dup
@@ -415,7 +418,7 @@ fn gen(outfd i32, node Ast) {
 	}
 	ir_init();
 	os = OutFd(outfd);
-	emit("// ir-gen\n");
+	//emit("// ir-gen\n");
 	gen_global_addrs(node);
 	gen_functions(node);
 	// gen_global_inits(node);
