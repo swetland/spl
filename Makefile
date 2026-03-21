@@ -1,6 +1,6 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/asm out/emu out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.bin
+all: out/asm out/emu out/iremu out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.bin
 
 test: out/test/summary.txt
 
@@ -13,6 +13,14 @@ freeze2a: out/compiler2a.bin
 	cp -f out/compiler2a.bin frozen/compiler2a.bin
 
 freeze:: freeze1 freeze2a
+
+out/gen/ir.h: compiler/ir-types.spl
+	@mkdir -p out/gen
+	sed -e '/iop_name/,$$d' $< > $@
+
+out/iremu: iremu/iremu.c out/gen/ir.h
+	@mkdir -p out
+	gcc -g -O2 -Wall -Iout/gen -o $@ iremu/iremu.c
 
 # compiler0: bootstrap SPL->C transpiler
 #
@@ -91,7 +99,7 @@ out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
 out/compiler3a.s32: out/compiler2b.bin out/emu $(COMPILER3_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 3A COMPILER USING STAGE 2B COMPILER ###'
-	./out/emu -q ./out/compiler2b.bin -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
+	./out/emu -q ./out/compiler2b.bin -stats -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
 
 COMPILER3A_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3a.s32
 out/compiler3a.bin: ./out/asm $(COMPILER3A_ASM)
@@ -118,7 +126,7 @@ TESTDEPS0 += $(wildcard bootstrap/inc/*.h) $(wildcard bootstrap/inc/*.c)
 TESTDEPSX := out/asm out/emu build/runtest build/stdlib-abi0.spl build/stdlib-abi0.s32
 TESTDEPS1 := $(TESTDEPSX) out/compiler1
 TESTDEPS2 := $(TESTDEPSX) out/compiler2a.bin
-TESTDEPS3 := $(TESTDEPSX) out/compiler3a.bin
+TESTDEPS3 := $(TESTDEPSX) out/compiler3a.bin out/iremu
 
 SRCTESTS := $(sort $(wildcard test/*.spl))
 
