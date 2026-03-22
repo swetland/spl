@@ -31,20 +31,23 @@ out/compiler0: bootstrap/compiler0.c
 	gcc -g -O0 -Wall -o out/compiler0 bootstrap/compiler0.c
 
 # front end and common code shared among stage1 and later
-COMPILERX_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl
-COMPILERX_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
+FRONTEND_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl
+FRONTEND_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
+
+# sr32 compiler backend used by stage1 and stage2
+GEN_SR32_SRC += compiler/gen-global-data.spl compiler/gen-sr32-abi0.spl
 
 # full compiler backend used by stage3
-COMPILERY_SRC := compiler/ir-types-sr32.spl compiler/ir-types.spl compiler/ir-gen.spl
+GEN_IR_SRC := compiler/ir-types-sr32.spl compiler/ir-types.spl compiler/ir-gen.spl
 
 # stage1 which is built by the transpiler
-COMPILER1_SRC := build/stdlib-stub.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
+COMPILER1_SRC := build/stdlib-stub.spl $(FRONTEND_SRC) $(GEN_SR32_SRC) compiler/main.spl
 
 # stage2 which is built by stage1
-COMPILER2_SRC := build/stdlib-abi0.spl $(COMPILERX_SRC) compiler/gen-sr32-abi0.spl compiler/main.spl
+COMPILER2_SRC := build/stdlib-abi0.spl $(FRONTEND_SRC) $(GEN_SR32_SRC) compiler/main.spl
 
 # stage3 which is built by stage2
-COMPILER3_SRC := build/stdlib-abi0.spl $(COMPILERX_SRC) $(COMPILERY_SRC) compiler/main.spl
+COMPILER3_SRC := build/stdlib-abi0.spl $(FRONTEND_SRC) $(GEN_IR_SRC) compiler/main.spl
 
 # compiler1: SPL compiler written in SPL
 #

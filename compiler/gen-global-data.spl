@@ -1,0 +1,132 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+// Shared code for managing data chunks
+
+fn GenError(node Ast, msg str) OutStream {
+	writes(2, "\n");
+	print_srcloc(2, node.srcloc);
+	writes(2, ": error: ");
+	return make_OutStream(msg, 2, OS_FATAL | OS_NEWLINE | OS_INTERRUPT, nil);
+}
+
+enum DataChunkKind {
+	DATA_U8,
+	DATA_U32,
+	DATA_PTR,
+};
+
+struct DataChunk {
+	next *DataChunk,
+	data *[]u32,
+	kind u32,
+	count u32,
+	id u32,
+};
+
+fn emit_data_chunk(dc DataChunk);
+
+var data_id u32 = 0;
+var data_first DataChunk = nil;
+var data_last DataChunk = nil;
+
+fn make_data_chunk(kind u32, n u32) DataChunk {
+	var dc DataChunk = new(DataChunk);
+	if kind == DATA_U8 {
+		// bytecount to wordcount, rounding up
+		n = (n + 3) >> 2;
+	}
+	dc.next = nil;
+	dc.data = __new(n * 4);
+	dc.kind = kind;
+	dc.count = n;
+	dc.id = data_id;
+	if data_last == nil {
+		data_first = dc;
+	} else {
+		data_last.next = dc;
+	}
+	data_last = dc;
+	data_id++;
+	return dc;
+}
+
+fn write_data_chunk(dc DataChunk, idx u32, val u32) {
+	if dc.kind == DATA_U8 {
+		val = (val & 0xFF) << ((idx & 3) * 8);
+		dc.data[idx >> 2] |= val;
+	} else {
+		dc.data[idx] = val;
+	}
+}
+
+fn make_string_chunk(s str) u32 {
+	var len i32 = strlen(s);
+	// include terminator \0
+	var dc DataChunk = make_data_chunk(DATA_U8, len + 1);
+	var n i32 = 0;
+	while n < len {
+		write_data_chunk(dc, n, s[n]);
+		n++;
+	}
+	return dc.id;
+}
+
+fn emit_data_chunks() {
+	var dc DataChunk = data_first;
+	while dc != nil {
+		emit_data_chunk(dc);
+		dc = dc.next;
+	}
+	data_first = nil;
+	data_last = nil;
+}
+
+fn gen_global_addrs(node Ast) {
+	var n i32 = 0;
+	while node != nil {
+		if node.kind == AST_ASSIGN {
+			var sym Symbol = node.left.sym;
+			sym.ival = n;
+			n += 4;
+		}
+		node = node.next;
+	}
+}
+
+fn gen_global_array_init(node Ast) u32 {
+	var kind i32 = DATA_U32;
+	if node.kind == AST_STRING {
+		return make_string_chunk(node.sval.text);
+	}
+	var sz i32 = node.ival;
+	if node.kind == AST_ARRAY {
+		var tsz i32 = type_size(node.type);
+		if node.type.kind == TYPE_POINTER {
+			kind = DATA_PTR;
+		} else if type_size(node.type) == 1 {
+			kind = DATA_U8;
+		} else {
+			sz = sz * tsz / 4;
+		}
+	} else {
+		GenError(node, "illegal array init");
+	}
+	var dc DataChunk = make_data_chunk(kind, sz);
+	node = node.left;
+	var n i32 = 0;
+	while node != nil {
+		//TODO: advance by stride
+		var v u32;
+		if kind == DATA_PTR {
+			v = gen_global_array_init(node);
+		} else {
+			v = eval_const_expr(node);
+		}
+		write_data_chunk(dc, n, v);
+		node = node.next;
+		n++;
+	}
+	return dc.id;
+}
+
