@@ -201,7 +201,7 @@ static DataChunk *dclist = NULL;
 
 int32_t load(State *s, const char *fn) {
 	int32_t *gentry = 0;
-	int32_t start = 0;
+	int32_t start = 0xffffffff;
 	int fd = open(fn, O_RDONLY);
 	uint32_t n;
 	if (fd < 0) die("cannot open '%s'", fn);
@@ -289,7 +289,7 @@ int32_t load(State *s, const char *fn) {
 			i->a = gentry[i->a];
 		}
 	}
-	if (start < 0) die("no start function");
+	if (start == 0xffffffff) die("no start function");
 	return start;
 }
 
