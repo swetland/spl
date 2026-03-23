@@ -28,6 +28,26 @@ enum IRflag {
 	INF_IS_LABEL =  0x1000, // is a label (start of a bb)
 	INF_IS_ALU =    0x2000, // is an ALU op
 	INF_IS_MEM =    0x4000, // load or store
+
+	// indicate which arguments affect registers
+	INF_USE_A =    0x10000, // uses register in arg A
+	INF_USE_B =    0x20000, // uses register in arg B
+	INF_USE_C =    0x40000, // uses register in arg C
+	INF_SET_A =    0x80000, // sets register in arg A
+
+	// shortcuts for definition
+	INX_BINOP =    INF_IS_ALU | INF_SET_A | INF_USE_B | INF_USE_C,
+	INX_UNOP  =    INF_IS_ALU | INF_SET_A | INF_USE_C,
+	INX_LOAD  =    INF_IS_MEM | INF_SET_A | INF_USE_B | INF_USE_C,
+	INX_STORE =    INF_IS_MEM | INF_USE_A | INF_USE_B | INF_USE_C,
+	INX_LABEL =    INF_IS_LABEL,
+	INX_JUMP  =    INF_IS_B_U,
+	INX_BRANCH =   INF_IS_B_C | INF_USE_A,
+	INX_CALL =     0,
+	INX_RET =      INF_IS_RET,
+	INX_SET =      INF_USE_B,
+	INX_GET =      INF_SET_A,
+	INX_CDATA =    INF_SET_A,
 };
 
 enum IRop {
@@ -73,7 +93,8 @@ enum IRop {
 	INS_SET,     // SET Sa, Rb  (aka upsilon)
 	INS_GET,     // GET Ra, Sb  (aka phi)
 
-	INS_COUNT,   // total unique opcodes (31)
+	INS_CDATA,   // cdata Ra, IDb, OFFc
+	INS_COUNT,   // total unique opcodes (32)
 
 	INS_OP_MASK = 0x3f,
 };
@@ -82,22 +103,24 @@ var iop_name [INS_COUNT]str = {
 	"add", "sub", "mul", "udiv", "sdiv",
 	"urem", "srem", "lsl", "lsr", "asr",
 	"and", "or", "xor",
-	"cmpeq", "cmpne", "cmplt", "cmple", "cmpgt", "cmpge",
-	"not", "neg",
-	"mv", "ld", "st",
+	"cmpeq", "cmpne", "cmplt",
+	"cmple", "cmpgt", "cmpge",
+	"not", "neg", "mv",
+	"ld", "st",
 	"label", "jump", "branch", "call", "ret",
-	"set", "get",
+	"set", "get", "cdata",
 };
 
 var iop_props [INS_COUNT]u32 = {
-	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
-	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
-	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
-	INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU, INF_IS_ALU,
-	INF_IS_ALU, INF_IS_ALU,
-	0, INF_IS_MEM, INF_IS_MEM,
-	INF_IS_LABEL, INF_IS_B_U, INF_IS_B_C, 0, INF_IS_RET,
-	0, 0,
+	INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_UNOP, INX_UNOP, INX_UNOP,
+	INX_LOAD, INX_STORE,
+	INX_LABEL, INX_JUMP, INX_BRANCH, INX_CALL, INX_RET,
+	INX_SET, INX_GET, INX_CDATA,
 };
 
 var isz_name [4]str = { "b", "h", "w", "d" };
@@ -655,13 +678,15 @@ fn (bb BasicBlock) set_name(name str) {
 	bb.first.b = get_global_id(name);
 }
 
-var label_next i32 = 0;
-var label_idx []*Inst;
-
 fn _inst_make(op u32, a i32, b i32, c i32) Inst {
 	// add opcode-specific property bitflags to allow
 	// for quick property testing
 	op |= iop_props[op & INS_OP_MASK];
+
+	// immediate variants do not use arg c as a register
+	if op & INF_C_IMM {
+		op &= (~INF_USE_C);
+	}
 
 	var ins Inst = new(Inst);
 	ins.next = nil;
@@ -684,11 +709,6 @@ fn inst_target_bb(bb BasicBlock) i32 {
 	// do other housekeeping
 	return bb.id;
 }
-
-// declare a function entrypoint
-//fn inst_label_global(name String) i32 {
-//	return inst_make(INS_LABEL, get_global_id(name), 1, 0);
-//}
 
 // ALU instructions
 // Default variant allocates a register for the target
@@ -868,6 +888,5 @@ fn (os OutStream) ins(i Inst) OutStream {
 fn ir_init() {
 	bb_idx = new([1024]*BasicBlock);
 	global_names = new([1024]*String);
-	label_idx = new([1024]*Inst);
 }
 
