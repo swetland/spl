@@ -634,6 +634,23 @@ fn serialize_globals(fd i32) {
 	}
 }
 
+fn serialize_data_chunk(fd i32, dc DataChunk) {
+	writeu32(fd, TAG_IR_DATA);
+	writeu32(fd, dc.count);
+	writeu32(fd, dc.id);
+	writeu32(fd, 0);
+	var n u32 = 0;
+	while n < dc.count {
+		writeu32(fd, dc.data[n]);
+		n++;
+	}
+	n = 0;
+	while n < dc.count {
+		writeu32(fd, dc.pmap[n]);
+		n += 32;
+	}
+}
+
 fn (bb BasicBlock) set_name(name str) {
 	bb.first.b = get_global_id(name);
 }

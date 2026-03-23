@@ -10,13 +10,6 @@ fn emit(msg str) OutStream {
 	return os;
 }
 
-fn GenError(node Ast, msg str) OutStream {
-	writes(2, "\n");
-	print_srcloc(2, node.srcloc);
-	writes(2, ": error: ");
-	return make_OutStream(msg, 2, OS_FATAL | OS_NEWLINE, nil);
-}
-
 // ----
 
 var func_exit BasicBlock = nil;
@@ -370,23 +363,9 @@ fn gen_fn(node Ast) {
 }
 
 fn gen_functions(node Ast) {
-	serialize_header(os.fd);
 	while node != nil {
 		if node.kind == AST_FUNC {
 			gen_fn(node);
-		}
-		node = node.next;
-	}
-	serialize_globals(os.fd);
-}
-
-fn gen_global_addrs(node Ast) { //dup
-	var n i32 = 0;
-	while node != nil {
-		if node.kind == AST_ASSIGN {
-			var sym Symbol = node.left.sym;
-			sym.ival = n;
-			n += 4;
 		}
 		node = node.next;
 	}
@@ -400,6 +379,10 @@ fn get_outfile(enable bool, name str, ext str) OutStream {
 	fname = strcat(fname, name);
 	fname = strcat(fname, ext);
 	return OutFd(fd_create(fname));
+}
+
+fn emit_data_chunk(dc DataChunk) {
+	serialize_data_chunk(os.fd, dc);
 }
 
 fn gen(outfd i32, node Ast) {
@@ -418,8 +401,13 @@ fn gen(outfd i32, node Ast) {
 	}
 	ir_init();
 	os = OutFd(outfd);
-	//emit("// ir-gen\n");
 	gen_global_addrs(node);
+	gen_global_data(node);
+
+	serialize_header(os.fd);
 	gen_functions(node);
-	// gen_global_inits(node);
+	emit_data_chunks();
+
+	// these are always last
+	serialize_globals(os.fd);
 }
