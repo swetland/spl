@@ -38,7 +38,8 @@ FRONTEND_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
 GEN_SR32_SRC += compiler/gen-global-data.spl compiler/gen-sr32-abi0.spl
 
 # full compiler backend used by stage3
-GEN_IR_SRC := compiler/ir-types-sr32.spl compiler/ir-types.spl compiler/ir-gen.spl
+GEN_IR_SRC := compiler/gen-global-data.spl
+GEN_IR_SRC += compiler/ir-types-sr32.spl compiler/ir-types.spl compiler/ir-gen.spl
 
 # stage1 which is built by the transpiler
 COMPILER1_SRC := build/stdlib-stub.spl $(FRONTEND_SRC) $(GEN_SR32_SRC) compiler/main.spl

@@ -19,6 +19,7 @@ enum DataChunkKind {
 struct DataChunk {
 	next *DataChunk,
 	data *[]u32,
+	pmap *[]u32,
 	kind u32,
 	count u32,
 	id u32,
@@ -35,6 +36,9 @@ fn make_data_chunk(kind u32, n u32) DataChunk {
 	if kind == DATA_U8 {
 		// bytecount to wordcount, rounding up
 		n = (n + 3) >> 2;
+	} else {
+		// allocate a pointer map
+		dc.pmap = __new((n + 31) >> 5);
 	}
 	dc.next = nil;
 	dc.data = __new(n * 4);
@@ -51,12 +55,15 @@ fn make_data_chunk(kind u32, n u32) DataChunk {
 	return dc;
 }
 
-fn write_data_chunk(dc DataChunk, idx u32, val u32) {
+fn write_data_chunk(dc DataChunk, idx u32, val u32, is_ptr bool) {
 	if dc.kind == DATA_U8 {
 		val = (val & 0xFF) << ((idx & 3) * 8);
 		dc.data[idx >> 2] |= val;
 	} else {
 		dc.data[idx] = val;
+		if is_ptr {
+			dc.pmap[idx >> 5] |= 1 << (idx & 31);
+		}
 	}
 }
 
@@ -66,7 +73,7 @@ fn make_string_chunk(s str) u32 {
 	var dc DataChunk = make_data_chunk(DATA_U8, len + 1);
 	var n i32 = 0;
 	while n < len {
-		write_data_chunk(dc, n, s[n]);
+		write_data_chunk(dc, n, s[n], false);
 		n++;
 	}
 	return dc.id;
@@ -117,16 +124,51 @@ fn gen_global_array_init(node Ast) u32 {
 	var n i32 = 0;
 	while node != nil {
 		//TODO: advance by stride
-		var v u32;
 		if kind == DATA_PTR {
-			v = gen_global_array_init(node);
+			write_data_chunk(dc, n, gen_global_array_init(node), true);
 		} else {
-			v = eval_const_expr(node);
+			write_data_chunk(dc, n, eval_const_expr(node), false);
 		}
-		write_data_chunk(dc, n, v);
 		node = node.next;
 		n++;
 	}
 	return dc.id;
+}
+
+fn gen_global_data(all Ast) {
+	var node Ast = all;
+	var n i32 = 0;
+	while node != nil {
+		if node.kind == AST_ASSIGN {
+			n++;
+		}
+		node = node.next;
+	}
+	if n == 0 {
+		return;
+	}
+	var dc DataChunk = make_data_chunk(DATA_U32, n);
+	node = all;
+	n = 0;
+	while node != nil {
+		if node.kind == AST_ASSIGN {
+			var sym Symbol = node.left.sym;
+			// global word: sym.name.text
+			if node.right.kind == AST_STRING {
+				var id u32 = make_string_chunk(node.right.sval.text);
+				write_data_chunk(dc, n, id, true);
+			} else if node.right.kind == AST_ARRAY {
+				var id u32 = gen_global_array_init(node.right);
+				write_data_chunk(dc, n, id, true);
+			} else if node.right.kind == AST_ASSIGN {
+				GenError(node, "global struct init unsupported");
+			} else {
+				var val i32 = eval_const_expr(node.right);
+				write_data_chunk(dc, n, val, false);
+			}
+			n++;
+		}
+		node = node.next;
+	}
 }
 
