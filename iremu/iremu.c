@@ -186,6 +186,19 @@ static uint32_t rd32(int fd) {
 	return n;
 }
 
+typedef struct DataChunk DataChunk;
+struct DataChunk {
+	DataChunk *next;
+	uint32_t id;
+	uint32_t count;
+	uint32_t flags;
+	uint32_t addr;
+	uint32_t *pmap;
+	uint32_t data[0];
+};
+
+static DataChunk *dclist = NULL;
+
 int32_t load(State *s, const char *fn) {
 	int32_t *gentry = 0;
 	int32_t start = 0;
@@ -211,6 +224,20 @@ int32_t load(State *s, const char *fn) {
 			n = icount * sizeof(Inst);
 			if (read(fd, s->code + s->pcmax, n) != n) die("read fail: code");
 			s->pcmax += icount;
+		} else if (n == TAG_IR_DATA) {
+			uint32_t count = rd32(fd);
+			uint32_t id = rd32(fd);
+			uint32_t flags = rd32(fd);
+			// combined size of data chunk words + pmap
+			uint32_t n = (count + ((count + 31) >> 5)) * sizeof(uint32_t);
+			DataChunk *dc = calloc(1, sizeof(DataChunk) + n);
+			dc->id = id;
+			dc->count = count;
+			dc->flags = flags;
+			dc->pmap = dc->data + count;
+			dc->next = dclist;
+			dclist = dc;
+			if (read(fd, dc->data, n) != n) die("read fail: data chunk");
 		} else if (n == TAG_IR_GLBL) {
 			s->gmax = rd32(fd);
 			n = s->gmax * sizeof(int32_t);
@@ -266,6 +293,54 @@ int32_t load(State *s, const char *fn) {
 	return start;
 }
 
+static DataChunk *dc_find(uint32_t id) {
+	DataChunk *dc = dclist;
+	while (dc != NULL) {
+		if (dc->id == id) {
+			return dc;
+		}
+		dc = dc->next;
+	}
+	die("missing data chunk #%d", id);
+	return NULL;
+}
+
+void setup_data(State *s) {
+	uint32_t addr = 2 * 1024 * 1024;
+	s->pr[3] = addr; // init $gp
+	if (dclist == NULL) return;
+	if (dclist->id != 0) {
+		die("first data chunk is #%d (not 0)", dclist->id);
+	}
+	// assign chunks to ram ranges
+	DataChunk *dc = dclist;
+	while (dc != NULL) {
+		dc->addr = addr;
+		addr += dc->count * sizeof(uint32_t);
+		dc = dc->next;
+	}
+	// resolve pointers from dc id to address
+	dc = dclist;
+	while (dc != NULL) {
+		for (uint32_t n = 0; n < dc->count; n++) {
+			// for every pointer word
+			if (dc->pmap[n >> 5] & (1 << (n & 31))) {
+				// translate ID to global address
+				dc->data[n] = dc_find(dc->data[n])->addr;
+			}
+		}
+		dc = dc->next;
+	}
+	// copy chunk data into ram
+	dc = dclist;
+	while (dc != NULL) {
+		for (uint32_t n = 0; n < dc->count; n++) {
+			memwr(s, INF_SZ_U32, dc->addr + n * sizeof(uint32_t), dc->data[n]);
+		}
+		dc = dc->next;
+	}
+}
+
 int main(int argc, char **argv) {
 	State *s = calloc(1, sizeof(State));
 	s->code = malloc(1 * 1024 * 1024);
@@ -278,7 +353,9 @@ int main(int argc, char **argv) {
 	if (argc != 2) {
 		return -1;
 	}
-	emu(s, load(s, argv[1]));
+	uint32_t entry = load(s, argv[1]);
+	setup_data(s);
+	emu(s, entry);
 	printf("X %08x\n", s->pr[5]);
 	return 0;
 }
