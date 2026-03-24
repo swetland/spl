@@ -87,7 +87,7 @@ fn gen_call(fcall Ast) i32 {
 
 	// TODO: possibly better way to get the (mangled) canonical
 	// function name from a method than indirecting through the type?
-	inst_call(sym.type.name.text);
+	inst_call(sym.type.name);
 	inst_aluix(INS_ADD, REG_SP, REG_SP, sym.type.count * 4);
 	return inst_mov(REG_RV);
 
@@ -306,7 +306,7 @@ fn gen_fn(node Ast) {
 	func_exit.flags |= BB_EXIT;
 
 	func_enter.flags |= BB_ENTRY;
-	func_enter.set_name(node.sym.name.text);
+	func_enter.set_name(node.sym.name);
 	func_enter.place();
 	func_enter.activate();
 	func_enter.seal();

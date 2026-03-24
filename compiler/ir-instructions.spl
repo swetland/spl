@@ -1,0 +1,368 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+// serialized IR block types
+enum IRtag {
+	TAG_IR_XIR0 = 0x00524958, // XIR0 <res0> <res1> <res2>
+	TAG_IR_FUNC = 0x434e5546, // FUNC <count> <id> <maxvr> Inst * count
+	TAG_IR_DATA = 0x41544144, // DATA <count> <id> <flags> Word * count
+	TAG_IR_GLBL = 0x4c424c47, // GLBL <count> <len> * count stringdata
+};
+
+enum IRflag {
+	// arg c is immediate, for ALU and CMP ops
+	INF_C_IMM =     0x0100,
+
+	// size flags for LD/ST ops
+	INF_SZ_U8 =     0x0000,
+	INF_SZ_U16 =    0x0040,
+	INF_SZ_U32 =    0x0080,
+	INF_SZ_MASK =   0x00C0,
+	INF_SZ_SHIFT =  6,
+
+	// property bits
+	INF_IS_B_U =    0x0200, // is unconditional branch
+	INF_IS_B_C =    0x0400, // is conditional branch
+	INF_IS_B =      0x0600, // is any kind of branch
+	INF_IS_RET =    0x0800, // is a return op
+	INF_IS_EOBB =   0x0E00, // is an end of a bb (a branch or return)
+	INF_IS_LABEL =  0x1000, // is a label (start of a bb)
+	INF_IS_ALU =    0x2000, // is an ALU op
+	INF_IS_MEM =    0x4000, // load or store
+
+	// indicate which arguments affect registers
+	INF_USE_A =    0x00000, // uses register in arg A
+	INF_USE_B =    0x00000, // uses register in arg B
+	INF_USE_C =    0x00000, // uses register in arg C
+	INF_SET_A =    0x00000, // sets register in arg A
+
+	//INF_USE_A =    0x10000, // uses register in arg A
+	//INF_USE_B =    0x20000, // uses register in arg B
+	//INF_USE_C =    0x40000, // uses register in arg C
+	//INF_SET_A =    0x80000, // sets register in arg A
+
+	// shortcuts for definition
+	INX_BINOP =    INF_IS_ALU | INF_SET_A | INF_USE_B | INF_USE_C,
+	INX_UNOP  =    INF_IS_ALU | INF_SET_A | INF_USE_C,
+	INX_LOAD  =    INF_IS_MEM | INF_SET_A | INF_USE_B | INF_USE_C,
+	INX_STORE =    INF_IS_MEM | INF_USE_A | INF_USE_B | INF_USE_C,
+	INX_LABEL =    INF_IS_LABEL,
+	INX_JUMP  =    INF_IS_B_U,
+	INX_BRANCH =   INF_IS_B_C | INF_USE_A,
+	INX_CALL =     0,
+	INX_RET =      INF_IS_RET,
+	INX_SET =      INF_USE_B,
+	INX_GET =      INF_SET_A,
+	INX_CDATA =    INF_SET_A,
+};
+
+enum IRop {
+	// binary ALU ops
+	INS_ADD,     // ADD Ra, Rb, Rc       Ra = Rb + Rc
+	INS_SUB,     // SUBI Ra, Rb, IMMc    Ra = Rb - IMMc
+	INS_MUL,
+	INS_UDIV,
+	INS_SDIV,
+	INS_UREM,
+	INS_SREM,
+
+	INS_LSL,
+	INS_LSR,
+	INS_ASR,
+	INS_AND,
+	INS_OR,
+	INS_XOR,
+
+	INS_CMP_EQ,  // CEQ Ra, Rb, RC      Ra = (Rb == Rc) ? 0 : ~0
+	INS_CMP_NE,
+	INS_CMP_LT,
+	INS_CMP_LE,
+	INS_CMP_GT,
+	INS_CMP_GE,
+
+	// unary ALU ops
+	INS_NOT,     // NOT Ra, Rc           Ra = ~Rc
+	INS_NEG,     // NEG Ra, Rc           Ra = -Rc
+
+	INS_MOV,     // MOV Ra, Rc           Ra = Rc
+
+	INS_LOAD,    // LDW Ra, Rb, Rc       Ra = MEM[Rb + Rc]
+	INS_STORE,   // STBI Ra, Rb, IMMc    MEM[Rb + IMMc] = Ra
+
+	INS_LABEL,   // LABEL BBa (, Gb)
+	INS_JUMP,    // JUMP La
+	INS_BRANCH,  // BRANCH Ca, Lb, Lc    if Ca != 0 then ->Lb else ->Lc
+	INS_CALL,    // CALL La
+	INS_RET,     // RET Ra
+
+	INS_SET,     // SET Sa, Rb  (aka upsilon)
+	INS_GET,     // GET Ra, Sb  (aka phi)
+
+	INS_CDATA,   // cdata Ra, IDb, OFFc
+	INS_COUNT,   // total unique opcodes (32)
+
+	INS_OP_MASK = 0x3f,
+};
+
+var iop_name [INS_COUNT]str = {
+	"add", "sub", "mul", "udiv", "sdiv",
+	"urem", "srem", "lsl", "lsr", "asr",
+	"and", "or", "xor",
+	"cmpeq", "cmpne", "cmplt",
+	"cmple", "cmpgt", "cmpge",
+	"not", "neg", "mv",
+	"ld", "st",
+	"label", "jump", "branch", "call", "ret",
+	"set", "get", "cdata",
+};
+
+var iop_props [INS_COUNT]u32 = {
+	INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_BINOP, INX_BINOP, INX_BINOP,
+	INX_UNOP, INX_UNOP, INX_UNOP,
+	INX_LOAD, INX_STORE,
+	INX_LABEL, INX_JUMP, INX_BRANCH, INX_CALL, INX_RET,
+	INX_SET, INX_GET, INX_CDATA,
+};
+
+var isz_name [4]str = { "b", "h", "w", "d" };
+
+struct Inst {
+	next *Inst,
+	prev *Inst,
+	op u32,
+	a i32,
+	b i32,
+	c i32,
+};
+
+// implementation in ir-blocks.spl
+struct BasicBlock {
+	first *Inst,
+	last *Inst,
+	phi *Phi,
+	flags u32,
+	// List of predecessor blocks
+	prev *BlockList,
+	count i32,
+	// up to two succesor blocks
+	next0 *BasicBlock,
+	next1 *BasicBlock,
+	id u32,
+	//pcount u32,
+	tag str,
+};
+
+// obtain a fresh virtual register
+fn ir_reg_get() i32;
+
+// trade strings for global IDs and IDs for strings
+fn ir_string_get(name String) i32;
+fn ir_string(id i32) str;
+
+fn _inst_make(op u32, a i32, b i32, c i32) Inst {
+	// add opcode-specific property bitflags to allow
+	// for quick property testing
+	op |= iop_props[op & INS_OP_MASK];
+
+	// immediate variants do not use arg c as a register
+	if op & INF_C_IMM {
+		op &= (~INF_USE_C);
+	}
+
+	var ins Inst = new(Inst);
+	ins.next = nil;
+	ins.prev = nil;
+	ins.op = op;
+	ins.a = a;
+	ins.b = b;
+	ins.c = c;
+	return ins;
+}
+
+// allocate an instruction and add it to the active bb
+// implemented in ir-blocks.spl
+fn inst_make(op u32, a i32, b i32, c i32) i32;
+
+fn inst_target_bb(bb BasicBlock) i32 {
+	// do other housekeeping
+	return bb.id;
+}
+
+// ALU instructions
+// Default variant allocates a register for the target
+// and returns that register.
+// X variant is passed the target register and uses that.
+// I variant treats second argument as an immediate
+fn inst_alu(op u32, b i32, c i32) i32 {
+	if op >= INS_MOV { Error("inst_alu invalid alu op"); }
+	return inst_make(op, ir_reg_get(), b, c);
+}
+fn inst_alui(op u32, b i32, imm i32) i32 {
+	if op >= INS_MOV { Error("inst_alui invalid alu op"); }
+	return inst_make(op | INF_C_IMM, ir_reg_get(), b, imm);
+}
+fn inst_aluix(op u32, a i32, b i32, imm i32) {
+	if op >= INS_MOV { Error("inst_alui invalid alu op"); }
+	inst_make(op | INF_C_IMM, a, b, imm);
+}
+fn inst_movi(imm i32) i32 {
+	return inst_make(INS_MOV | INF_C_IMM, ir_reg_get(), 0, imm);
+}
+fn inst_mov(c i32) i32 {
+	return inst_make(INS_MOV, ir_reg_get(), 0, c);
+}
+fn inst_movx(a i32, c i32) i32 {
+	return inst_make(INS_MOV, a, 0, c);
+}
+
+// load/store instructions
+// Load instructions allocate and return a target register.
+fn inst_ldb(b i32, c i32) i32 {
+	return inst_make(INS_LOAD | INF_SZ_U8, ir_reg_get(), b, c);
+}
+fn inst_ldw(b i32, c i32) i32 {
+	return inst_make(INS_LOAD | INF_SZ_U32, ir_reg_get(), b, c);
+}
+fn inst_ldbi(b i32, imm i32) i32 {
+	return inst_make(INS_LOAD | INF_SZ_U8 | INF_C_IMM, ir_reg_get(), b, imm);
+}
+fn inst_ldwi(b i32, imm i32) i32 {
+	return inst_make(INS_LOAD | INF_SZ_U32 | INF_C_IMM, ir_reg_get(), b, imm);
+}
+fn inst_ldwix(a i32, b i32, imm i32) {
+	inst_make(INS_LOAD | INF_SZ_U32 | INF_C_IMM, a, b, imm);
+}
+fn inst_stb(a i32, b i32, c i32) {
+	inst_make(INS_STORE | INF_SZ_U8, a, b, c);
+}
+fn inst_stw(a i32, b i32, c i32) {
+	inst_make(INS_STORE | INF_SZ_U32, a, b, c);
+}
+fn inst_stbi(a i32, b i32, imm i32) {
+	inst_make(INS_STORE | INF_SZ_U8 | INF_C_IMM, a, b, imm);
+}
+fn inst_stwi(a i32, b i32, imm i32) {
+	inst_make(INS_STORE | INF_SZ_U32 | INF_C_IMM, a, b, imm);
+}
+
+// flow control
+fn inst_jump(bb BasicBlock) {
+	inst_make(INS_JUMP, inst_target_bb(bb), 0, 0);
+}
+fn inst_branch(cond i32, ttrue BasicBlock, tfalse BasicBlock) {
+	inst_make(INS_BRANCH, cond, inst_target_bb(ttrue), inst_target_bb(tfalse));
+}
+fn inst_call(name String) {
+	inst_make(INS_CALL, ir_string_get(name), 0, 0);
+}
+fn inst_ret(a i32) {
+	inst_make(INS_RET, a, 0, 0);
+}
+
+// predicates
+fn inst_is_label(ins Inst) bool {
+	return ins.op & INF_IS_LABEL;
+}
+fn inst_is_uncond_branch(ins Inst) bool {
+	return ins.op & INF_IS_B_U;
+}
+fn inst_is_cond_branch(ins Inst) bool {
+	return ins.op & INF_IS_B_C;
+}
+fn inst_is_branch(ins Inst) bool {
+	return ins.op & INF_IS_B;
+}
+fn inst_is_return(ins Inst) bool {
+	return ins.op & INF_IS_RET;
+}
+
+
+// helpers for printing instructions
+fn (os OutStream) reg(id i32) OutStream {
+	var n i32 = id & VF_MASK;
+	if id & VF_PHYS {
+		if n >= REG_COUNT {
+			writes(os.fd, "$bad");
+		} else {
+			writec(os.fd, '$');
+			writes(os.fd, reg_names[n]);
+		}
+	} else if id & VF_UNDEF {
+		writes(os.fd, "$und");
+	} else if id & VF_INVAL {
+		writes(os.fd, "$err");
+	} else {
+		// virtual register
+		writec(os.fd, '%');
+		writei(os.fd, n);
+	}
+	os_advance(os);
+	return os;
+}
+
+fn (os OutStream) arg(n i32, op i32) OutStream {
+	if op & INF_C_IMM {
+		writei(os.fd, n);
+	} else {
+		return os.reg(n);
+	}
+	os_advance(os);
+	return os;
+}
+
+fn (os OutStream) label(n i32) OutStream {
+	writes(os.fd, "bb.");
+	writei(os.fd, n);
+	os_advance(os);
+	return os;
+}
+
+fn inst_disasm(os OutStream, ins Inst) {
+	var op u32 = ins.op & INS_OP_MASK;
+	var imm str = "";
+	if ins.op & INF_C_IMM {
+		imm = "i";
+	}
+	if op == INS_NOT {
+		os.fmt("    not @, @\n").reg(ins.a).reg(ins.c);
+	} else if op == INS_NEG {
+		os.fmt("    neg @, @\n").reg(ins.a).reg(ins.c);
+	} else if op < INS_MOV {
+		// ALU and CMP instructions
+		os.fmt("    @@ @, @, @\n").s(iop_name[op]).s(imm).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
+	} else if op == INS_MOV {
+		os.fmt("    mov@ @, @\n").s(imm).reg(ins.a).arg(ins.c,ins.op);
+	} else if (op == INS_LOAD) | (op == INS_STORE) {
+		var sz str = isz_name[(ins.op & INF_SZ_MASK) >> INF_SZ_SHIFT];
+		os.fmt("    @@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
+	} else if op == INS_LABEL {
+		if ins.b != 0 {
+			os.fmt("    label bb.@, \"@\"\n").n(ins.a).s(ir_string(ins.b));
+		} else {
+			os.fmt("    label bb.@\n").n(ins.a);
+		}
+	} else if op == INS_JUMP {
+		os.fmt("    jump @\n").label(ins.a);
+	} else if op == INS_BRANCH {
+		os.fmt("    @ @, @, @\n").s(iop_name[op]).reg(ins.a).label(ins.b).label(ins.c);
+	} else if op == INS_CALL {
+		os.fmt("    call @\n").s(ir_string(ins.a));
+	} else if op == INS_RET {
+		os.fmt("    ret @\n").reg(ins.a);
+	} else if op == INS_SET {
+		os.fmt("    set '@, @\n").n(ins.a).reg(ins.b);
+	} else if op == INS_GET {
+		os.fmt("    get @, '@\n").reg(ins.a).n(ins.b);
+	} else {
+		os.fmt("    inval 0x@\n").x(ins.op);
+	}
+}
+
+fn (os OutStream) ins(i Inst) OutStream {
+	inst_disasm(os, i);
+	return os;
+}
