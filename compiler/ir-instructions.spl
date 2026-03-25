@@ -78,7 +78,7 @@ enum IRflag {
 	INX_JUMP  =    INF_IS_B_U,
 	INX_BRANCH =   INF_IS_B_C | INF_USE_A,
 	INX_CALL =     0,
-	INX_RET =      INF_IS_RET,
+	INX_RET =      INF_IS_RET | INF_USE_A,
 	INX_SET =      INF_USE_B,
 	INX_GET =      INF_SET_A,
 	INX_CDATA =    INF_SET_A,
