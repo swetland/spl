@@ -64,15 +64,10 @@ enum IRflag {
 	INF_IS_MEM =    0x4000, // load or store
 
 	// indicate which arguments affect registers
-	INF_USE_A =    0x00000, // uses register in arg A
-	INF_USE_B =    0x00000, // uses register in arg B
-	INF_USE_C =    0x00000, // uses register in arg C
-	INF_SET_A =    0x00000, // sets register in arg A
-
-	//INF_USE_A =    0x10000, // uses register in arg A
-	//INF_USE_B =    0x20000, // uses register in arg B
-	//INF_USE_C =    0x40000, // uses register in arg C
-	//INF_SET_A =    0x80000, // sets register in arg A
+	INF_USE_A =    0x10000, // uses register in arg A
+	INF_USE_B =    0x20000, // uses register in arg B
+	INF_USE_C =    0x40000, // uses register in arg C
+	INF_SET_A =    0x80000, // sets register in arg A
 
 	// shortcuts for definition
 	INX_BINOP =    INF_IS_ALU | INF_SET_A | INF_USE_B | INF_USE_C,
@@ -148,6 +143,8 @@ var iop_name [INS_COUNT]str = {
 	"label", "jump", "branch", "call", "ret",
 	"set", "get", "cdata",
 };
+
+// END of section imported into ir.h
 
 var iop_props [INS_COUNT]u32 = {
 	INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP, INX_BINOP,
@@ -280,6 +277,20 @@ fn inst_stbi(a i32, b i32, imm i32) {
 }
 fn inst_stwi(a i32, b i32, imm i32) {
 	inst_make(INS_STORE | INF_SZ_U32 | INF_C_IMM, a, b, imm);
+}
+
+fn ins_size_flag(sz i32) u32 {
+	if sz == 1 { return INF_SZ_U8; }
+	if sz == 2 { return INF_SZ_U16; }
+	if sz == 4 { return INF_SZ_U32; }
+	Error("invalid load/store size: @").n(sz);
+	return 0;
+}
+fn inst_loadi(sz i32, b i32, c i32) i32 {
+	return inst_make(INS_LOAD | INF_C_IMM | ins_size_flag(sz), ir_reg_get(), b, c);
+}
+fn inst_storei(sz i32, a i32, b i32, c i32) {
+	inst_make(INS_STORE | INF_C_IMM | ins_size_flag(sz), a, b, c);
 }
 
 fn inst_cdata_str(s str) i32 {

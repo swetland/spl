@@ -16,7 +16,7 @@ freeze:: freeze1 freeze2a
 
 out/gen/ir.h: compiler/ir-instructions.spl
 	@mkdir -p out/gen
-	sed -e '/iop_name/,$$d' $< > $@
+	sed -e '/END/,$$d' -e 's/var iop_name.*str/char *iop_name[]/' $< > $@
 
 out/iremu: iremu/iremu.c out/gen/ir.h
 	@mkdir -p out
