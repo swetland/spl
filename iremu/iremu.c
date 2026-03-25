@@ -208,17 +208,20 @@ static DataChunk *dc_find(uint32_t id) {
 		}
 		dc = dc->next;
 	}
-	die("missing data chunk #%d", id);
+	die("missing data chunk 0x%08x", id);
 	return NULL;
 }
 
 void setup_data(State *s) {
 	uint32_t addr = 2 * 1024 * 1024;
-	s->pr[3] = addr; // init $gp
+
 	// assign chunks to ram ranges
 	DataChunk *dc = dclist;
 	while (dc != NULL) {
 		dc->addr = addr;
+		if (dc->id == 0) {
+			s->pr[3] = addr; // init $gp
+		}
 		addr += dc->count * sizeof(uint32_t);
 		dc = dc->next;
 	}
@@ -367,7 +370,6 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 	uint32_t entry = load(s, argv[1]);
-	setup_data(s);
 	emu(s, entry);
 	printf("X %08x\n", s->pr[5]);
 	return 0;
