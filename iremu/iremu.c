@@ -143,6 +143,7 @@ void emu(State *s, uint32_t pc) {
 		case INS_MOV:    n = XC; break;
 		case INS_LOAD:   n = memrd(s, i.op, XB + IC); break;
 		case INS_STORE:  memwr(s, i.op, XB + IC, XA); continue;
+		case INS_CDATA:  n = i.b; break;
 		case INS_LABEL:  continue;
 		case INS_BLOCK:  continue;
 		case INS_JUMP:   pc = i.a; continue;
@@ -199,6 +200,52 @@ struct DataChunk {
 
 static DataChunk *dclist = NULL;
 
+static DataChunk *dc_find(uint32_t id) {
+	DataChunk *dc = dclist;
+	while (dc != NULL) {
+		if (dc->id == id) {
+			return dc;
+		}
+		dc = dc->next;
+	}
+	die("missing data chunk #%d", id);
+	return NULL;
+}
+
+void setup_data(State *s) {
+	uint32_t addr = 2 * 1024 * 1024;
+	s->pr[3] = addr; // init $gp
+	// assign chunks to ram ranges
+	DataChunk *dc = dclist;
+	while (dc != NULL) {
+		dc->addr = addr;
+		addr += dc->count * sizeof(uint32_t);
+		dc = dc->next;
+	}
+	// resolve pointers from dc id to address
+	dc = dclist;
+	while (dc != NULL) {
+		if (dc->pmap != NULL) {
+			for (uint32_t n = 0; n < dc->count; n++) {
+				// for every pointer word
+				if (dc->pmap[n >> 5] & (1 << (n & 31))) {
+					// translate ID to global address
+					dc->data[n] = dc_find(dc->data[n])->addr;
+				}
+			}
+		}
+		dc = dc->next;
+	}
+	// copy chunk data into ram
+	dc = dclist;
+	while (dc != NULL) {
+		for (uint32_t n = 0; n < dc->count; n++) {
+			memwr(s, INF_SZ_U32, dc->addr + n * sizeof(uint32_t), dc->data[n]);
+		}
+		dc = dc->next;
+	}
+}
+
 int32_t load(State *s, const char *fn) {
 	int32_t *gentry = 0;
 	int32_t start = 0xffffffff;
@@ -228,13 +275,17 @@ int32_t load(State *s, const char *fn) {
 			uint32_t count = rd32(fd);
 			uint32_t id = rd32(fd);
 			uint32_t flags = rd32(fd);
+			uint32_t pcount = 0;
+			if (flags & 1) {
+				pcount = (count + 31) >> 5;
+			}
 			// combined size of data chunk words + pmap
-			uint32_t n = (count + ((count + 31) >> 5)) * sizeof(uint32_t);
+			uint32_t n = (count + pcount) * sizeof(uint32_t);
 			DataChunk *dc = calloc(1, sizeof(DataChunk) + n);
 			dc->id = id;
 			dc->count = count;
 			dc->flags = flags;
-			dc->pmap = dc->data + count;
+			dc->pmap = pcount ? (dc->data + count) : NULL;
 			dc->next = dclist;
 			dclist = dc;
 			if (read(fd, dc->data, n) != n) die("read fail: data chunk");
@@ -259,6 +310,10 @@ int32_t load(State *s, const char *fn) {
 		}
 	}
 	close(fd);
+
+	// load data blocks into ram and resolve pointers
+	setup_data(s);
+
 	// map functions
 	for (n = 0; n < s->pcmax; n++) {
 		Inst *i = s->code + n;
@@ -277,10 +332,11 @@ int32_t load(State *s, const char *fn) {
 			if (!strcmp(s->gname[n],"_hexout_")) gentry[n] = MAGIC_HEXOUT;
 		}
 	}
-	// convert CALLs from global id to instruction id
-	// translate CALLs to undef fns to MAGICs
+
 	for (n = 0; n < s->pcmax; n++) {
 		Inst *i = s->code + n;
+		// convert CALLs from global id to instruction id
+		// translate CALLs to undef fns to MAGICs
 		if (i->op == INS_CALL) {
 			if (i->a >= s->gmax) die("bad call");
 			if (gentry[i->a] < 0) {
@@ -288,57 +344,14 @@ int32_t load(State *s, const char *fn) {
 			}
 			i->a = gentry[i->a];
 		}
+		// resolve cdata references to addresses
+		if (i->op == INS_CDATA) {
+			DataChunk *dc = dc_find(i->b);
+			i->b = dc->addr + i->c;
+		}
 	}
 	if (start == 0xffffffff) die("no start function");
 	return start;
-}
-
-static DataChunk *dc_find(uint32_t id) {
-	DataChunk *dc = dclist;
-	while (dc != NULL) {
-		if (dc->id == id) {
-			return dc;
-		}
-		dc = dc->next;
-	}
-	die("missing data chunk #%d", id);
-	return NULL;
-}
-
-void setup_data(State *s) {
-	uint32_t addr = 2 * 1024 * 1024;
-	s->pr[3] = addr; // init $gp
-	if (dclist == NULL) return;
-	if (dclist->id != 0) {
-		die("first data chunk is #%d (not 0)", dclist->id);
-	}
-	// assign chunks to ram ranges
-	DataChunk *dc = dclist;
-	while (dc != NULL) {
-		dc->addr = addr;
-		addr += dc->count * sizeof(uint32_t);
-		dc = dc->next;
-	}
-	// resolve pointers from dc id to address
-	dc = dclist;
-	while (dc != NULL) {
-		for (uint32_t n = 0; n < dc->count; n++) {
-			// for every pointer word
-			if (dc->pmap[n >> 5] & (1 << (n & 31))) {
-				// translate ID to global address
-				dc->data[n] = dc_find(dc->data[n])->addr;
-			}
-		}
-		dc = dc->next;
-	}
-	// copy chunk data into ram
-	dc = dclist;
-	while (dc != NULL) {
-		for (uint32_t n = 0; n < dc->count; n++) {
-			memwr(s, INF_SZ_U32, dc->addr + n * sizeof(uint32_t), dc->data[n]);
-		}
-		dc = dc->next;
-	}
 }
 
 int main(int argc, char **argv) {
