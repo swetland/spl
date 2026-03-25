@@ -178,7 +178,7 @@ fn bb_make(tag str) BasicBlock {
 }
 
 fn (bb BasicBlock) add_set(shadow i32, reg i32) {
-	var inst Inst = _inst_make(INS_SET, shadow, reg, 0);
+	var inst Inst = _inst_make(INS_SET, shadow, 0, reg);
 	inst.prev = bb.last.prev;
 	inst.next = bb.last;
 	inst.prev.next = inst;
@@ -186,7 +186,7 @@ fn (bb BasicBlock) add_set(shadow i32, reg i32) {
 }
 
 fn (bb BasicBlock) add_get(reg i32, shadow i32) {
-	var inst Inst = _inst_make(INS_GET, reg, shadow, 0);
+	var inst Inst = _inst_make(INS_GET, reg, 0, shadow);
 	inst.prev = bb.first;
 	inst.next = bb.first.next;
 	inst.prev.next = inst;

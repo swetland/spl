@@ -79,7 +79,7 @@ enum IRflag {
 	INX_BRANCH =   INF_IS_B_C | INF_USE_A,
 	INX_CALL =     0,
 	INX_RET =      INF_IS_RET | INF_USE_A,
-	INX_SET =      INF_USE_B,
+	INX_SET =      INF_USE_C,
 	INX_GET =      INF_SET_A,
 	INX_CDATA =    INF_SET_A,
 };
@@ -123,8 +123,8 @@ enum IRop {
 	INS_CALL,    // CALL La
 	INS_RET,     // RET Ra
 
-	INS_SET,     // SET Sa, Rb  (aka upsilon)
-	INS_GET,     // GET Ra, Sb  (aka phi)
+	INS_SET,     // SET Sa, Rc  (aka upsilon)
+	INS_GET,     // GET Ra, Sc  (aka phi)
 
 	INS_CDATA,   // cdata Ra, IDb, OFFc
 	INS_COUNT,   // total unique opcodes (32)
@@ -402,9 +402,9 @@ fn inst_disasm(os OutStream, ins Inst) {
 	} else if op == INS_RET {
 		os.fmt("    ret @\n").reg(ins.a);
 	} else if op == INS_SET {
-		os.fmt("    set '@, @\n").n(ins.a).reg(ins.b);
+		os.fmt("    set '@, @\n").n(ins.a).reg(ins.c);
 	} else if op == INS_GET {
-		os.fmt("    get @, '@\n").reg(ins.a).n(ins.b);
+		os.fmt("    get @, '@\n").reg(ins.a).n(ins.c);
 	} else {
 		os.fmt("    inval 0x@\n").x(ins.op);
 	}
