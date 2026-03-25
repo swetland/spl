@@ -201,7 +201,7 @@ void emu(State *s, uint32_t pc) {
 			continue;
 		}
 		case INS_RET:    return;
-		case INS_SET:    n = XB; break;
+		case INS_SET:    n = XC; break;
 		case INS_GET:    continue;
 		case INS_MAGIC:  magic(s, i.a); continue;
 		default:         die("invalid op %d", i.op & INS_OP_MASK);
@@ -383,9 +383,10 @@ int32_t load(State *s, const char *fn) {
 
 	for (n = 0; n < s->pcmax; n++) {
 		Inst *i = s->code + n;
+		uint32_t op = i->op & INS_OP_MASK;
 		// convert CALLs from global id to instruction id
 		// translate CALLs to undef fns to MAGICs
-		if (i->op == INS_CALL) {
+		if (op == INS_CALL) {
 			if (i->a >= s->gmax) die("bad call");
 			if (gentry[i->a] < 0) {
 				i->op = INS_MAGIC;
@@ -393,9 +394,13 @@ int32_t load(State *s, const char *fn) {
 			i->a = gentry[i->a];
 		}
 		// resolve cdata references to addresses
-		if (i->op == INS_CDATA) {
+		if (op == INS_CDATA) {
 			DataChunk *dc = dc_find(i->b);
 			i->b = dc->addr + i->c;
+		}
+		if (op == INS_SET) {
+			// transform for the sake of tracing clarity
+			i->op = INS_SET | INF_SET_A | INF_USE_C;
 		}
 	}
 	if (start == 0xffffffff) die("no start function");
