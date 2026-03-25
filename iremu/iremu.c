@@ -21,6 +21,8 @@ void die(const char *fmt, ...) {
 	exit(1);
 }
 
+static int do_trace = 0;
+
 #define RAMSIZE   (8*1024*1024)
 #define RAMMASK8  (RAMSIZE - 1)
 #define RAMMASK32 (RAMMASK8 & (~3))
@@ -30,12 +32,57 @@ void die(const char *fmt, ...) {
 #define INS_BLOCK (INS_COUNT + 0) // start of function
 #define INS_MAGIC (INS_COUNT + 1) // missing or builtin fn
 
+#define VF_PHYS  0x10000000
+#define VF_UNDEF 0x20000000
+
 typedef struct Inst {
 	uint32_t op;
 	uint32_t a;
 	uint32_t b;
 	uint32_t c;
 } Inst;
+
+void fmtarg(char *buf, uint32_t n, int isreg) {
+	if (!isreg) {
+		sprintf(buf, "%d", n);
+	} else {
+		if (n & VF_PHYS) {
+			n &= 0x0fffffff;
+			sprintf(buf, "$%d", n);
+		} else if (n & VF_UNDEF) {
+			sprintf(buf, "$und");
+		} else {
+			sprintf(buf, "%%%d", n);
+		}
+	}
+}
+
+const char* opname(uint32_t op) {
+	if (op == INS_BLOCK) return "block";
+	if (op == INS_MAGIC) return "magic";
+	if (op < INS_COUNT) return iop_name[op];
+	return "invalid";
+}
+
+void trace(Inst *i, uint32_t pc, uint32_t v) {
+	uint32_t op = i->op & INS_OP_MASK;
+	char sop[32], sa[32], sb[32], sc[32];
+	fmtarg(sa, i->a, i->op & (INF_SET_A|INF_USE_A));
+	fmtarg(sb, i->b, i->op & INF_USE_B);
+	fmtarg(sc, i->c, i->op & INF_USE_C);
+	const char *ssz = "";
+	if (i->op & INF_IS_MEM) {
+		if (i->op & INF_SZ_U32) { ssz = "w"; }
+		else if (i->op & INF_SZ_U16) { ssz = "h"; }
+		else { ssz = "b"; }
+	}
+	sprintf(sop, "%s%s%s", opname(op), ssz, i->op & INF_C_IMM ? "i" : "");
+	if (i->op & INF_SET_A) {
+		fprintf(stderr, "%04d %08x %-8s %s, %s, %s\n", pc - 1, v, sop, sa, sb, sc);
+	} else {
+		fprintf(stderr, "%04d          %-8s %s, %s, %s\n", pc - 1, sop, sa, sb, sc);
+	}
+}
 
 typedef struct State {
 	Inst *code;
@@ -70,9 +117,6 @@ static void memwr(State *s, uint32_t op, uint32_t addr, uint32_t val) {
 		*((uint8_t*) (s->data + (addr & RAMMASK8))) = val;
 	}
 }
-
-#define VF_PHYS  0x10000000
-#define VF_UNDEF 0x20000000
 
 static uint32_t regrd(State *s, uint32_t r) {
 	if (r & VF_UNDEF) {
@@ -117,7 +161,7 @@ void emu(State *s, uint32_t pc) {
 	for (;;) {
 		if (pc >= s->pcmax) die("invalid pc: %d", pc);
 		Inst i = s->code[pc++];
-//fprintf(stderr, "%04d: %08x %08x %08x %08x\n", pc-1, i.op, i.a, i.b, i.c);
+		if (do_trace && !(i.op & INF_SET_A)) { trace(&i, pc, 0); }
 		switch (i.op & INS_OP_MASK) {
 		case INS_ADD:    n = XB + XC; break;
 		case INS_SUB:    n = XB - XC; break;
@@ -163,6 +207,7 @@ void emu(State *s, uint32_t pc) {
 		default:         die("invalid op %d", i.op & INS_OP_MASK);
 		}
 		regwr(s, i.a, n);
+		if (do_trace) { trace(&i, pc, n); }
 	}
 }
 
@@ -366,7 +411,15 @@ int main(int argc, char **argv) {
 	s->vr = s->vregs;
 	s->vrmax = 0;
 	s->pr[2] = 1024*1024; // SP
+	while (argc > 2) {
+		if (!strcmp(argv[1], "-t")) {
+			do_trace = 1;
+		}
+		argc--;
+		argv++;
+	}
 	if (argc != 2) {
+		fprintf(stderr, "error: usage: iremu [-t] <xir>\n");
 		return -1;
 	}
 	uint32_t entry = load(s, argv[1]);
