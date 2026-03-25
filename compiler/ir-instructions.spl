@@ -1,13 +1,46 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-// serialized IR block types
+// serialized IR chunk types
 enum IRtag {
-	TAG_IR_XIR0 = 0x00524958, // XIR0 <res0> <res1> <res2>
+	TAG_IR_XIR0 = 0x00524958, // XIR0 <rsvd> <rsvd> <flags>
 	TAG_IR_FUNC = 0x434e5546, // FUNC <count> <id> <maxvr> Inst * count
 	TAG_IR_DATA = 0x41544144, // DATA <count> <id> <flags> Word * count
 	TAG_IR_GLBL = 0x4c424c47, // GLBL <count> <len> * count stringdata
 };
+
+// <XIR0> <FUNC>+ <DATA>* <GLBL>
+//
+// FUNC chunks contain <count> instructions for a function,
+// the <id> referencing its name in the GLBL chunk, and
+// the number of virtual registers necessary to execute
+// that function.
+//
+// All FUNC chunks should be loaded into the Inst array
+// in sequence, with the header treated as an instruction
+// (consuming an entry as well), exact meaning up to the
+// consumer. Instructions are globally numbered from 0 and:
+//
+// JUMP.a and BRANCH.b/BRANCH.c are target instruction numbers.
+//
+// LABEL.b refers to the GLBL entry with the name of the label.
+// LABEL.c contains the instruction number for verification.
+//
+// CALL.a refers to the GLBL entry with the name of the target.
+//
+// CDATA.b refers to the ID of the DATA chunk referenced
+// CDATA.c refers to the offset within that DATA chunk
+//
+// DATA chunks contain <count> words of data, and if bit 1 of
+// their <flags> field is set, these are followed by a pointer
+// bitmap of (count + 31) / 5 words indicating which words are
+// pointers that must be resolved to the address of the DATA
+// chunk ID they contain.
+//
+// The GLBL chunk must be last.  It contains <count> words of
+// string lengths followed by the associated string data, in
+// order, each entry one byte longer to include a terminating
+// NUL.
 
 enum IRflag {
 	// arg c is immediate, for ALU and CMP ops
@@ -247,6 +280,10 @@ fn inst_stbi(a i32, b i32, imm i32) {
 }
 fn inst_stwi(a i32, b i32, imm i32) {
 	inst_make(INS_STORE | INF_SZ_U32 | INF_C_IMM, a, b, imm);
+}
+
+fn inst_cdata_str(s str) i32 {
+	return inst_make(INS_CDATA, ir_reg_get(), -1, make_cdata_str(s));
 }
 
 // flow control

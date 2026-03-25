@@ -172,3 +172,26 @@ fn gen_global_data(all Ast) {
 	}
 }
 
+struct StringData {
+	next *StringData,
+	data *String,
+};
+
+var sdata_first StringData = nil;
+var sdata_last StringData = nil;
+var sdata_size u32 = 0;
+
+fn make_cdata_str(s String) u32 {
+	var off u32 = sdata_size;
+	var sd StringData = new(StringData);
+	sd.next = nil;
+	sd.data = s;
+	if sdata_last == nil {
+		sdata_first = sd;
+	} else {
+		sdata_last.next = sd;
+	}
+	sdata_last = sd;
+	sdata_size += s.len + 1;
+	return off;
+}

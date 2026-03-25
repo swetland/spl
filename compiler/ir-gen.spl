@@ -120,14 +120,14 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_BOOL_NOT { return gen_bool_not(node); }
 	//if kind == AST_BOOL_AND { return gen_bool_and(node); }
 	//if kind == AST_BOOL_OR { return gen_bool_or(node); }
-	//if kind == AST_STRING { return gen_string_const(node.sval.text); }
+	if kind == AST_STRING { return inst_cdata_str(node.sval); }
 	//if kind == AST_DEREF { }
 	//if kind == AST_INDEX { return gen_array_load(node); }
 	//if kind == AST_FIELD { return gen_field_load(node); }
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }
 	//if kind == AST_NEW { }
-	//GenError(node, "unsupported @ in expr").s(ast_kind[kind]);
+	GenError(node, "unsupported @ in expr").s(ast_kind[kind]);
 	Warn("unsupported @ in expr").s(ast_kind[kind]);
 	return 0;
 }
@@ -407,6 +407,7 @@ fn gen(outfd i32, node Ast) {
 	serialize_header(os.fd);
 	gen_functions(node);
 	emit_data_chunks();
+	serialize_cdata(os.fd);
 
 	// these are always last
 	serialize_globals(os.fd);

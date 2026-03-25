@@ -514,6 +514,23 @@ fn serialize_header(fd i32) {
 	writeu32(fd, 0);
 }
 
+fn serialize_cdata(fd i32) {
+	var sz u32 = (sdata_size + 3) & (~3);
+	writeu32(fd, TAG_IR_DATA);
+	writeu32(fd, sz >> 2);
+	writeu32(fd, -1);
+	writeu32(fd, 0);
+	var sd StringData = sdata_first;
+	while sd != nil {
+		write(fd, sd.data.text, 0, sd.data.len + 1);
+		sd = sd.next;
+	}
+	while sz > sdata_size {
+		writec(fd, 0);
+		sz--;
+	}
+}
+
 fn serialize_globals(fd i32) {
 	var i i32 = 0;
 	writeu32(fd, TAG_IR_GLBL);
@@ -533,7 +550,7 @@ fn serialize_data_chunk(fd i32, dc DataChunk) {
 	writeu32(fd, TAG_IR_DATA);
 	writeu32(fd, dc.count);
 	writeu32(fd, dc.id);
-	writeu32(fd, 0);
+	writeu32(fd, 1);
 	var n u32 = 0;
 	while n < dc.count {
 		writeu32(fd, dc.data[n]);
