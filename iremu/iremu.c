@@ -26,6 +26,7 @@ void die(const char *fmt, ...) {
 }
 
 static int do_trace = 0;
+static int do_check_state = 0;
 
 #define RAMSIZE   (8*1024*1024)
 #define RAMMASK8  (RAMSIZE - 1)
@@ -430,6 +431,27 @@ int32_t load(State *s, const char *fn) {
 	return start;
 }
 
+void check_state(State *s) {
+	int fail = 0;
+	char line[256];
+	while (fgets(line, sizeof(line), stdin) != NULL) {
+		if (line[0] == 'M') {
+			uint32_t addr;
+			uint32_t val;
+			if (sscanf(line, "M %x %x", &addr, &val) == 2) {
+				uint32_t actual = memrd(s, INF_SZ_U32, addr);
+				if (actual != val) {
+					fprintf(stderr, "M %08x %08x != %08x\n", addr, val, actual);
+					fail = 1;
+				}
+			}
+		}
+	}
+	if (fail) {
+		exit(1);
+	}
+}
+
 int main(int argc, char **argv) {
 	State *s = calloc(1, sizeof(State));
 	s->code = malloc(1 * 1024 * 1024);
@@ -442,17 +464,25 @@ int main(int argc, char **argv) {
 	while (argc > 2) {
 		if (!strcmp(argv[1], "-t")) {
 			do_trace = 1;
+		} else if (!strcmp(argv[1], "-check")) {
+			do_check_state = 1;
+		} else {
+			goto usage;
 		}
 		argc--;
 		argv++;
 	}
 	if (argc != 2) {
-		fprintf(stderr, "error: usage: iremu [-t] <xir>\n");
+usage:
+		fprintf(stderr, "error: usage: iremu [-t|-check] <xir>\n");
 		return -1;
 	}
 	uint32_t entry = load(s, argv[1]);
 	emu(s, entry);
 	printf("X %08x\n", s->pr[R_RV]);
+	if (do_check_state) {
+		check_state(s);
+	}
 	return 0;
 }
 
