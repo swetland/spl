@@ -11,6 +11,10 @@
 
 #include <ir.h>
 
+#define R_SP 2
+#define R_GP 3
+#define R_RV 5
+
 void die(const char *fmt, ...) {
 	va_list ap;
 	va_start(ap, fmt);
@@ -213,11 +217,24 @@ void emu(State *s, uint32_t pc) {
 
 #define MAGIC_UNDEF  -1
 #define MAGIC_HEXOUT -2
+#define MAGIC_ALLOC  -3
+
+static uint32_t heap_base = 4 * 1024 * 1024;
+
+uint32_t sys_alloc(uint32_t sz) {
+	uint32_t addr = heap_base;
+	sz = (sz + 15) & (~15);
+	heap_base += sz;
+	return addr;
+}
 
 void magic(State *s, uint32_t n) {
 	switch (n) {
 	case MAGIC_HEXOUT:
-		printf("D %08x\n", memrd(s, INF_SZ_U32, s->pr[2]));
+		printf("D %08x\n", memrd(s, INF_SZ_U32, s->pr[R_SP]));
+		return;
+	case MAGIC_ALLOC:
+		s->pr[R_RV] = sys_alloc(memrd(s, INF_SZ_U32, s->pr[R_SP]));
 		return;
 	default:
 		die("bad magic %d", n);
@@ -265,7 +282,7 @@ void setup_data(State *s) {
 	while (dc != NULL) {
 		dc->addr = addr;
 		if (dc->id == 0) {
-			s->pr[3] = addr; // init $gp
+			s->pr[R_GP] = addr; // init $gp
 		}
 		addr += dc->count * sizeof(uint32_t);
 		dc = dc->next;
@@ -378,6 +395,7 @@ int32_t load(State *s, const char *fn) {
 		if (!strcmp(s->gname[n],"start")) start = gentry[n];
 		if (gentry[n] < 0) {
 			if (!strcmp(s->gname[n],"_hexout_")) gentry[n] = MAGIC_HEXOUT;
+			if (!strcmp(s->gname[n],"__new")) gentry[n] = MAGIC_ALLOC;
 		}
 	}
 
@@ -403,6 +421,11 @@ int32_t load(State *s, const char *fn) {
 			i->op = INS_SET | INF_SET_A | INF_USE_C;
 		}
 	}
+	for (n = 0; n < s->gmax; n++) {
+		if (gentry[n] == MAGIC_UNDEF) {
+			die("undefined reference to '%s'", s->gname[n]);
+		}
+	}
 	if (start == 0xffffffff) die("no start function");
 	return start;
 }
@@ -415,7 +438,7 @@ int main(int argc, char **argv) {
 	s->vlast = s->vregs + 4096;
 	s->vr = s->vregs;
 	s->vrmax = 0;
-	s->pr[2] = 1024*1024; // SP
+	s->pr[R_SP] = 1024*1024;
 	while (argc > 2) {
 		if (!strcmp(argv[1], "-t")) {
 			do_trace = 1;
@@ -429,7 +452,7 @@ int main(int argc, char **argv) {
 	}
 	uint32_t entry = load(s, argv[1]);
 	emu(s, entry);
-	printf("X %08x\n", s->pr[5]);
+	printf("X %08x\n", s->pr[R_RV]);
 	return 0;
 }
 
