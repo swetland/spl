@@ -248,6 +248,9 @@ fn inst_mov(c i32) i32 {
 fn inst_movx(a i32, c i32) i32 {
 	return inst_make(INS_MOV, a, 0, c);
 }
+fn inst_movix(a i32, imm i32) i32 {
+	return inst_make(INS_MOV | INF_C_IMM, a, 0, imm);
+}
 
 // load/store instructions
 // Load instructions allocate and return a target register.
@@ -311,6 +314,14 @@ fn inst_ret(a i32) {
 	inst_make(INS_RET, a, 0, 0);
 }
 
+// upsilon/phi
+fn inst_set(a i32, c i32) {
+	inst_make(INS_SET, a, 0, c);
+}
+fn inst_get(a i32) i32 {
+	return inst_make(INS_GET, a, 0, a);
+}
+
 // predicates
 fn inst_is_label(ins Inst) bool {
 	return ins.op & INF_IS_LABEL;
@@ -327,7 +338,6 @@ fn inst_is_branch(ins Inst) bool {
 fn inst_is_return(ins Inst) bool {
 	return ins.op & INF_IS_RET;
 }
-
 
 // helpers for printing instructions
 fn (os OutStream) reg(id i32) OutStream {
