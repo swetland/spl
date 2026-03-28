@@ -126,7 +126,7 @@ fn gen_index_addr(node Ast) i32 {
 	} else if sz == 4 {
 		ir = inst_alui(INS_LSL, ir, 2);
 	} else if sz != 1 {
-		ir = inst_alu(INS_MUL, ir, sz);
+		ir = inst_alui(INS_MUL, ir, sz);
 	}
 	return inst_alu(INS_ADD, ar, ir);
 }
