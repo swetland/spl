@@ -145,15 +145,14 @@ fn sym_to_vid_load(sym Symbol) i32 {
 	return phi.vcur;
 }
 
-fn sym_to_vid_store(sym Symbol) i32 {
+fn sym_to_vid_store(sym Symbol, vr i32) i32 {
 	Warn("sym_to_vid(@) ?").s(sym.name.text);
 	var phi Phi = phi_lookup(bb_active, sym);
 	var old i32 = phi.vcur;
-	phi.vcur = ir_reg_get();
+	phi.vcur = vr;
 	Warn("sym_store(@) @, @ > @").s(sym.name.text).reg(phi.vini).reg(old).reg(phi.vcur);
 	return phi.vcur;
 }
-
 // reset all global state
 // used at the start of a new function
 fn bb_reset() {

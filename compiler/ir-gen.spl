@@ -55,7 +55,8 @@ fn gen_store(sym Symbol, val i32) i32 {
 		Error("cannot store to constant '@'").s(sym.name.text);
 	}
 	// param or local
-	return inst_movx(sym_to_vid_store(sym), val);
+	sym_to_vid_store(sym, val);
+	return val;
 }
 
 fn gen_addr(node Ast) i32;
