@@ -132,6 +132,8 @@ fn gen_index_addr(node Ast) i32 {
 	return inst_alu(INS_ADD, ar, ir);
 }
 
+fn gen_call(node Ast) i32;
+
 fn gen_addr(node Ast) i32 {
 	var kind i32 = node.kind;
 	if kind == AST_FIELD {
@@ -139,6 +141,13 @@ fn gen_addr(node Ast) i32 {
 	}
 	if kind == AST_INDEX {
 		return gen_index_addr(node);
+	}
+	if kind == AST_CALL {
+		// TODO more strict type matching
+		if node.type.kind != TYPE_POINTER {
+			GenError(node, "fn @ does not return a pointer").s(node.left.sym.name.text);
+		}
+		return gen_call(node);
 	}
 	GenError(node, "sorry... @ in addr expr").s(ast_kind[kind]);
 }

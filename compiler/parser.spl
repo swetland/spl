@@ -827,6 +827,10 @@ fn parse_fn() Ast {
 
 	if (ctx.tok != tOBRACE) && (ctx.tok != tSEMI) {
 		rtype = parse_type(false);
+		// struct return types are adjusted to pointer-to-struct
+		if rtype.kind == TYPE_STRUCT {
+			rtype = rtype.of;
+		}
 	}
 
 	var type Type = type_make(fname, TYPE_FN, rtype, nil, n);
