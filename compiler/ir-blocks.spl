@@ -563,7 +563,7 @@ fn serialize_data_chunk(fd i32, dc DataChunk) {
 	if dc.pmap != nil {
 		n = 0;
 		while n < dc.count {
-			writeu32(fd, dc.pmap[n]);
+			writeu32(fd, dc.pmap[n >> 5]);
 			n += 32;
 		}
 	}
