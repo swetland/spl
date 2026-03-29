@@ -162,6 +162,7 @@ fn parse_primary_expr() Ast {
 	} else if ctx.tok == tSTR {
 		node = ast_make_simple(AST_STRING, 0);
 		node.sval = string_make(ctx.tmp, strlen(ctx.tmp));
+		node.type = ctx.type_str;
 		next();
 	} else if ctx.tok == tTRUE {
 		node = ast_make_const(1, ctx.type_bool);
