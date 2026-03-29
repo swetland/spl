@@ -54,6 +54,7 @@ fn gen_store(sym Symbol, val i32) i32 {
 	if sym.kind & SYMBOL_DEF {
 		Error("cannot store to constant '@'").s(sym.name.text);
 	}
+	// param or local
 	return inst_movx(sym_to_vid_store(sym), val);
 }
 
@@ -80,10 +81,10 @@ fn gen_ptr_addr(node Ast) i32 {
 		}
 	}
 	if kind == AST_INDEX {
-		return gen_index_addr(node);
+		return inst_ldwi(gen_index_addr(node), 0);
 	}
 	if kind == AST_FIELD {
-		return gen_field_addr(node);
+		return inst_ldwi(gen_field_addr(node), 0);
 	}
 	GenError(node, "sorry... @ in ptr addr expr").s(ast_kind[kind]);
 	return 0;
@@ -146,21 +147,30 @@ fn gen_array_load(node Ast) i32 {
 	return inst_loadi(type_size(node.type), gen_index_addr(node), 0);
 }
 
-fn gen_field_load(node Ast) i32 {
-	return inst_loadi(type_size(node.type), gen_field_addr(node), 0);
-}
-
 fn gen_array_store(node Ast, vr i32) i32 {
 	inst_storei(type_size(node.type), vr, gen_index_addr(node), 0);
 	return vr;
 }
 
+fn gen_field_load(node Ast) i32 {
+	return inst_loadi(type_size(node.type), gen_field_addr(node), 0);
+}
+
+fn gen_field_store(node Ast, vr i32) i32 {
+	inst_storei(type_size(node.type), vr, gen_field_addr(node), 0);
+	return vr;
+}
+
 fn gen_assign(node Ast) i32 {
-	if node.left.kind == AST_SYMBOL {
+	var kind i32 = node.left.kind;
+	if kind == AST_SYMBOL {
 		return gen_store(node.left.sym, gen_expr(node.right));
 	}
-	if node.left.kind == AST_INDEX {
+	if kind == AST_INDEX {
 		return gen_array_store(node.left, gen_expr(node.right));
+	}
+	if kind == AST_FIELD {
+		return gen_field_store(node.left, gen_expr(node.right));
 	}
 	var ar i32 = gen_addr(node.left);
 	var vr i32 = gen_expr(node.right);
@@ -313,7 +323,6 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_ASSIGN { return gen_assign(node); }
 	//if kind == AST_NEW { }
 	GenError(node, "unsupported @ in expr").s(ast_kind[kind]);
-	Warn("unsupported @ in expr").s(ast_kind[kind]);
 	return 0;
 }
 
