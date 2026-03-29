@@ -203,6 +203,9 @@ fn types_match(a Type, b Type) bool {
 }
 
 fn ast_make(kind AstKind, ival u32, sval String, sym Symbol, type Type) Ast {
+	if type == nil {
+		type = ctx.type_void;
+	}
 	var node Ast = new(Ast);
 	node.kind = kind;
 	node.ival = ival;
@@ -215,14 +218,14 @@ fn ast_make(kind AstKind, ival u32, sval String, sym Symbol, type Type) Ast {
 }
 
 fn ast_make_lr(kind AstKind, left Ast, right Ast) Ast {
-	var node Ast = ast_make(kind, 0, nil, nil, nil);
+	var node Ast = ast_make(kind, 0, nil, nil, left.type);
 	node.left = left;
 	node.right = right;
 	return node;
 }
 
 fn ast_make_l(kind AstKind, child Ast) Ast {
-	var node Ast = ast_make(kind, 0, nil, nil, nil);
+	var node Ast = ast_make(kind, 0, nil, nil, child.type);
 	node.left = child;
 	return node;
 }
