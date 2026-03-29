@@ -233,6 +233,10 @@ fn inst_alu(op u32, b i32, c i32) i32 {
 }
 fn inst_alui(op u32, b i32, imm i32) i32 {
 	if op >= INS_MOV { Error("inst_alui invalid alu op"); }
+
+	if (op == INS_ADD) && (imm == 0) {
+		return b;
+	}
 	return inst_make(op | INF_C_IMM, ir_reg_get(), b, imm);
 }
 fn inst_aluix(op u32, a i32, b i32, imm i32) {
