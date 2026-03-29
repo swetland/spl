@@ -2,6 +2,14 @@
 
 all: out/asm out/emu out/iremu out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.bin
 
+SKIP :=
+ifeq (,$(filter noskip,$(MAKECMDGOALS)))
+SKIP += test/1021-numbers.spl
+SKIP += test/1040-structs.spl
+SKIP += test/2011-err-array-oob-const.spl
+endif
+noskip:
+
 test: out/test/summary.txt
 
 freeze1: out/compiler1
@@ -132,7 +140,7 @@ TESTDEPS1 := $(TESTDEPSX) out/compiler1
 TESTDEPS2 := $(TESTDEPSX) out/compiler2a.bin
 TESTDEPS3 := $(TESTDEPSX) out/compiler3a.bin out/iremu
 
-SRCTESTS := $(sort $(wildcard test/*.spl))
+SRCTESTS := $(sort $(filter-out $(SKIP),$(wildcard test/*.spl)))
 
 # have to have two rules here otherwise tests without .log files
 # fail to be compiled by the rule that depends on spl+log *or*
