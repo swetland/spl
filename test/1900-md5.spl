@@ -88,8 +88,8 @@ fn md5_init(m MD5) {
 fn md5_sum(m MD5, idata []u8, len u32) {
 	// pick up from current state
 	var i u32 = m.icount;
-	var ibuf []u8 = m.ibuf;
-	var data []u32 = m.data;
+	var ibuf [64]u8 = m.ibuf;
+	var data [16]u32 = m.data;
 
 	// accumulate data into 64 byte chunks
 	var j u32 = 0;
@@ -137,7 +137,8 @@ fn md5_fini(m MD5) {
 	m.tmp[6] = 0;
 	m.tmp[7] = 0;
 
-	md5_sum(m, m.tmp, 8);
+	var tmp [8]u8 = m.tmp; // TODO: handle deref in args
+	md5_sum(m, tmp, 8);
 }
 
 var ptn str = "XXXXXXXXYYYYYYYYZZZZZZZZWWWWWWWWXXXXXXXXYYYYYYYYZZZZZZZZWWWWWWWW";
