@@ -164,7 +164,15 @@ fn gen_field_store(node Ast, vr i32) i32 {
 fn gen_assign(node Ast) i32 {
 	var kind i32 = node.left.kind;
 	if kind == AST_SYMBOL {
-		return gen_store(node.left.sym, gen_expr(node.right));
+		if (node.left.type.kind == TYPE_POINTER) &&
+			(node.right.type.kind != TYPE_POINTER) {
+			if !types_match(node.left.type.of, node.right.type) {
+				GenError(node, "cannot obtain @ from @").t(node.left.type).t(node.right.type);
+			}
+			return gen_store(node.left.sym, gen_addr(node.right));
+		} else {
+			return gen_store(node.left.sym, gen_expr(node.right));
+		}
 	}
 	if kind == AST_INDEX {
 		return gen_array_store(node.left, gen_expr(node.right));
