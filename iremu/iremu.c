@@ -89,15 +89,20 @@ void trace(Inst *i, uint32_t pc, uint32_t v) {
 	}
 }
 
+typedef struct RegPair {
+	uint32_t r;
+	uint32_t s;
+} RegPair;
+
 typedef struct State {
 	Inst *code;
 	uint32_t pcmax;  // last valid instruction
 	uint32_t vrmax;  // active virtual register window size
-	uint32_t *vr;    // active virtual register window base
+	RegPair *vr;    // active virtual register window base
 	uint32_t pr[32]; // physical register file
 	uint8_t *data;   // RAM
-	uint32_t *vregs; // virtual register storage start
-	uint32_t *vlast; // virtual register storage end
+	RegPair *vregs; // virtual register storage start
+	RegPair *vlast; // virtual register storage end
 	uint32_t gmax;   // number of global names
 	char**   gname;  // array of global names
 } State;
@@ -105,6 +110,7 @@ typedef struct State {
 void magic(State *s, uint32_t n);
 
 static uint32_t memrd(State *s, uint32_t op, uint32_t addr) {
+	if (addr < 65536) die("memrd fault %08x", addr);
 	if (op & INF_SZ_U32) {
 		return *((uint32_t*) (s->data + (addr & RAMMASK32)));
 	} else if (op & INF_SZ_U16) {
@@ -114,6 +120,7 @@ static uint32_t memrd(State *s, uint32_t op, uint32_t addr) {
 	}
 }
 static void memwr(State *s, uint32_t op, uint32_t addr, uint32_t val) {
+	if (addr < 65536) die("memwr fault %08x", addr);
 	if (op & INF_SZ_U32) {
 		*((uint32_t*) (s->data + (addr & RAMMASK32))) = val;
 	} else if (op & INF_SZ_U16) {
@@ -133,7 +140,7 @@ static uint32_t regrd(State *s, uint32_t r) {
 		return s->pr[r];
 	} else {
 		if (r >= s->vrmax) die("regrd %%%d", r);
-		return s->vr[r];
+		return s->vr[r].r;
 	}
 }
 static void regwr(State *s, uint32_t r, uint32_t v) {
@@ -143,8 +150,21 @@ static void regwr(State *s, uint32_t r, uint32_t v) {
 		s->pr[r] = v;
 	} else {
 		if (r >= s->vrmax) die("regwr %%%d", r);
-		s->vr[r] = v;
+		s->vr[r].r = v;
 	}
+}
+
+static uint32_t srrd(State *s, uint32_t r) {
+	if ((r & 0xF0000000) || (r >= s->vrmax)) {
+		die("srrd %d", r);
+	}
+	return s->vr[r].s;
+}
+static void srwr(State *s, uint32_t r, uint32_t v) {
+	if ((r & 0xF0000000) || (r >= s->vrmax)) {
+		die("srrd %d", r);
+	}
+	s->vr[r].s = v;
 }
 
 #define XA (regrd(s, i.a))
@@ -206,8 +226,8 @@ void emu(State *s, uint32_t pc) {
 			continue;
 		}
 		case INS_RET:    return;
-		case INS_SET:    n = XC; break;
-		case INS_GET:    continue;
+		case INS_SET:    srwr(s, i.a, regrd(s, i.c)); continue;
+		case INS_GET:    n = srrd(s, i.c); break;
 		case INS_MAGIC:  magic(s, i.a); continue;
 		default:         die("invalid op %d", i.op & INS_OP_MASK);
 		}
@@ -455,7 +475,7 @@ void check_state(State *s) {
 int main(int argc, char **argv) {
 	State *s = calloc(1, sizeof(State));
 	s->code = malloc(1 * 1024 * 1024);
-	s->vregs = malloc(4096 * sizeof(uint32_t));
+	s->vregs = malloc(4096 * sizeof(RegPair));
 	s->data = malloc(RAMSIZE);
 	s->vlast = s->vregs + 4096;
 	s->vr = s->vregs;
