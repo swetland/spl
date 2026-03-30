@@ -55,6 +55,7 @@ fn gen_store(sym Symbol, val i32) i32 {
 		Error("cannot store to constant '@'").s(sym.name.text);
 	}
 	// param or local
+	// inst_mov(val) instead of val avoids snarls at some cost
 	sym_to_vid_store(sym, val);
 	return val;
 }
@@ -202,7 +203,9 @@ fn gen_call(fcall Ast) i32 {
 		GenError(fcall, "calling undefined function");
 	}
 
-	inst_aluix(INS_SUB, REG_SP, REG_SP, sym.type.count * 4);
+	if sym.type.count > 0 {
+		inst_aluix(INS_SUB, REG_SP, REG_SP, sym.type.count * 4);
+	}
 	var n i32 = 0;
 	var node Ast = fcall.right;
 	while node != nil {
@@ -214,12 +217,19 @@ fn gen_call(fcall Ast) i32 {
 		GenError(fcall, "parameter count mismatch for '@': expected @, found @").s(sym.name.text).n(sym.type.count).n(n);
 	}
 
-
 	// TODO: possibly better way to get the (mangled) canonical
 	// function name from a method than indirecting through the type?
 	inst_call(sym.type.name);
-	inst_aluix(INS_ADD, REG_SP, REG_SP, sym.type.count * 4);
-	return inst_mov(REG_RV);
+
+	if sym.type.count > 0 {
+		inst_aluix(INS_ADD, REG_SP, REG_SP, sym.type.count * 4);
+	}
+
+	if sym.type.of == ctx.type_void {
+		return REG_ZERO;
+	} else {
+		return inst_mov(REG_RV);
+	}
 
 	// TODO: terminate bb after call?
 }
@@ -557,6 +567,8 @@ fn gen_fn(node Ast) {
 	//TODO ensure no blocks are unplaced
 
 	var name str = node.sym.name.text;
+
+	finalize_fn(bb_order_first);
 
 	var is OutStream = get_outfile(ctx.with_ir, name, ".ir");
 	if is != nil {
