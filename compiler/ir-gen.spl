@@ -568,7 +568,7 @@ fn gen_fn(node Ast) {
 
 	var name str = node.sym.name.text;
 
-	finalize_fn(bb_order_first);
+//	finalize_fn(bb_order_first);
 
 	var is OutStream = get_outfile(ctx.with_ir, name, ".ir");
 	if is != nil {
