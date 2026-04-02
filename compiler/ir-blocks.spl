@@ -151,19 +151,29 @@ fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
 	phi.args = nil;
 	phi.count = 0;
 
-	phi.vini = ir_reg_get();
-	phi.vcur = phi.vini;
-	bb.add_get(phi.vini, phi.vini);
-
 	if bb.flags & BB_SEALED {
 		// sealed block so we can search our predecessors
 		Warn("phi_lookup(bb.@,@) recurse").n(bb.id).s(sym.name.text);
+
+		if bb.count == 1 {
+			phi.vini = phi_lookup(bb.prev.bb, sym);
+			phi.vcur = phi.vini;
+			phi.count = -1;
+			return phi.vini;
+		}
+		// must assign vini before resolve
+		// since resolve may use it to insert a get instruction
+		phi.vini = ir_reg_get();
 		phi_resolve(bb, phi);
 		// todo flatten trivial phi
 	} else {
 		// unsealed block, so we install a placeholder
+		phi.vini = ir_reg_get();
 		Warn("phi_lookup(bb.@,@) defer").n(bb.id).s(sym.name.text);
 	}
+
+	phi.vcur = phi.vini;
+	bb.add_get(phi.vini, phi.vini);
 
 	return phi.vcur;
 }
@@ -383,16 +393,16 @@ fn ir_strlen(id i32) u32 {
 
 // tools to write textual representations of BasicBlocks and Insts
 fn dump_phis(os OutStream, bb BasicBlock, graph bool) {
-	var tag str = "    phi @";
-	if bb.flags & BB_ENTRY {
-		tag = "    ini @";
-	}
 	var phi Phi = bb.phi;
 	while phi != nil {
 		if graph {
 			os.fmt("<TR><TD ALIGN=\"left\">");
 		}
-		os.fmt(tag).reg(phi.vini);
+		if (bb.count < 2) {
+			os.fmt("    var @").reg(phi.vini);
+		} else {
+			os.fmt("    phi @").reg(phi.vini);
+		}
 		var n i32 = 0;
 		while n < phi.count {
 			os.fmt(", @").reg(phi.args[n]);
