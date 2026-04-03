@@ -10,6 +10,13 @@ fn ir_reg_get() i32 {
 	return r;
 }
 
+struct RegInfo {
+	inst *Inst,
+	used i32,
+};
+
+var reg_info []RegInfo;
+
 struct Phi {
 	next *Phi,
 	sym *Symbol,
@@ -70,10 +77,46 @@ fn (bb BasicBlock) add_get(reg i32, shadow i32);
 
 fn phi_lookup(bb BasicBlock, sym Symbol) i32;
 
+fn (phi Phi) is_trivial() bool {
+	var v i32 = -1;
+	var n i32 = 0;
+	while n < phi.count {
+		if v == -1 {
+			v = phi.args[n];
+		} else if v != phi.args[n] {
+			return false;
+		}
+		n++;
+	}
+	return true;
+}
+
+fn phis_to_insts(bl BlockList) {
+	while bl != nil {
+		var phi Phi = bl.bb.phi;
+		while phi != nil {
+			if phi.count > 0 {
+				if phi.count != bl.bb.count {
+					Error("phi count mismatch");
+				}
+				// previous block list
+				var pbl BlockList = bl.bb.prev;
+				while pbl != nil {
+					pbl.bb.add_set(phi.vini, phi_lookup(pbl.bb, phi.sym));
+					pbl = pbl.next;
+				}
+				bl.bb.add_get(phi.vini, phi.vini);
+			}
+			phi = phi.next;
+		}
+		bl = bl.next;
+	}
+}
+
 // search a sealed block's predecessors
 // for the value(s) for a phi node
 fn phi_resolve(bb BasicBlock, phi Phi) {
-	Warn("phi_resolve(bb.@,@)").n(bb.id).s(phi.sym.name.text);
+	//Warn("phi_resolve(bb.@,@)").n(bb.id).s(phi.sym.name.text);
 	if bb.count == 0 {
 		Error("phi_resolve(bb.@) no predecessors?!").n(bb.id);
 	}
@@ -92,7 +135,7 @@ fn phi_resolve(bb BasicBlock, phi Phi) {
 		}
 		args[n] = val;
 		n++;
-		bl.bb.add_set(phi.vini, val);
+		//bl.bb.add_set(phi.vini, val);
 		bl = bl.next;
 	}
 	phi.args = args;
@@ -106,7 +149,7 @@ fn phi_write(bb BasicBlock, sym Symbol, val i32) {
 	var phi Phi = bb.phi;
 	while phi != nil {
 		if phi.sym == sym {
-			Warn("phi_write(bb.@,@) @").n(bb.id).s(sym.name.text).reg(val);
+			//Warn("phi_write(bb.@,@) @").n(bb.id).s(sym.name.text).reg(val);
 			phi.vcur = val;
 			return;
 		}
@@ -131,7 +174,7 @@ fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
 	var phi Phi = bb.phi;
 	while phi != nil {
 		if phi.sym == sym {
-			Warn("phi_lookup(bb.@,@) cached @").n(bb.id).s(sym.name.text).reg(phi.vcur);
+			//Warn("phi_lookup(bb.@,@) cached @").n(bb.id).s(sym.name.text).reg(phi.vcur);
 			return phi.vcur;
 		}
 		phi = phi.next;
@@ -139,7 +182,7 @@ fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
 
 	if bb.flags & BB_ENTRY {
 		// special case for the function entry block / initial values of params
-		Warn("phi_lookup(bb.@,@) entry @").n(bb.id).s(sym.name.text).reg(sym.vid);
+		// Warn("phi_lookup(bb.@,@) entry @").n(bb.id).s(sym.name.text).reg(sym.vid);
 		return sym.vid;
 	}
 
@@ -153,7 +196,7 @@ fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
 
 	if bb.flags & BB_SEALED {
 		// sealed block so we can search our predecessors
-		Warn("phi_lookup(bb.@,@) recurse").n(bb.id).s(sym.name.text);
+		// Warn("phi_lookup(bb.@,@) recurse").n(bb.id).s(sym.name.text);
 
 		if bb.count == 1 {
 			phi.vini = phi_lookup(bb.prev.bb, sym);
@@ -165,28 +208,34 @@ fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
 		// since resolve may use it to insert a get instruction
 		phi.vini = ir_reg_get();
 		phi_resolve(bb, phi);
+		if phi.is_trivial() {
+			phi.count = -1;
+			phi.vini = phi.args[0];
+			phi.vcur = phi.vini;
+			return phi.vini;
+		}
 		// todo flatten trivial phi
 	} else {
 		// unsealed block, so we install a placeholder
 		phi.vini = ir_reg_get();
-		Warn("phi_lookup(bb.@,@) defer").n(bb.id).s(sym.name.text);
+		//Warn("phi_lookup(bb.@,@) defer").n(bb.id).s(sym.name.text);
 	}
 
 	phi.vcur = phi.vini;
-	bb.add_get(phi.vini, phi.vini);
+	//bb.add_get(phi.vini, phi.vini);
 
 	return phi.vcur;
 }
 
 fn sym_to_vid_load(sym Symbol) i32 {
-	Warn("sym_load(@)").s(sym.name.text);
+	//Warn("sym_load(@)").s(sym.name.text);
 	var val i32 = phi_lookup(bb_active, sym);
-	Warn("sym_load(@) @").s(sym.name.text).reg(val);
+	//Warn("sym_load(@) @").s(sym.name.text).reg(val);
 	return val;
 }
 
 fn sym_to_vid_store(sym Symbol, vr i32) i32 {
-	Warn("sym_store(@) @").s(sym.name.text).reg(vr);
+	//Warn("sym_store(@) @").s(sym.name.text).reg(vr);
 	phi_write(bb_active, sym, vr);
 	return vr;
 }
@@ -194,11 +243,35 @@ fn sym_to_vid_store(sym Symbol, vr i32) i32 {
 // reset all global state
 // used at the start of a new function
 fn bb_reset() {
+	var n i32 = 0;
+	while n < reg_next {
+		reg_info[n].used = 0;
+		reg_info[n].inst = nil;
+		n++;
+	}
 	reg_next = REG_VIRT_0;
 	bb_next_id = 0;
 	bb_active = nil;
 	bb_order_first = nil;
 	bb_order_last = nil;
+}
+
+fn inst_track_use(i Inst, r i32) {
+	if r & VF_SPECIAL { return; }
+	reg_info[r].used++;
+}
+
+fn inst_track_set(i Inst, r i32) {
+	if r & VF_SPECIAL { return; }
+	reg_info[r].inst = i;
+}
+
+fn inst_track(i Inst) {
+	var op i32 = i.op;
+	if op & INF_USE_A { inst_track_use(i, i.a); }
+	if op & INF_USE_B { inst_track_use(i, i.b); }
+	if op & INF_USE_C { inst_track_use(i, i.c); }
+	if op & INF_SET_A { inst_track_set(i, i.a); }
 }
 
 fn (bb BasicBlock) append(ins Inst);
@@ -220,6 +293,7 @@ fn (bb BasicBlock) add_set(shadow i32, reg i32) {
 	inst.next = bb.last;
 	inst.prev.next = inst;
 	inst.next.prev = inst;
+	inst_track(inst);
 }
 
 fn (bb BasicBlock) add_get(reg i32, shadow i32) {
@@ -232,6 +306,7 @@ fn (bb BasicBlock) add_get(reg i32, shadow i32) {
 	} else {
 		bb.last = inst;
 	}
+	inst_track(inst);
 }
 
 fn (bb BasicBlock) place() {
@@ -313,8 +388,11 @@ fn (bb BasicBlock) seal() {
 	var phi Phi = bb.phi;
 	while phi != nil {
 		if phi.count == 0 {
-			Warn("phi_lookup(bb.@) post-seal").n(bb.id);
+			//Warn("phi_resolve(bb.@) post-seal").n(bb.id);
 			phi_resolve(bb, phi);
+			if phi.is_trivial() {
+				Warn("need-simplify-def: bb.@ @ x@").n(bb.id).s(phi.sym.name.text).n(phi.count);
+			}
 		}
 		phi = phi.next;
 	}
@@ -352,9 +430,122 @@ fn (bb BasicBlock) set_name(name String) {
 	bb.first.b = ir_string_get(name);
 }
 
+fn inst_make_mov(i Inst, val i32) {
+	//Warn("simplify @ @").s(iop_name[i.op & INS_OP_MASK]).n(val);
+	i.op = INS_MOV | INF_C_IMM | iop_props[INS_MOV];
+	i.b = 0;
+	i.c = val;
+}
+
+// Convert this instruction to a simpler form in situations
+// where it depends on vregs that are set by constant loads,
+// and so on.
+// NOTE: does not adjust used count, unsafe for placed instructions.
+fn inst_simplify(i Inst) {
+	var op i32 = i.op;
+	var valb i32;
+	var valc i32;
+	var x Inst;
+
+	if op & INF_C_IMM {
+		valc = i.c;
+	} else {
+		if i.c & VF_SPECIAL { return; }
+		x = reg_info[i.c].inst;
+		if x == nil { return; }
+		if !((x.op & INS_OP_MASK) == INS_MOV) { return; }
+		if !(x.op & INF_C_IMM) { return; }
+		valc = x.c;
+
+		// movi $a0, c0
+		// alu  $a1, $b1, $a0  ->  alu  $a1, $b1, c0
+		if op & INF_IS_ALU {
+			i.op |= INF_C_IMM;
+			i.c = valc;
+			//Warn("simplify @ c-arg").s(iop_name[i.op & INS_OP_MASK]);
+			return;
+		}
+
+		if (op & INS_OP_MASK) == INS_LOAD {
+			// movi $a0, c0
+			// ld $a1, [$b1, $c1]  ->  ld $a1, [$b1, c0]
+			i.op |= INF_C_IMM;
+			i.c = valc;
+			//Warn("simplify load");
+			return;
+		}
+		if (op & INS_OP_MASK) == INS_STORE {
+			// movi $a0, c0
+			// st $a1, [$b1, $c1]  ->  st $a1, [$b1, c0]
+			i.op |= INF_C_IMM;
+			i.c = valc;
+			//Warn("simplify store");
+			return;
+		}
+	}
+
+	if (op & INS_OP_MASK) == INS_ADD {
+		// add $a0, $b0, c0
+		// add $a1, $b1, c1  ->  add $a1, $b0, (c0 + c1)
+		if i.b & VF_SPECIAL { return; }
+		x = reg_info[i.b].inst;
+		if x == nil { return; }
+		if !((x.op & INS_OP_MASK) == INS_ADD) { return; }
+		if !(x.op & INF_C_IMM) { return; }
+
+		i.op |= INF_C_IMM;
+		i.b = x.b;
+		i.c = valc + x.c;
+		//Warn("simplify add chain");
+		return;
+	}
+
+	// TODO
+	// add $a0, $b0, c0
+	// movi $a1, c1
+	// add $a2, $a0, $a1  -> add $a2, $b0, (c0 + c1)
+
+	// TODO
+	// movi $a0, c0
+	// alu  $a1, $a0, $c1  -> alu $a1, $c1, c0  (if reversible)
+
+	if !(op & INF_IS_ALU) { return; }
+
+	if i.b & VF_SPECIAL { return; }
+	x = reg_info[i.b].inst;
+	if x == nil { return; }
+	if !((x.op & INS_OP_MASK) == INS_MOV) { return; }
+	if !(x.op & INF_C_IMM) { return; }
+	valb = x.c;
+
+	op &= INS_OP_MASK;
+
+	// movi $a0, c0
+	// movi $a1, c1
+	// alu  $a2, $a0, $a1  -> alu $a2, c0, c1
+	if op == INS_ADD { inst_make_mov(i, valb + valc); return; }
+	if op == INS_SUB { inst_make_mov(i, valb - valc); return; }
+	if op == INS_MUL { inst_make_mov(i, valb * valc); return; }
+	if op == INS_LSL { inst_make_mov(i, valb << valc); return; }
+	if op == INS_AND { inst_make_mov(i, valb & valc); return; }
+	if op == INS_OR  { inst_make_mov(i, valb | valc); return; }
+	if op == INS_XOR { inst_make_mov(i, valb ^ valc); return; }
+
+	if op == INS_CMP_EQ { inst_make_mov(i, valb == valc); return; }
+	if op == INS_CMP_NE { inst_make_mov(i, valb != valc); return; }
+	if op == INS_CMP_LT { inst_make_mov(i, valb < valc); return; }
+	if op == INS_CMP_LE { inst_make_mov(i, valb <= valc); return; }
+	if op == INS_CMP_GT { inst_make_mov(i, valb > valc); return; }
+	if op == INS_CMP_GE { inst_make_mov(i, valb >= valc); return; }
+}
+
 // allocate an instruction and add it to the graph
 fn inst_make(op u32, a i32, b i32, c i32) i32 {
 	var ins Inst = _inst_make(op, a, b, c);
+
+	inst_simplify(ins);
+	inst_track(ins);
+
 	bb_active.append(ins);
 	return a;
 }
@@ -391,6 +582,53 @@ fn ir_strlen(id i32) u32 {
 	return global_names[id].len;
 }
 
+fn inst_remove(i Inst);
+
+fn reg_disuse(r i32) {
+	if r & VF_SPECIAL { return; }
+	if reg_info[r].used == 0 {
+		Error("reg refcount underflow");
+	}
+	reg_info[r].used--;
+	if reg_info[r] == 0 {
+		inst_remove(reg_info[r].inst);
+	}
+}
+
+fn inst_remove(i Inst) {
+	if i != nil {
+		if i.op & INF_DEAD {
+			Error("double nopped");
+		}
+		i.op |= INF_DEAD;
+		i.next.prev = i.prev;
+		i.prev.next = i.next;
+		if i.op & INF_USE_A { reg_disuse(i.a); }
+		if i.op & INF_USE_B { reg_disuse(i.b); }
+		if i.op & INF_USE_C { reg_disuse(i.c); }
+	}
+}
+
+fn finalize_fn(_bl BlockList) {
+	// place get and set instructions for phis
+	phis_to_insts(_bl);
+
+	// remove any instructions with unused results
+	var count i32 = 0;
+	var n i32 = 0;
+	while n < reg_next {
+		if reg_info[n].used == 0 {
+			if reg_info[n].inst {
+				inst_remove(reg_info[n].inst);
+				count++;
+			}
+		}
+		n++;
+	}
+
+	Warn("finalize: removed @ dead instructions").n(count);
+}
+
 // tools to write textual representations of BasicBlocks and Insts
 fn dump_phis(os OutStream, bb BasicBlock, graph bool) {
 	var phi Phi = bb.phi;
@@ -399,9 +637,9 @@ fn dump_phis(os OutStream, bb BasicBlock, graph bool) {
 			os.fmt("<TR><TD ALIGN=\"left\">");
 		}
 		if (bb.count < 2) {
-			os.fmt("    var @").reg(phi.vini);
+			os.fmt("    .var @").reg(phi.vini);
 		} else {
-			os.fmt("    phi @").reg(phi.vini);
+			os.fmt("    .phi @").reg(phi.vini);
 		}
 		var n i32 = 0;
 		while n < phi.count {
@@ -611,5 +849,6 @@ fn serialize_data_chunk(fd i32, dc DataChunk) {
 fn ir_init() {
 	bb_idx = new([1024]*BasicBlock);
 	global_names = new([1024]*String);
+	reg_info = new([1024]RegInfo);
 }
 

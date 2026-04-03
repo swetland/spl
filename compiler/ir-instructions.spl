@@ -69,6 +69,8 @@ enum IRflag {
 	INF_USE_C =    0x40000, // uses register in arg C
 	INF_SET_A =    0x80000, // sets register in arg A
 
+	INF_DEAD =    0x100000,
+
 	// shortcuts for definition
 	INX_BINOP =    INF_IS_ALU | INF_SET_A | INF_USE_B | INF_USE_C,
 	INX_UNOP  =    INF_IS_ALU | INF_SET_A | INF_USE_C,
