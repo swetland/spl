@@ -441,109 +441,185 @@ fn inst_make_mov(i Inst, val i32) {
 // where it depends on vregs that are set by constant loads,
 // and so on.
 // NOTE: does not adjust used count, unsafe for placed instructions.
-fn inst_simplify(i Inst) {
+fn inst_simplify(i Inst) bool {
 	var op i32 = i.op;
-	var valb i32;
 	var valc i32;
 	var x Inst;
 
+	if false { // TODO: fix resulting issues
+	if (op & INS_OP_MASK) == INS_BRANCH {
+		if i.a & VF_SPECIAL { return false; }
+		x = reg_info[i.a].inst;
+		if x == nil { return false; }
+		if !((x.op & INS_OP_MASK) == INS_MOV) { return false; }
+		if !(x.op & INF_C_IMM) { return false; }
+
+		// movi %a0, c0
+		// branch %a0, bb.b, bb.c  --> jump (c0 ? bb.b : bb.c)
+		if x.c {
+			i.a = x.b;
+		} else {
+			i.a = x.c;
+		}
+		i.b = 0;
+		i.c = 0;
+		i.op = INS_JUMP | iop_props[INS_JUMP];
+		Warn("simplify const branch");
+		return false;
+	}
+	}
 	if op & INF_C_IMM {
 		valc = i.c;
 	} else {
-		if i.c & VF_SPECIAL { return; }
+		if i.c & VF_SPECIAL { return false; }
 		x = reg_info[i.c].inst;
-		if x == nil { return; }
-		if !((x.op & INS_OP_MASK) == INS_MOV) { return; }
-		if !(x.op & INF_C_IMM) { return; }
+		if x == nil { return false; }
+		if !((x.op & INS_OP_MASK) == INS_MOV) { return false; }
+		if !(x.op & INF_C_IMM) { return false; }
 		valc = x.c;
 
-		// movi $a0, c0
-		// alu  $a1, $b1, $a0  ->  alu  $a1, $b1, c0
+		// movi %a0, c0
+		// alu  %a1, %b1, %a0  ->  alui  %a1, %b1, c0
 		if op & INF_IS_ALU {
 			i.op |= INF_C_IMM;
 			i.c = valc;
 			//Warn("simplify @ c-arg").s(iop_name[i.op & INS_OP_MASK]);
-			return;
+			return true;
 		}
 
 		if (op & INS_OP_MASK) == INS_LOAD {
-			// movi $a0, c0
-			// ld $a1, [$b1, $c1]  ->  ld $a1, [$b1, c0]
+			// movi %a0, c0
+			// ld %a1, [%b1, %a0]  ->  ldi %a1, [%b1, c0]
 			i.op |= INF_C_IMM;
 			i.c = valc;
 			//Warn("simplify load");
-			return;
+			return false;
 		}
 		if (op & INS_OP_MASK) == INS_STORE {
-			// movi $a0, c0
-			// st $a1, [$b1, $c1]  ->  st $a1, [$b1, c0]
+			// movi %a0, c0
+			// st %a1, [%b1, %a0]  ->  sti %a1, [%b1, c0]
 			i.op |= INF_C_IMM;
 			i.c = valc;
 			//Warn("simplify store");
-			return;
+			return false;
 		}
 	}
+	// valc is now the value of argc which was a const arg
+	// or referred to a vreg containing a constant value
 
 	if (op & INS_OP_MASK) == INS_ADD {
-		// add $a0, $b0, c0
-		// add $a1, $b1, c1  ->  add $a1, $b0, (c0 + c1)
-		if i.b & VF_SPECIAL { return; }
+		// addi %a0, %b0, c0
+		// addi %a1, %a0, c1  ->  addi %a1, %b0, (c0 + c1)
+		if i.b & VF_SPECIAL { return false; }
 		x = reg_info[i.b].inst;
-		if x == nil { return; }
-		if !((x.op & INS_OP_MASK) == INS_ADD) { return; }
-		if !(x.op & INF_C_IMM) { return; }
+		if x == nil { return false; }
+		if (x.op & INS_OP_MASK) != INS_ADD { return false; }
+		if !(x.op & INF_C_IMM) { return false; }
 
 		i.op |= INF_C_IMM;
 		i.b = x.b;
 		i.c = valc + x.c;
 		//Warn("simplify add chain");
-		return;
+		return true;
+	}
+
+	if ((op & INS_OP_MASK) == INS_LOAD) || ((op & INS_OP_MASK) == INS_STORE) {
+		// addi %a0, %b0, c0
+		// ldi  %a1, [%a0, c1]  ->  ldi %a1, [%b0, c0 + c1]
+		if i.b & VF_SPECIAL { return false; }
+		x = reg_info[i.b].inst;
+		if x == nil { return false; }
+		if (x.op & INS_OP_MASK) != INS_ADD { return false; }
+		if !(x.op & INF_C_IMM) { return false; }
+
+		i.op |= INF_C_IMM;
+		i.b = x.b;
+		i.c = valc + x.c;
+		Warn("simplify add/load chain");
+		return true;
 	}
 
 	// TODO
-	// add $a0, $b0, c0
-	// movi $a1, c1
-	// add $a2, $a0, $a1  -> add $a2, $b0, (c0 + c1)
+	// addi %a0, %b0, c0
+	// movi %a1, c1
+	// add  %a2, %a0, %a1  -> add %a2, %b0, (c0 + c1)
 
 	// TODO
-	// movi $a0, c0
-	// alu  $a1, $a0, $c1  -> alu $a1, $c1, c0  (if reversible)
+	if !(op & INF_IS_ALU) { return false; }
 
-	if !(op & INF_IS_ALU) { return; }
-
-	if i.b & VF_SPECIAL { return; }
+	if i.b & VF_SPECIAL { return false; }
 	x = reg_info[i.b].inst;
-	if x == nil { return; }
-	if !((x.op & INS_OP_MASK) == INS_MOV) { return; }
-	if !(x.op & INF_C_IMM) { return; }
-	valb = x.c;
+	if x == nil { return false; }
+	if !((x.op & INS_OP_MASK) == INS_MOV) { return false; }
+	if !(x.op & INF_C_IMM) { return false; }
+	var valb i32 = x.c;
 
 	op &= INS_OP_MASK;
 
-	// movi $a0, c0
-	// movi $a1, c1
-	// alu  $a2, $a0, $a1  -> alu $a2, c0, c1
-	if op == INS_ADD { inst_make_mov(i, valb + valc); return; }
-	if op == INS_SUB { inst_make_mov(i, valb - valc); return; }
-	if op == INS_MUL { inst_make_mov(i, valb * valc); return; }
-	if op == INS_LSL { inst_make_mov(i, valb << valc); return; }
-	if op == INS_AND { inst_make_mov(i, valb & valc); return; }
-	if op == INS_OR  { inst_make_mov(i, valb | valc); return; }
-	if op == INS_XOR { inst_make_mov(i, valb ^ valc); return; }
+	// movi %a0, c0
+	// movi %a1, c1
+	// alu  %a2, %a0, %a1  -> alu %a2, c0, c1
+	if op == INS_ADD { inst_make_mov(i, valb + valc); return false; }
+	if op == INS_SUB { inst_make_mov(i, valb - valc); return false; }
+	if op == INS_MUL { inst_make_mov(i, valb * valc); return false; }
+	if op == INS_LSL { inst_make_mov(i, valb << valc); return false; }
+	if op == INS_AND { inst_make_mov(i, valb & valc); return false; }
+	if op == INS_OR  { inst_make_mov(i, valb | valc); return false; }
+	if op == INS_XOR { inst_make_mov(i, valb ^ valc); return false; }
 
-	if op == INS_CMP_EQ { inst_make_mov(i, valb == valc); return; }
-	if op == INS_CMP_NE { inst_make_mov(i, valb != valc); return; }
-	if op == INS_CMP_LT { inst_make_mov(i, valb < valc); return; }
-	if op == INS_CMP_LE { inst_make_mov(i, valb <= valc); return; }
-	if op == INS_CMP_GT { inst_make_mov(i, valb > valc); return; }
-	if op == INS_CMP_GE { inst_make_mov(i, valb >= valc); return; }
+	if op == INS_CMP_EQ { inst_make_mov(i, valb == valc); return false; }
+	if op == INS_CMP_NE { inst_make_mov(i, valb != valc); return false; }
+	if op == INS_CMP_LT { inst_make_mov(i, valb < valc); return false; }
+	if op == INS_CMP_LE { inst_make_mov(i, valb <= valc); return false; }
+	if op == INS_CMP_GT { inst_make_mov(i, valb > valc); return false; }
+	if op == INS_CMP_GE { inst_make_mov(i, valb >= valc); return false; }
+	return false;
+}
+
+fn inst_flip_alu(i Inst, op i32, newc i32) {
+	// transform alu %a0, %b0, %c0 -> alui %a0, %c0, newc
+	i.op = (i.op & (~(INS_OP_MASK|INF_USE_C))) | op | INF_C_IMM;
+	i.b = i.c;
+	i.c = newc;
+}
+
+fn inst_simplify2(i Inst) {
+	// movi %a0, c0
+	// alu  %a1, %a0, %c1  -> alu %a1, %c1, c0  (if reversible)
+
+	var op i32 = i.op;
+	if !(op & INF_IS_ALU) { return; }
+	if op & INF_C_IMM { return; }
+	if i.c & VF_SPECIAL { return; }
+
+	var x Inst = reg_info[i.b].inst;
+	if x == nil { return; }
+	if !((x.op & INS_OP_MASK) == INS_MOV) { return; }
+	if !(x.op & INF_C_IMM) { return; }
+	var valb i32 = x.c;
+
+	op &= INS_OP_MASK;
+
+	if op == INS_ADD { inst_flip_alu(i, INS_ADD, valb); return; }
+	if op == INS_MUL { inst_flip_alu(i, INS_MUL, valb); return; }
+	if op == INS_AND { inst_flip_alu(i, INS_AND, valb); return; }
+	if op == INS_OR  { inst_flip_alu(i, INS_OR, valb); return; }
+	if op == INS_XOR { inst_flip_alu(i, INS_XOR, valb); return; }
+
+	if op == INS_CMP_EQ { inst_flip_alu(i, INS_CMP_NE, valb); return; }
+	if op == INS_CMP_NE { inst_flip_alu(i, INS_CMP_EQ, valb); return; }
+	if op == INS_CMP_LT { inst_flip_alu(i, INS_CMP_GE, valb); return; }
+	if op == INS_CMP_LE { inst_flip_alu(i, INS_CMP_GT, valb); return; }
+	if op == INS_CMP_GT { inst_flip_alu(i, INS_CMP_LE, valb); return; }
+	if op == INS_CMP_GE { inst_flip_alu(i, INS_CMP_LT, valb); return; }
 }
 
 // allocate an instruction and add it to the graph
 fn inst_make(op u32, a i32, b i32, c i32) i32 {
 	var ins Inst = _inst_make(op, a, b, c);
 
-	inst_simplify(ins);
+	while inst_simplify(ins) { }
+	inst_simplify2(ins);
 	inst_track(ins);
 
 	bb_active.append(ins);
@@ -636,7 +712,7 @@ fn dump_phis(os OutStream, bb BasicBlock, graph bool) {
 		if graph {
 			os.fmt("<TR><TD ALIGN=\"left\">");
 		}
-		if (bb.count < 2) {
+		if (phi.count < 1) {
 			os.fmt("    .var @").reg(phi.vini);
 		} else {
 			os.fmt("    .phi @").reg(phi.vini);
