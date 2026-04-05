@@ -10,6 +10,15 @@ fn ir_reg_get() i32 {
 	return r;
 }
 
+// allow a virtual register to be discarded if
+// not needed, provided there aren't any newer
+// ones in use
+fn ir_reg_put(r i32) {
+	if r == (reg_next - 1) {
+		reg_next--;
+	}
+}
+
 struct RegInfo {
 	inst *Inst,
 	used i32,
@@ -209,6 +218,7 @@ fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
 		phi.vini = ir_reg_get();
 		phi_resolve(bb, phi);
 		if phi.is_trivial() {
+			ir_reg_put(phi.vini);
 			phi.count = -1;
 			phi.vini = phi.args[0];
 			phi.vcur = phi.vini;
@@ -282,7 +292,7 @@ fn bb_make(tag str) BasicBlock {
 	bb.tag = tag;
 	bb_next_id++;
 	bb_idx[bb.id] = bb;
-	Warn("make bb.@: @ @").n(bb.id).s(tag).x(bb);
+	//Warn("make bb.@: @ @").n(bb.id).s(tag).x(bb);
 	bb.append(_inst_make(INS_LABEL, bb.id, 0, 0));
 	return bb;
 }
@@ -405,7 +415,7 @@ fn (bb BasicBlock) _activate(seal_prev bool) {
 		if !(bb_active.flags & BB_FILLED) {
 			if !(bb_active.flags & BB_DEAD) {
 				inst_jump(bb);
-				Warn("bb.@ chained to bb.@").n(bb_active.id).n(bb.id);
+				//Warn("bb.@ chained to bb.@").n(bb_active.id).n(bb.id);
 			}
 		}
 		if seal_prev {
@@ -535,7 +545,7 @@ fn inst_simplify(i Inst) bool {
 		i.op |= INF_C_IMM;
 		i.b = x.b;
 		i.c = valc + x.c;
-		Warn("simplify add/load chain");
+		//Warn("simplify add/load chain");
 		return true;
 	}
 
@@ -640,7 +650,6 @@ fn ir_string_get(name String) i32 {
 	}
 	global_next = n + 1;
 	global_names[n] = name;
-	Warn("name @ '@'").n(n).s(name.text);
 	return n;
 }
 

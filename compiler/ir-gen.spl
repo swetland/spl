@@ -492,7 +492,6 @@ fn setup_locals(node Ast, n i32) { //dup
 	if node.kind == AST_BLOCK {
 		var sym Symbol = node.sym;
 		while sym != nil {
-			Warn("local @ @").n(n).s(sym.name.text);
 			sym.ival = n;
 			sym.vid = VF_UNDEF;
 			n += 4;
