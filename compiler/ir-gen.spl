@@ -572,14 +572,8 @@ fn gen_fn(node Ast) {
 	var is OutStream = get_outfile(ctx.with_ir, name, ".ir");
 	if is != nil {
 		is.fmt("\n// fn @\n").s(name);
-		dump_bb_list(is, bb_order_first, false);
+		dump_bb_list(is, bb_order_first);
 		fd_close(is.fd);
-	}
-
-	var gs OutStream = get_outfile(ctx.with_graphs, name, ".dot");
-	if gs != nil {
-		dump_bb_list(gs, bb_order_first, true);
-		fd_close(gs.fd);
 	}
 
 	serialize_fn(os.fd, bb_order_first);

@@ -715,12 +715,9 @@ fn finalize_fn(_bl BlockList) {
 }
 
 // tools to write textual representations of BasicBlocks and Insts
-fn dump_phis(os OutStream, bb BasicBlock, graph bool) {
+fn dump_phis(os OutStream, bb BasicBlock) {
 	var phi Phi = bb.phi;
 	while phi != nil {
-		if graph {
-			os.fmt("<TR><TD ALIGN=\"left\">");
-		}
 		if (phi.count < 1) {
 			os.fmt("    .var @").reg(phi.vini);
 		} else {
@@ -732,14 +729,11 @@ fn dump_phis(os OutStream, bb BasicBlock, graph bool) {
 			n++;
 		}
 		os.fmt(" // @\n").s(phi.sym.name.text);
-		if graph {
-			os.fmt("</TD></TR>\n");
-		}
 		phi = phi.next;
 	}
 }
 
-fn dump_bb(os OutStream, bb BasicBlock, graph bool) {
+fn dump_bb(os OutStream, bb BasicBlock) {
 	if !(bb.flags & BB_FILLED) {
 		Warn("bb.@ is not filled").n(bb.id);
 	}
@@ -747,74 +741,33 @@ fn dump_bb(os OutStream, bb BasicBlock, graph bool) {
 		Warn("bb.@ is not sealed").n(bb.id);
 	}
 	if bb.flags & BB_DEAD {
-		if graph {
-			os.fmt("\"bb.@\" [ style=invis ];\n").n(bb.id);
-		}
 		return;
 	}
-	if graph {
-		if false {
+	os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
+	if bb.prev != nil {
+		os.fmt(" << ");
 		var bl BlockList = bb.prev;
 		while bl != nil {
-			os.fmt("\"bb.@\":sw -> \"bb.@\":ne [ constraint=false; ];\n").n(bl.bb.id).n(bb.id);
+			os.fmt("bb.@").n(bl.bb.id);
 			bl = bl.next;
-		}
-		}
-		os.fmt("\"bb.@\" [ label=<<TABLE BORDER=\"0\" CELLBORDER=\"1\" CELLSPACING=\"0\">\n").n(bb.id);
-		os.fmt("<TR><TD BGCOLOR=\"gray\" ALIGN=\"left\">bb.@: @</TD></TR>\n").n(bb.id).s(bb.tag);
-	} else {
-		os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
-		if bb.prev != nil {
-			os.fmt(" << ");
-			var bl BlockList = bb.prev;
-			while bl != nil {
-				os.fmt("bb.@").n(bl.bb.id);
-				bl = bl.next;
-				if bl != nil {
-					os.fmt(", ");
-				}
+			if bl != nil {
+				os.fmt(", ");
 			}
 		}
-		os.fmt("\n");
 	}
-	dump_phis(os, bb, graph);
+	os.fmt("\n");
+	dump_phis(os, bb);
 	var ins Inst = bb.first;
 	while ins != nil {
-		var op i32 = ins.op & INS_OP_MASK;
-		if graph {
-			os.fmt("<TR><TD ALIGN=\"left\">");
-		}
 		inst_disasm(os, ins);
-		if graph {
-			os.fmt("</TD></TR>\n");
-		}
 		ins = ins.next;
-	}
-	if graph {
-		os.fmt("</TABLE>>; ];\n");
-		if bb.next0 {
-			os.fmt("\"bb.@\":sw -> \"bb.@\":nw [ constraint=false; ];\n").n(bb.id).n(bb.next0.id);
-		}
-		if bb.next1 {
-			os.fmt("\"bb.@\":se -> \"bb.@\":ne [ constraint=false; ];\n").n(bb.id).n(bb.next1.id);
-		}
 	}
 }
 
-fn dump_bb_list(os OutStream, bl BlockList, graph bool) {
-	if graph {
-		os.fmt("digraph g {\n");
-		os.fmt("node [ shape=plain; ];\n");
-	}
+fn dump_bb_list(os OutStream, bl BlockList) {
 	while bl != nil {
-		if graph && (bl.next != nil) {
-			os.fmt("\"bb.@\" -> \"bb.@\" [ style=invis ];\n").n(bl.bb.id).n(bl.next.bb.id);
-		}
-		dump_bb(os, bl.bb, graph);
+		dump_bb(os, bl.bb);
 		bl = bl.next;
-	}
-	if graph {
-		os.fmt("}\n");
 	}
 }
 
