@@ -278,6 +278,9 @@ fn inst_track_set(i Inst, r i32) {
 
 fn inst_track(i Inst) {
 	var op i32 = i.op;
+	if (op & INF_USE_C) && (op & INF_C_IMM) {
+		Error("invalid instruction USE_C + C_IMM");
+	}
 	if op & INF_USE_A { inst_track_use(i, i.a); }
 	if op & INF_USE_B { inst_track_use(i, i.b); }
 	if op & INF_USE_C { inst_track_use(i, i.c); }
@@ -443,7 +446,14 @@ fn (bb BasicBlock) set_name(name String) {
 fn inst_make_mov(i Inst, val i32) {
 	//Warn("simplify @ @").s(iop_name[i.op & INS_OP_MASK]).n(val);
 	i.op = INS_MOV | INF_C_IMM | iop_props[INS_MOV];
+	i.op &= (~INF_USE_C);
 	i.b = 0;
+	i.c = val;
+}
+
+fn inst_make_imm(i Inst, val i32) {
+	i.op |= INF_C_IMM;
+	i.op &= (~INF_USE_C);
 	i.c = val;
 }
 
@@ -491,8 +501,7 @@ fn inst_simplify(i Inst) bool {
 		// movi %a0, c0
 		// alu  %a1, %b1, %a0  ->  alui  %a1, %b1, c0
 		if op & INF_IS_ALU {
-			i.op |= INF_C_IMM;
-			i.c = valc;
+			inst_make_imm(i, valc);
 			//Warn("simplify @ c-arg").s(iop_name[i.op & INS_OP_MASK]);
 			return true;
 		}
@@ -500,16 +509,14 @@ fn inst_simplify(i Inst) bool {
 		if (op & INS_OP_MASK) == INS_LOAD {
 			// movi %a0, c0
 			// ld %a1, [%b1, %a0]  ->  ldi %a1, [%b1, c0]
-			i.op |= INF_C_IMM;
-			i.c = valc;
+			inst_make_imm(i, valc);
 			//Warn("simplify load");
 			return false;
 		}
 		if (op & INS_OP_MASK) == INS_STORE {
 			// movi %a0, c0
 			// st %a1, [%b1, %a0]  ->  sti %a1, [%b1, c0]
-			i.op |= INF_C_IMM;
-			i.c = valc;
+			inst_make_imm(i, valc);
 			//Warn("simplify store");
 			return false;
 		}
@@ -526,9 +533,8 @@ fn inst_simplify(i Inst) bool {
 		if (x.op & INS_OP_MASK) != INS_ADD { return false; }
 		if !(x.op & INF_C_IMM) { return false; }
 
-		i.op |= INF_C_IMM;
 		i.b = x.b;
-		i.c = valc + x.c;
+		inst_make_imm(i, valc + x.c);
 		//Warn("simplify add chain");
 		return true;
 	}
@@ -542,9 +548,8 @@ fn inst_simplify(i Inst) bool {
 		if (x.op & INS_OP_MASK) != INS_ADD { return false; }
 		if !(x.op & INF_C_IMM) { return false; }
 
-		i.op |= INF_C_IMM;
 		i.b = x.b;
-		i.c = valc + x.c;
+		inst_make_imm(i, valc + x.c);
 		//Warn("simplify add/load chain");
 		return true;
 	}
