@@ -63,45 +63,16 @@ fn (os OutStream) x(n u32) OutStream {
 	return os;
 }
 
-fn print_type(fd i32, type Type);
-
-fn (os OutStream) t(type Type) OutStream {
-	print_type(os.fd, type);
-	os_advance(os);
-	return os;
-}
-
-fn make_OutStream(msg str, fd i32, flags u32, tag str) OutStream {
-	var os OutStream = new(OutStream);
-	os.msg = msg;
-	os.idx = 0;
-	os.flags = flags;
-	os.fd = fd;
-	if tag != nil {
-		if flags & OS_INTERRUPT {
-			writes(fd, "\n");
-		}
-		print_srcloc(fd, ctx.linenumber);
-		writes(fd, tag);
-	}
-	os_advance(os);
-	return os;
-}
-
-fn Error(msg str) OutStream {
-	return make_OutStream(msg, 2, OS_FATAL | OS_NEWLINE | OS_INTERRUPT, ": error: ");
-}
-
-fn Warn(msg str) OutStream {
-	return make_OutStream(msg, 2, OS_NEWLINE, ": warning: ");
-}
-
 fn OutFd(fd i32) OutStream {
-	if fd >= 0 {
-		return make_OutStream("", fd, 0, nil);
-	} else {
+	if fd < 0 {
 		return nil;
 	}
+	var os OutStream = new(OutStream);
+	os.msg = "";
+	os.idx = 0;
+	os.flags = 0;
+	os.fd = fd;
+	return os;
 }
 
 fn (os OutStream) fmt(msg str) OutStream {
