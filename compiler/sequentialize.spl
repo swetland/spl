@@ -1,0 +1,151 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+// An implementation of the "parallel copy sequentialization"
+// algorithm described in "Revisiting Out-of-SSA Translation for
+// Correctness, Code Quality, and Eﬀiciency", Boissinot et al 2009.
+
+struct RegInfo {
+	// global name for this local register
+	name i32,
+	// register that must be copied into this one (or -1)
+	pred i32,
+	// original register value currently contained (or -1)
+	loc i32,
+};
+
+struct CopyPair {
+	src i32,
+	dst i32,
+};
+
+struct RegCopy {
+	// table of all (nr) local register state
+	reg []RegInfo,
+	nr i32,
+	// stack of (tsp) registers needing to receive copies
+	todo []i32,
+	tsp i32,
+	// stack of (rsp) registers currently safe to copy into
+	ready []i32,
+	rsp i32,
+	// result list of (nc) sequential copies to execute
+	copy []CopyPair,
+	nc i32,
+	max i32,
+};
+
+fn (rc RegCopy) reset(tmp i32) {
+	rc.reg[0].name = tmp;
+	rc.reg[0].pred = -1;
+	rc.reg[0].loc = -1;
+	rc.nr = 1;
+	rc.tsp = 0;
+	rc.rsp = 0;
+	rc.nc = 0;
+}
+
+fn RegCopy_make(max i32, tmp i32) RegCopy {
+	var rc RegCopy = new(RegCopy);
+	// TODO: implement runtime-sized
+	// array/slice allocation in compiler...
+	rc.todo = __new(max * 4);
+	rc.ready = __new(max * 4);
+	rc.reg = __new(max * 12);
+	rc.copy = __new((max + 1) * 8 * 2);
+	rc.max = max;
+	rc.reset(tmp);
+	return rc;
+}
+
+fn (rc RegCopy) _map(name i32) i32 {
+	var n i32 = 1;
+	while n < rc.nr {
+		if name == rc.reg[n].name {
+			return n;
+		}
+		n++;
+	}
+	rc.reg[n].name = name;
+	rc.reg[n].pred = -1;
+	rc.reg[n].loc = -1;
+	rc.nr = n + 1;
+	return n;
+}
+
+fn (rc RegCopy) copy(src i32, dst i32) {
+	var n i32 = rc.nr;
+	var r []RegInfo = rc.reg;
+	src = rc._map(src);
+	dst = rc._map(dst);
+	r[src].loc = src;
+	r[dst].pred = src;
+	rc.todo[rc.tsp] = dst;
+	rc.tsp++;
+
+	// track possible initial targets in ready
+	rc.ready[rc.rsp] = dst;
+	rc.rsp++;
+}
+
+fn (rc RegCopy) sequentialize() i32 {
+	var r []RegInfo = rc.reg;
+
+	// determine which (if any) of the destinations
+	// is available at the begining, and adjust the
+	// ready stack to contain only those
+	var i i32 = 0;
+	var j i32 = 0;
+	while i < rc.rsp {
+		if r[rc.ready[i]].loc == -1 {
+			// target is available
+			rc.ready[j] = rc.ready[i];
+			j++;
+		}
+		i++;
+	}
+	rc.rsp = j;
+
+	while rc.tsp {
+		while rc.rsp {
+			// while a register is available to write into,
+			// schedule a copy from its specified predecessor
+			rc.rsp--;
+			var dst i32 = rc.ready[rc.rsp];
+			var pred i32 = r[dst].pred;
+			var src i32 = r[pred].loc;
+			rc.copy[rc.nc].src = r[src].name;
+			rc.copy[rc.nc].dst = r[dst].name;
+			rc.nc++;
+			// note that the pred value can now be found in
+			// this destination register
+			r[pred].loc = dst;
+			if (pred == src) && (r[pred].pred != -1) {
+				// make vacated source available to be
+				// copied into if it has a predecessor
+				rc.ready[rc.rsp] = pred;
+				rc.rsp++;
+			}
+		}
+		rc.tsp--;
+		var dst i32 = rc.todo[rc.tsp];
+		if dst != r[r[dst].pred].loc {
+			// dst does not contain its intended predecessor
+			// shuffle it to the temporary reg to make room
+			rc.copy[rc.nc].src = r[dst].name;
+			rc.copy[rc.nc].dst = r[0].name;
+			rc.nc++;
+			r[dst].loc = 0;
+			rc.ready[rc.rsp] = dst;
+			rc.rsp++;
+		}
+	}
+}
+
+fn (rc RegCopy) print(os OutStream) {
+	var n i32 = 0;
+	while n < rc.nc {
+		os.fmt("@ -> @\n").n(rc.copy[n].src).n(rc.copy[n].dst);
+		n++;
+	}
+}
