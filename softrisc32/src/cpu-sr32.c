@@ -10,10 +10,11 @@
 #define WITH_TRACE 1
 
 void sr32core(CpuState *s) {
+	void *mem = s->mem;
 	int32_t a, b, n;
 	uint32_t pc = s->pc;
 	for (;;) {
-	int32_t ins = mem_rd32(pc);
+	int32_t ins = mem_rd32(mem, pc);
 #if WITH_TRACE
 	if (s->flags & F_TRACE_FETCH) {
 		fprintf(stderr,"%08x %08x\n", pc, ins);
@@ -65,13 +66,13 @@ void sr32core(CpuState *s) {
 	case 0b100: // L
 		a = s->r[(ins >> 11) & 31] + (ins >> 16);
 		switch (ins & 7) {
-		case 0: n = mem_rd32(a); break;
-		case 1: n = mem_rd16(a); if (n & 0x8000) n |= 0xFFFF0000; break;
-		case 2: n = mem_rd8(a); if (n & 0x80) n |= 0xFFFFFF00; break;
+		case 0: n = mem_rd32(mem, a); break;
+		case 1: n = mem_rd16(mem, a); if (n & 0x8000) n |= 0xFFFF0000; break;
+		case 2: n = mem_rd8(mem, a); if (n & 0x80) n |= 0xFFFFFF00; break;
 		case 3: n = io_rd32(s, a); break;
 		case 4: n = ins & 0xFFFF0000; break;
-		case 5: n = mem_rd16(a); break;
-		case 6: n = mem_rd8(a); break;
+		case 5: n = mem_rd16(mem, a); break;
+		case 6: n = mem_rd8(mem, a); break;
 		case 7: n = pc + (ins & 0xFFFF0000); break;
 		}
 		b = (ins >> 6) & 31;
@@ -88,9 +89,9 @@ void sr32core(CpuState *s) {
 		a = s->r[(ins >> 11) & 31] + (ins >> 16);
 		b = s->r[(ins >> 6) & 31];
 		switch (ins & 7) {
-		case 0: mem_wr32(a, b); break;
-		case 1: mem_wr16(a, b); break;
-		case 2: mem_wr8(a, b); break;
+		case 0: mem_wr32(mem, a, b); break;
+		case 1: mem_wr16(mem, a, b); break;
+		case 2: mem_wr8(mem, a, b); break;
 		case 3:	io_wr32(s, a, b); break;
 		default: goto undef;
 		}

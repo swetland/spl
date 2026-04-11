@@ -14,15 +14,14 @@
 int quiet = 0;
 
 #define RAMSIZE   (8*1024*1024)
-#define RAMMASK8  (RAMSIZE - 1)
-#define RAMMASK32 (RAMMASK8 & (~3))
-#define RAMMASK16 (RAMMASK8 & (~1))
-uint8_t emu_ram[RAMSIZE];
+void *mem;
 
 static CpuState CS;
 
-uint32_t RD(uint32_t addr) {
-	return *((uint32_t*) (emu_ram + (addr & RAMMASK32)));
+static inline uint32_t RD(uint32_t addr) {
+	uint32_t value;
+	mem_rd32_safe(mem, addr, &value);
+	return value;
 }
 
 typedef struct Symbol Symbol;
@@ -80,61 +79,17 @@ void dump_cpu_state(void) {
 	backtrace(CS.pc, CS.r[7]);
 }
 
-void memory_fault(uint32_t addr, int rd) {
-	fprintf(stderr, "ERROR: %08x: memory %s fault: %08x\n", CS.pc, rd ? "read" : "write", addr);
+void memory_fault(uint32_t addr) {
+	fprintf(stderr, "ERROR: %08x: memory fault: %08x\n", CS.pc, addr);
 	dump_cpu_state();
 	exit(1);
 }
 
-static inline void check_rd(uint32_t addr) {
-	if (addr < 65536) memory_fault(addr, 1);
-	if (addr > RAMSIZE) memory_fault(addr, 1);
-}
-static inline void check_wr(uint32_t addr) {
-	if (addr < 65536) memory_fault(addr, 0);
-	if (addr > RAMSIZE) memory_fault(addr, 0);
-}
-
-#if 0
-#define CHECK_RD(addr) (addr)
-#define CHECK_WR(addr,val) (addr)
-#else
-#define CHECK_RD(addr) (check_rd(addr), addr)
-#define CHECK_WR(addr,val) (check_wr(addr), addr)
-#endif
-
-uint32_t mem_rd32(uint32_t addr) {
-	return *((uint32_t*) (emu_ram + (CHECK_RD(addr) & RAMMASK32)));
-}
-uint32_t mem_rd16(uint32_t addr) {
-	return *((uint16_t*) (emu_ram + (CHECK_RD(addr) & RAMMASK16)));
-}
-uint32_t mem_rd8(uint32_t addr) {
-	return *((uint8_t*) (emu_ram + (CHECK_RD(addr) & RAMMASK8)));
-}
-
-void mem_wr32(uint32_t addr, uint32_t val) {
-	*((uint32_t*) (emu_ram + (CHECK_WR(addr, val) & RAMMASK32))) = val;
-}
-void mem_wr16(uint32_t addr, uint32_t val) {
-	*((uint16_t*) (emu_ram + (CHECK_WR(addr, val) & RAMMASK16))) = val;
-}
-void mem_wr8(uint32_t addr, uint32_t val) {
-	*((uint8_t*) (emu_ram + (CHECK_WR(addr, val) & RAMMASK8))) = val;
-}
-
+// TODO handle traps
 void *mem_dma(uint32_t addr, uint32_t len) {
 	if (addr >= RAMSIZE) return 0;
 	if ((RAMSIZE - addr) < len) return 0;
-	return emu_ram + addr;
-}
-
-// quiet writes for init
-void mem_wr32q(uint32_t addr, uint32_t val) {
-	*((uint32_t*) (emu_ram + (addr & RAMMASK32))) = val;
-}
-void mem_wr8q(uint32_t addr, uint32_t val) {
-	*((uint8_t*) (emu_ram + (addr & RAMMASK8))) = val;
+	return mem + addr;
 }
 
 int do_check_state = 0;
@@ -148,7 +103,7 @@ void check_state(void) {
 			uint32_t addr;
 			uint32_t val;
 			if (sscanf(line, "M %x %x", &addr, &val) == 2) {
-				uint32_t actual = mem_rd32(addr);
+				uint32_t actual = RD(addr);
 				if (actual != val) {
 					fprintf(stderr, "M %08x %08x != %08x\n", addr, val, actual);
 					fail = 1;
@@ -210,7 +165,7 @@ void load_hex_image(const char* fn) {
 		if ((strlen(line) > 18) && (line[8] == ':')) {
 			uint32_t addr = strtoul(line, 0, 16);
 			uint32_t val = strtoul(line + 10, 0, 16);
-			mem_wr32q(addr, val);
+			mem_wr32(mem, addr, val);
 			char *x = strchr(line + 18, ':');
 			if (x) {
 				add_symbol(addr, x + 1);
@@ -271,9 +226,13 @@ int main(int argc, char** argv) {
 	int args = 0;
 	int timeout = 0;
 
+	mem = mem_init();
+	mem_protect(mem, 65536, RAMSIZE - 65536, MEM_RW);
+	memset(mem + 65536, 0, RAMSIZE - 65536);
+
 	CpuState *cs = &CS;
 	memset(cs, 0, sizeof(CpuState));
-	memset(emu_ram, 0, sizeof(emu_ram));
+	cs->mem = mem;
 
 	while (argc > 1) {
 		if (!strcmp(argv[1], "-tf")) {
@@ -317,7 +276,7 @@ int main(int argc, char** argv) {
 
 	uint32_t sp = entry - 16;
 	uint32_t lr = sp;
-	mem_wr32q(lr + 0, 0xfffd016b); // stx rv, -3 (exit)
+	mem_wr32(mem, lr + 0, 0xfffd016b); // stx rv, -3 (exit)
 
 	uint32_t guest_argc = args;
 	uint32_t guest_argv = 0;
@@ -329,20 +288,20 @@ int main(int argc, char** argv) {
 			uint32_t n = strlen(argv[0]) + 1;
 			sp -= (n + 3) & (~3);
 			for (uint32_t i = 0; i < n; i++) {
-				mem_wr8q(sp + i, argv[0][i]);
+				mem_wr8(mem, sp + i, argv[0][i]);
 			}
-			mem_wr32q(p, sp);
+			mem_wr32(mem, p, sp);
 			p += 4;
 			args--;
 			argv++;
 		}
-		mem_wr32q(p, 0);
+		mem_wr32(mem, p, 0);
 	}
 
 	// args on stack for abi0
 	sp -= 8;
-	mem_wr32q(sp + 0, guest_argc);
-	mem_wr32q(sp + 4, guest_argv);
+	mem_wr32(mem, sp + 0, guest_argc);
+	mem_wr32(mem, sp + 4, guest_argv);
 
 	cs->pc = entry;
 	cs->r[1] = lr;
@@ -355,6 +314,11 @@ int main(int argc, char** argv) {
 	}
 	sys_init(guest_argc, guest_argv);
 
-	sr32core(cs);
+	// TODO: protect program memory from writes
+
+	uint32_t fault_addr = 0;
+	if (mem_try((void*) sr32core, cs, &fault_addr)) {
+		memory_fault(fault_addr);
+	}
 	return 0;
 }
