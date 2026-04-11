@@ -33,6 +33,7 @@ struct RegCopy {
 	copy []CopyPair,
 	nc i32,
 	max i32,
+	tmp i32,
 };
 
 fn (rc RegCopy) reset(tmp i32) {
@@ -43,6 +44,7 @@ fn (rc RegCopy) reset(tmp i32) {
 	rc.tsp = 0;
 	rc.rsp = 0;
 	rc.nc = 0;
+	rc.tmp = tmp;
 }
 
 fn RegCopy_make(max i32, tmp i32) RegCopy {
@@ -73,11 +75,18 @@ fn (rc RegCopy) _map(name i32) i32 {
 	return n;
 }
 
-fn (rc RegCopy) copy(src i32, dst i32) {
+fn (rc RegCopy) copy(src i32, dst i32) i32 {
+	// temp register must never be a src or dst
+	if (src == rc.tmp) || (dst == rc.tmp) { return -1; }
+
 	var n i32 = rc.nr;
 	var r []RegInfo = rc.reg;
 	src = rc._map(src);
 	dst = rc._map(dst);
+
+	// illegal to copy multiple srcs to one dst
+	if r[dst].pred != -1 { return -2; }
+
 	r[src].loc = src;
 	r[dst].pred = src;
 	rc.todo[rc.tsp] = dst;
@@ -86,6 +95,23 @@ fn (rc RegCopy) copy(src i32, dst i32) {
 	// track possible initial targets in ready
 	rc.ready[rc.rsp] = dst;
 	rc.rsp++;
+	return 0;
+}
+
+// remove item from todo list
+fn (rc RegCopy) done(dst i32) {
+	var n i32 = 0;
+	while n < rc.tsp {
+		if rc.todo[n] == dst {
+			rc.tsp--;
+			while n < rc.tsp {
+				rc.todo[n] = rc.todo[n + 1];
+				n++;
+			}
+			return;
+		}
+		n++;
+	}
 }
 
 fn (rc RegCopy) sequentialize() i32 {
@@ -117,6 +143,8 @@ fn (rc RegCopy) sequentialize() i32 {
 			rc.copy[rc.nc].src = r[src].name;
 			rc.copy[rc.nc].dst = r[dst].name;
 			rc.nc++;
+			// remove from todo list
+			rc.done(dst);
 			// note that the pred value can now be found in
 			// this destination register
 			r[pred].loc = dst;
@@ -127,18 +155,29 @@ fn (rc RegCopy) sequentialize() i32 {
 				rc.rsp++;
 			}
 		}
-		rc.tsp--;
-		var dst i32 = rc.todo[rc.tsp];
-		if dst != r[r[dst].pred].loc {
-			// dst does not contain its intended predecessor
-			// shuffle it to the temporary reg to make room
-			rc.copy[rc.nc].src = r[dst].name;
-			rc.copy[rc.nc].dst = r[0].name;
-			rc.nc++;
-			r[dst].loc = 0;
-			rc.ready[rc.rsp] = dst;
-			rc.rsp++;
+		if rc.tsp {
+			rc.tsp--;
+			var dst i32 = rc.todo[rc.tsp];
+			if dst != r[r[dst].pred].loc {
+				// dst does not contain its intended predecessor
+				// shuffle it to the temporary reg to make room
+				rc.copy[rc.nc].src = r[dst].name;
+				rc.copy[rc.nc].dst = r[0].name;
+				rc.nc++;
+				r[dst].loc = 0;
+				rc.ready[rc.rsp] = dst;
+				rc.rsp++;
+			}
 		}
+	}
+}
+
+fn (rc RegCopy) dump(os OutStream) {
+	var n i32 = 1;
+	while n < rc.nr {
+		os.fmt("#@  loc @, pred @, name @\n").n(n)
+			.n(rc.reg[n].loc).n(rc.reg[n].pred).n(rc.reg[n].name);
+		n++;
 	}
 }
 
