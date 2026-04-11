@@ -1,0 +1,28 @@
+#!/bin/bash -e
+
+if [ "$#" -ne 1 ]; then
+	echo "ERROR: usage: $0 file.spl"
+	exit 1
+fi
+
+src=$1
+base=${src%.spl}
+base=${base##*/}
+out=out/run2/${base}
+
+srcdir=$(dirname $src)
+mapfile -t libs < <(cat ${src} | grep '//:lib:')
+len=${#libs[@]}
+for ((i = 0; i < len; i++)); do
+	libs[i]=${srcdir}/${libs[i]##*:}
+done
+
+spllib=(build/stdlib-abi0.spl compiler/stdlib.spl compiler/io.spl)
+asmlib=(build/stdlib-abi0.s32 build/syscall-abi0.s32)
+
+rm -f ${out}.ast ${out}.s32 ${out}.bin
+mkdir -p out/run2
+out/emu -q out/compiler2a.bin -ast ${out}.ast -out ${out}.s32 ${spllib[*]} ${libs[*]} ${src}
+out/asm -o ${out}.bin ${asmlib[*]} ${out}.s32
+out/emu -q ${out}.bin
+
