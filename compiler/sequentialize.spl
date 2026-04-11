@@ -156,18 +156,17 @@ fn (rc RegCopy) sequentialize() i32 {
 			}
 		}
 		if rc.tsp {
+			// nothing available, but still work to do
 			rc.tsp--;
 			var dst i32 = rc.todo[rc.tsp];
-			if dst != r[r[dst].pred].loc {
-				// dst does not contain its intended predecessor
-				// shuffle it to the temporary reg to make room
-				rc.copy[rc.nc].src = r[dst].name;
-				rc.copy[rc.nc].dst = r[0].name;
-				rc.nc++;
-				r[dst].loc = 0;
-				rc.avail[rc.asp] = dst;
-				rc.asp++;
-			}
+			// copy a register into the temporary registr
+			rc.copy[rc.nc].src = r[dst].name;
+			rc.copy[rc.nc].dst = r[0].name;
+			rc.nc++;
+			r[dst].loc = 0;
+			// opening it up to be copied into
+			rc.avail[rc.asp] = dst;
+			rc.asp++;
 		}
 	}
 }
