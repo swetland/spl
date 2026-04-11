@@ -76,8 +76,11 @@ fn (rc RegCopy) _map(name i32) i32 {
 }
 
 fn (rc RegCopy) copy(src i32, dst i32) i32 {
+	// illegal to copy back to source
+	if (src == dst) { return -1; }
+
 	// temp register must never be a src or dst
-	if (src == rc.tmp) || (dst == rc.tmp) { return -1; }
+	if (src == rc.tmp) || (dst == rc.tmp) { return -2; }
 
 	var n i32 = rc.nr;
 	var r []RegInfo = rc.reg;
@@ -85,7 +88,7 @@ fn (rc RegCopy) copy(src i32, dst i32) i32 {
 	dst = rc._map(dst);
 
 	// illegal to copy multiple srcs to one dst
-	if r[dst].pred != -1 { return -2; }
+	if r[dst].pred != -1 { return -3; }
 
 	r[src].loc = src;
 	r[dst].pred = src;
