@@ -106,7 +106,7 @@ fn dump_type(os OutStream, type Type) {
 	if type.kind == TYPE_STRUCT {
 		var sym Symbol = type.list;
 		while sym != nil {
-			FmtLn(os, "    @: @ sz=@").s(sym.name.text).t(sym.type).n(sym.ival);
+			FmtLn(os, "    @: @ off=@").s(sym.name.text).t(sym.type).n(sym.ival);
 			sym = sym.next;
 		}
 	}
