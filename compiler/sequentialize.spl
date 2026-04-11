@@ -3,7 +3,7 @@
 
 // An implementation of the "parallel copy sequentialization"
 // algorithm described in "Revisiting Out-of-SSA Translation for
-// Correctness, Code Quality, and Eﬀiciency", Boissinot et al 2009.
+// Correctness, Code Quality, and Efficiency", Boissinot et al 2009.
 
 struct RegInfo {
 	// global name for this local register
@@ -26,9 +26,9 @@ struct RegCopy {
 	// stack of (tsp) registers needing to receive copies
 	todo []i32,
 	tsp i32,
-	// stack of (rsp) registers currently safe to copy into
-	ready []i32,
-	rsp i32,
+	// stack of (asp) registers currently safe to copy into
+	avail []i32,
+	asp i32,
 	// result list of (nc) sequential copies to execute
 	copy []CopyPair,
 	nc i32,
@@ -42,7 +42,7 @@ fn (rc RegCopy) reset(tmp i32) {
 	rc.reg[0].loc = -1;
 	rc.nr = 1;
 	rc.tsp = 0;
-	rc.rsp = 0;
+	rc.asp = 0;
 	rc.nc = 0;
 	rc.tmp = tmp;
 }
@@ -52,7 +52,7 @@ fn RegCopy_make(max i32, tmp i32) RegCopy {
 	// TODO: implement runtime-sized
 	// array/slice allocation in compiler...
 	rc.todo = __new(max * 4);
-	rc.ready = __new(max * 4);
+	rc.avail = __new(max * 4);
 	rc.reg = __new(max * 12);
 	rc.copy = __new((max + 1) * 8 * 2);
 	rc.max = max;
@@ -92,9 +92,9 @@ fn (rc RegCopy) copy(src i32, dst i32) i32 {
 	rc.todo[rc.tsp] = dst;
 	rc.tsp++;
 
-	// track possible initial targets in ready
-	rc.ready[rc.rsp] = dst;
-	rc.rsp++;
+	// track possible initial targets in avail
+	rc.avail[rc.asp] = dst;
+	rc.asp++;
 	return 0;
 }
 
@@ -119,25 +119,25 @@ fn (rc RegCopy) sequentialize() i32 {
 
 	// determine which (if any) of the destinations
 	// is available at the begining, and adjust the
-	// ready stack to contain only those
+	// avail stack to contain only those
 	var i i32 = 0;
 	var j i32 = 0;
-	while i < rc.rsp {
-		if r[rc.ready[i]].loc == -1 {
+	while i < rc.asp {
+		if r[rc.avail[i]].loc == -1 {
 			// target is available
-			rc.ready[j] = rc.ready[i];
+			rc.avail[j] = rc.avail[i];
 			j++;
 		}
 		i++;
 	}
-	rc.rsp = j;
+	rc.asp = j;
 
 	while rc.tsp {
-		while rc.rsp {
+		while rc.asp {
 			// while a register is available to write into,
 			// schedule a copy from its specified predecessor
-			rc.rsp--;
-			var dst i32 = rc.ready[rc.rsp];
+			rc.asp--;
+			var dst i32 = rc.avail[rc.asp];
 			var pred i32 = r[dst].pred;
 			var src i32 = r[pred].loc;
 			rc.copy[rc.nc].src = r[src].name;
@@ -151,8 +151,8 @@ fn (rc RegCopy) sequentialize() i32 {
 			if (pred == src) && (r[pred].pred != -1) {
 				// make vacated source available to be
 				// copied into if it has a predecessor
-				rc.ready[rc.rsp] = pred;
-				rc.rsp++;
+				rc.avail[rc.asp] = pred;
+				rc.asp++;
 			}
 		}
 		if rc.tsp {
@@ -165,8 +165,8 @@ fn (rc RegCopy) sequentialize() i32 {
 				rc.copy[rc.nc].dst = r[0].name;
 				rc.nc++;
 				r[dst].loc = 0;
-				rc.ready[rc.rsp] = dst;
-				rc.rsp++;
+				rc.avail[rc.asp] = dst;
+				rc.asp++;
 			}
 		}
 	}
