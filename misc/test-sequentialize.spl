@@ -1,0 +1,168 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+//:lib:../compiler/sequentialize.spl
+
+fn xorshift32(state i32) i32 {
+        state = state ^ (state << 13);
+        state = state ^ ((state >> 17) & 0x7FFF);
+        state = state ^ (state << 5);
+        return state;
+}
+
+struct Register {
+	next *Register,
+	name i32,
+	value u32,
+	start u32,
+	src *Register,
+};
+
+struct CopyTester {
+	rc *RegCopy,
+	regs *Register,
+	os *OutStream,
+};
+
+fn (ct CopyTester) GetReg(n i32) Register {
+	var r Register = ct.regs;
+	while r {
+		if r.name == n {
+			return r;
+		}
+		r = r.next;
+	}
+	return nil;
+}
+
+fn (ct CopyTester) GetOrMakeReg(n i32) Register {
+	var r Register = ct.GetReg(n);
+	if r == nil {
+		r = new(Register);
+		r.name = n;
+		r.next = ct.regs;
+		ct.regs = r;
+	}
+	return r;
+}
+
+fn CopyTester_make(rc RegCopy, os OutStream) CopyTester {
+	var ct CopyTester = new(CopyTester);
+	ct.rc = rc;
+	ct.os = os;
+	return ct;
+}
+
+fn (ct CopyTester) reset(tmp i32) {
+	ct.regs = new(Register);
+	ct.regs.name = tmp;
+	ct.regs.value = 0;
+	ct.rc.reset(tmp);
+	ct.os.fmt("in: ");
+}
+
+fn (ct CopyTester) copy(_src i32, _dst i32) i32 {
+	ct.os.fmt("(@ @) ").n(_src).n(_dst);
+	var src Register = ct.GetOrMakeReg(_src);
+	var dst Register = ct.GetOrMakeReg(_dst);
+	dst.src = src;
+	return ct.rc.copy(_src, _dst);
+}
+
+fn (ct CopyTester) verify() i32 {
+	var rc RegCopy = ct.rc;
+
+	// assign 'random' values
+	var x u32 = 0xd3f56332;
+	var r Register = ct.regs;
+	while r {
+		x = xorshift32(x);
+		r.start = x;
+		r.value = x;
+		r = r.next;
+	}
+
+	var n i32 = 0;
+	while n < rc.nc {
+		ct.os.fmt("(@ @) ").n(rc.copy[n].src).n(rc.copy[n].dst);
+		var src Register = ct.GetReg(rc.copy[n].src);
+		var dst Register = ct.GetReg(rc.copy[n].dst);
+		if (src == nil) || (dst == nil) {
+			return -1;
+		}
+		dst.value = src.value;
+		n++;
+	}
+
+	r = ct.regs;
+	while r {
+		if r.src != nil {
+			if r.src.start != r.value {
+				return -2;
+			}
+		}
+		r = r.next;
+	}
+
+	return 0;
+}
+
+fn (ct CopyTester) sequentialize() {
+	ct.os.fmt("\nout: ");
+	ct.rc.sequentialize();
+	if ct.verify() {
+		ct.os.fmt("\nCopyTester: FAIL\n");
+	} else {
+		ct.os.fmt("\nCopyTester: OKAY\n");
+	}
+}
+
+fn (ct CopyTester) print(os OutStream) {
+	ct.rc.print(os);
+}
+
+fn start() i32 {
+	var os OutStream = OutFd(1);
+
+	var rc CopyTester = CopyTester_make(RegCopy_make(32, 999), os);
+
+	rc.reset(999);
+	rc.copy(3, 7);
+	rc.sequentialize();
+
+	rc.reset(999);
+	rc.copy(1, 2);
+	rc.copy(3, 4);
+	rc.copy(5, 6);
+	rc.sequentialize();
+
+	rc.reset(999);
+	rc.copy(1, 2);
+	rc.copy(2, 1);
+	rc.sequentialize();
+
+	rc.reset(999);
+	rc.copy(1, 2);
+	rc.copy(2, 3);
+	rc.copy(3, 4);
+	rc.copy(4, 1);
+	rc.sequentialize();
+
+	rc.reset(999);
+	rc.copy(10, 20);
+	rc.copy(30, 40);
+	rc.copy(20, 10);
+	rc.copy(40, 50);
+	rc.copy(17, 23);
+	rc.copy(50, 30);
+	rc.sequentialize();
+
+	rc.reset(999);
+	rc.copy(1111, 2222);
+	rc.copy(2222, 3333);
+	rc.copy(3333, 1111);
+	rc.copy(3333, 4444);
+	rc.sequentialize();
+
+	return 0;
+}
