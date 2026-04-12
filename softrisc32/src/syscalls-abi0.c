@@ -30,7 +30,9 @@ static int guest_fdmap[SYS_MAX_FDS];
 static uint32_t guest_argc;
 static uint32_t guest_argv;
 
-void sys_init(uint32_t _argc, uint32_t _argv) {
+static uint32_t safer_heap = 0;
+
+void sys_init(uint32_t _argc, uint32_t _argv, uint32_t guard_pages) {
 	guest_argc = _argc;
 	guest_argv = _argv;
 	uint32_t n = 0;
@@ -40,6 +42,12 @@ void sys_init(uint32_t _argc, uint32_t _argv) {
 	guest_fdmap[0] = 0;
 	guest_fdmap[1] = 1;
 	guest_fdmap[2] = 2;
+
+	safer_heap = guard_pages;
+	if (safer_heap) {
+		// make heap inaccessible
+		mem_protect(mem, 4 * 1024 * 1024, 4 * 1024 * 1024, 0);
+	}
 }
 
 static uint32_t new_fd(int fd) {
@@ -158,11 +166,31 @@ int sys_fd_writex(uint32_t _fd, uint32_t n) {
 }
 
 static uint32_t heap_base = 4 * 1024 * 1024;
+static uint32_t heap_alloc_count = 0;
+static uint32_t heap_alloc_bytes = 0;
 
 int sys_alloc(uint32_t sz) {
-	uint32_t addr = heap_base;
-	sz = (sz + 15) & (~15);
-	heap_base += sz;
+	uint32_t addr;
+	if (safer_heap) {
+		sz = (sz + 3) & (~3);
+		// number of pages needed in bytes
+		uint32_t need = (sz + 4095) & (~4095);
+
+		// align allocation so next word past the
+		// requested space will fault
+		addr = heap_base + need - sz;
+
+		// make those pages accessible and
+		// leave guard page(s) after
+		mem_protect(mem, heap_base, need, MEM_RW);
+		heap_base = heap_base + need + safer_heap * 4096;
+	} else {
+		addr = heap_base;
+		sz = (sz + 15) & (~15);
+		heap_base += sz;
+	}
+	heap_alloc_count++;
+	heap_alloc_bytes += sz;
 	return addr;
 }
 
@@ -188,6 +216,8 @@ static inline uint32_t _do_syscall(uint32_t sp, uint32_t n) {
 	case 0x208: return sys_fd_write(ARG(0), ARG(1), ARG(2), ARG(3));
 	case 0x209: return sys_fd_writeu32(ARG(0), ARG(1));
 	case 0x300: return sys_alloc(ARG(0));
+	case 0x301: return heap_alloc_count;
+	case 0x302: return heap_alloc_bytes;
 	}
 	return -1;
 }

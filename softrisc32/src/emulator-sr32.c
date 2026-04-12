@@ -180,6 +180,7 @@ void usage(int status) {
 		"usage:    emu <options> <image.hex> <arguments>\n"
 		"options: -check            Check Machine State\n"
 		"         -panic            Print Backtrace on Exit\n"
+		"         -hgp              Enable Heap Guard Pages\n"
 		"         -limit <s>        Impose Time Limit (Seconds)\n"
 		"         -tf               Trace Instruction Fetches\n"
 		"         -tr               Trace Register Writes\n"
@@ -217,10 +218,10 @@ void set_time_limit(int seconds) {
 	if (timer_settime(tid, 0, &its, NULL) < 0) exit(1);
 }
 
-
-void sys_init(uint32_t argc, uint32_t argv);
+void sys_init(uint32_t argc, uint32_t argv, uint32_t heap_guard_pages);
 
 int main(int argc, char** argv) {
+	uint32_t guard_pages = 0;
 	uint32_t entry = 0x100000;
 	const char* fn = NULL;
 	int args = 0;
@@ -243,6 +244,8 @@ int main(int argc, char** argv) {
 			cs->flags |= F_TRACE_BRANCH;
 		} else if (!strcmp(argv[1], "-ti")) {
 			cs->flags |= F_TRACE_IO;
+		} else if (!strcmp(argv[1], "-hgp")) {
+			guard_pages = 4;
 		} else if (!strcmp(argv[1], "-check")) {
 			do_check_state = 1;
 		} else if (!strcmp(argv[1], "-panic")) {
@@ -312,7 +315,8 @@ int main(int argc, char** argv) {
 	if (timeout > 0) {
 		set_time_limit(timeout);
 	}
-	sys_init(guest_argc, guest_argv);
+
+	sys_init(guest_argc, guest_argv, guard_pages);
 
 	// TODO: protect program memory from writes
 
