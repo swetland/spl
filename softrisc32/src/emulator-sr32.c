@@ -87,8 +87,6 @@ void memory_fault(uint32_t addr) {
 
 // TODO handle traps
 void *mem_dma(uint32_t addr, uint32_t len) {
-	if (addr >= RAMSIZE) return 0;
-	if ((RAMSIZE - addr) < len) return 0;
 	return mem + addr;
 }
 

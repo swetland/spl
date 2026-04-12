@@ -27,23 +27,21 @@ static MemTrap *mem_traps = NULL;
 #define SZ_4GB   0x100000000ULL
 #define MASK_4GB 0x0FFFFFFFFULL
 
-static void mem_segv_handler(int signal, siginfo_t *si, void *arg) {
+static void mem_segv_handler(int n, siginfo_t *si, void *arg) {
 	uint64_t addr = (uint64_t) si->si_addr;
 	uint64_t base = (uint64_t) mem_base;
 
 	if ((addr >= base) && (addr < (base + SZ_4GB))) {
 		// within the arena
-		if (mem_traps == NULL) {
-			fprintf(stderr, "MEM FAULT @ %08x\n", (uint32_t) (addr - base));
-		} else {
+		if (mem_traps != NULL) {
 			mem_traps->addr = (addr - base);
 			mem_traps->flags = 0;
 			longjmp(mem_traps->env, 1);
 		}
-	} else {
-		fprintf(stderr, "OOPS: SEGV @ %p\n", si->si_addr);
 	}
-	exit(0);
+
+	// let the system handle it
+	signal(SIGSEGV, SIG_DFL);
 }
 
 void *mem_init() {
