@@ -39,4 +39,12 @@ write:
 writeu32:
 	syscall 0x209
 	ret
-
+sys_alloc:
+	syscall 0x300
+	ret
+sys_get_alloc_count:
+	syscall 0x301
+	ret
+sys_get_alloc_bytes:
+	syscall 0x302
+	ret

@@ -1,18 +1,8 @@
 
-var __heap_base u32 = 4 * 1024 * 1024;
-var __alloc_count u32 = 0;
-var __alloc_bytes u32 = 0;
+fn sys_alloc(sz u32) u32;
+fn sys_get_alloc_count() u32;
+fn sys_get_alloc_bytes() u32;
 
-fn _hexout_(n i32);
-
-fn __new(sz i32) u32 {
-	// TODO: should zero new object
-	// currently the emulator inits ram to zero and there
-	// is no free/reuse, so not yet an issue
-	var addr u32 = __heap_base;
-	sz = (sz + 15) & (~15);
-	__heap_base += sz;
-	__alloc_count++;
-	__alloc_bytes += sz;
-	return addr;
+fn __new(n i32) u32 {
+	return sys_alloc(n);
 }

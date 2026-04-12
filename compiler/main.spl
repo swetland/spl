@@ -196,8 +196,8 @@ fn start() i32 {
 			sym = sym.next;
 			gsc++;
 		}
-		FmtLn(err, "alloc count:  @").n(__alloc_count);
-		FmtLn(err, "alloc bytes:  @").n(__alloc_bytes);
+		FmtLn(err, "alloc count:  @").n(sys_get_alloc_count());
+		FmtLn(err, "alloc bytes:  @").n(sys_get_alloc_bytes());
 		FmtLn(err, "alloc string: @").n(__alloc_string);
 		FmtLn(err, "alloc scope:  @").n(__alloc_scope);
 		FmtLn(err, "alloc symbol: @").n(__alloc_symbol);

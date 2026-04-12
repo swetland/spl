@@ -91,6 +91,20 @@ void fn_abort(void) {
 	abort();
 }
 
-void* fn___new(t$i32 n) {
+static uint32_t heap_alloc_count = 0;
+static uint32_t heap_alloc_bytes = 0;
+
+void* fn_sys_alloc(t$i32 n) {
+	heap_alloc_count++;
+	heap_alloc_bytes += n;
 	return calloc(1, n);
+}
+t$i32 fn_sys_get_alloc_count(void) {
+	return heap_alloc_count;
+}
+t$i32 fn_sys_get_alloc_bytes(void) {
+	return heap_alloc_bytes;
+}
+void* fn___new(t$i32 n) {
+	return fn_sys_alloc(n);
 }

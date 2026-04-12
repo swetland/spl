@@ -1,3 +1,5 @@
-var __alloc_count u32 = 0;
-var __alloc_bytes u32 = 0;
 
+fn sys_get_alloc_count() u32;
+fn sys_get_alloc_bytes() u32;
+
+fn __new(n i32) u32;
