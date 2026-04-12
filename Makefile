@@ -100,7 +100,7 @@ endif
 out/compiler2b.s32: out/compiler2a.bin out/emu $(COMPILER2_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 2B COMPILER USING STAGE 2A COMPILER ###'
-	./out/emu -q ./out/compiler2a.bin -ast out/compiler2b.ast -out $@ $(COMPILER2_SRC)
+	./out/emu -q -hgp ./out/compiler2a.bin -ast out/compiler2b.ast -out $@ $(COMPILER2_SRC)
 
 COMPILER2B_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2b.s32
 out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
@@ -111,7 +111,7 @@ out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
 out/compiler3a.s32: out/compiler2b.bin out/emu $(COMPILER3_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 3A COMPILER USING STAGE 2B COMPILER ###'
-	./out/emu -q ./out/compiler2b.bin -stats -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
+	./out/emu -q -hgp ./out/compiler2b.bin -stats -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
 
 COMPILER3A_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3a.s32
 out/compiler3a.bin: ./out/asm $(COMPILER3A_ASM)
