@@ -4,20 +4,20 @@
 // ================================================================
 // lexical scanner
 
-// currently unrecognized: # $ ? \ `
+// currently unrecognized: \
 var lextab [256]u8 = {
 	tEOF, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tSPC, tEOL, tSPC, tINV, tSPC, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 //	      !     "     #     $     %     &     '
-	tSPC, tBANG, tDQT, tMSC, tMSC, tPERCENT, tAMP, tSQT,
+	tSPC, tBANG, tQUOTE, tHASH, tDOLLAR, tPERCENT, tAMP, tTICK,
 //	(     )     *     +     ,     -     .     /
 	tOPAREN, tCPAREN, tSTAR, tPLUS, tCOMMA, tMINUS, tDOT, tSLASH,
 //	0     1     2     3     4     5     6     7
 	tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM, tNUM,
 //	8     9     :     ;     <     =     >     ?
-	tNUM, tNUM, tCOLON, tSEMI, tLT, tASSIGN, tGT, tMSC,
+	tNUM, tNUM, tCOLON, tSEMI, tLT, tASSIGN, tGT, tQUERY,
 //	@     A     B     C     D     E     F     G
 	tAT,  tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 //	H     I     J     K     L     M     N     O
@@ -25,9 +25,9 @@ var lextab [256]u8 = {
 //	P     Q     R     S     T     U     V     W
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 //	X     Y     Z     [     \     ]     ^     _
-	tIDN, tIDN, tIDN, tOBRACK, tMSC, tCBRACK, tCARET, tIDN,
+	tIDN, tIDN, tIDN, tOBRACK, tINV, tCBRACK, tCARET, tIDN,
 //	`     a     b     c     d     e     f     g
-	tMSC, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
+	tBACKTICK, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 //	h     i     j     k     l     m     n     o
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 //	p     q     r     s     t     u     v     w
@@ -228,9 +228,9 @@ fn _next() Token {
 			return scan_number(cc, nc);
 		} else if tok == tIDN { // _ A..Z a..z
 			return scan_ident(cc, nc);
-		} else if tok == tDQT { // "
+		} else if tok == tQUOTE { // "
 			return scan_string(cc, nc);
-		} else if tok == tSQT { // '
+		} else if tok == tTICK { // '
 			ctx.num = nc;
 			if nc == '\\' {
 				ctx.num = unescape(scan());
@@ -276,7 +276,7 @@ fn _next() Token {
 			continue;
 		} else if tok == tSPC {
 			continue;
-		} else if (tok == tMSC) || (tok == tINV) {
+		} else if tok == tINV {
 			Error("unknown character @").n(cc);
 		}
 

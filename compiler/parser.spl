@@ -212,7 +212,7 @@ fn parse_primary_expr() Ast {
 	} else if ctx.tok == tIDN {
 		node = parse_ident();
 	} else {
-		Error("invalid expression");
+		Error("invalid expression: unexpected @").s(tnames[ctx.tok]);
 	}
 	return node;
 }

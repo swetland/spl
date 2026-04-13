@@ -214,7 +214,7 @@ enum Token {
 	// Various, UnaryNot, LogicalOps,
 	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
-	tAT,
+	tAT, tDOLLAR, tQUERY, tHASH, tBACKTICK,
 	// Keywords
 	tNEW, tFN, tSTRUCT, tVAR, tENUM,
 	tIF, tELSE, tWHILE,
@@ -223,7 +223,7 @@ enum Token {
 	tTRUE, tFALSE, tNIL,
 	tIDN, tNUM, tSTR,
 	// used internal to the lexer but never returned
-	tSPC, tINV, tDQT, tSQT, tMSC,
+	tSPC, tINV, tQUOTE, tTICK,
 };
 
 var tnames []str = {
@@ -235,7 +235,7 @@ var tnames []str = {
 	"*=",    "/=",    "%=", "&=", "<<=", ">>=", "",    "",
 	";",     ":",     ".",  ",",  "~",   "&&",  "||",  "!",
 	"=",     "++",    "--",
-	"@",
+	"@",     "$",     "?",  "#",  "`",
 	"new", "fn", "struct", "var", "enum",
 	"if", "else", "while",
 	"break", "continue", "return",
