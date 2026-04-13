@@ -49,8 +49,6 @@ fn (rc RegCopy) reset(tmp i32) {
 
 fn RegCopy_make(max i32, tmp i32) RegCopy {
 	var rc RegCopy = new(RegCopy);
-	// TODO: implement runtime-sized
-	// array/slice allocation in compiler...
 	rc.todo = new([max]u32);
 	rc.avail = new([max]u32);
 	rc.reg = new([max]RegInfo);
