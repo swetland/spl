@@ -137,10 +137,6 @@ fn start() i32 {
 			stats = 1;
 			continue;
 		}
-		if streq(arg, "-dot") {
-			ctx.with_graphs = true;
-			continue;
-		}
 		if streq(arg, "-ir") {
 			ctx.with_ir = true;
 			continue;

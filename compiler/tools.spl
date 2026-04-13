@@ -347,6 +347,23 @@ fn ctx_find_source_file(id i32) str {
 	return "???";
 }
 
+// Attempt to create an output file named <basename>-<name><ext>
+// if name is provided, <basename><ext> otherwise.
+// Returns nil if enable is false or creation fails.
+fn ctx_make_outfile(enable bool, name str, ext str) OutStream {
+	if (!enable) || (ctx.out_base == nil) {
+		return nil;
+	}
+	if name {
+		var fname str = strcat(ctx.out_base, "-");
+		fname = strcat(fname, name);
+		fname = strcat(fname, ext);
+		return OutFd(fd_create(fname));
+	} else {
+		return OutFd(fd_create(strcat(ctx.out_base, ext)));
+	}
+}
+
 fn type_size(type Type) i32 {
 	var kind i32 = type.kind;
 	if kind == TYPE_U8 { return 1; }

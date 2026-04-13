@@ -266,6 +266,8 @@ struct Context {
 	flags u32,
 	cc u32,			// scanner: next character
 
+	curfn str,		// current function name during codegen
+
 	srcloc u32,		// position at the start of the last token
 
 	tok Token,		// most recent token
@@ -315,7 +317,6 @@ struct Context {
 	str_type_array *String,
 
 	// output options
-	with_graphs bool,
 	with_ir bool,
 	out_base str,
 };

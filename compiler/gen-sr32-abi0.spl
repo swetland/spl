@@ -541,6 +541,7 @@ fn gen_fn(node Ast) {
 	}
 	return_type = node.sym.type.of;
 	return_target = make_label();
+	ctx.curfn = node.sym.name.text;
 	emit("\n@:\n").s(node.sym.name.text);
 	// first two slots go to ra, fp
 	local_max = 0;

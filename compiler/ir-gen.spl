@@ -513,10 +513,10 @@ fn setup_locals(node Ast, n i32) { //dup
 	}
 }
 
-fn get_outfile(enable bool, name str, ext str) OutStream;
-
 fn gen_fn(node Ast) {
 	if node.left == nil { return; }
+
+	ctx.curfn = node.sym.name.text;
 
 	Warn("gen_fn() @ ---------------------").s(node.sym.name.text);
 	bb_reset();
@@ -569,11 +569,11 @@ fn gen_fn(node Ast) {
 
 	finalize_fn(bb_order_first);
 
-	var is OutStream = get_outfile(ctx.with_ir, name, ".ir");
+	var is OutStream = ctx_make_outfile(ctx.with_ir, name, ".ir");
 	if is != nil {
 		is.fmt("\n// fn @\n").s(name);
 		dump_bb_list(is, bb_order_first);
-		fd_close(is.fd);
+		is.close();
 	}
 
 	serialize_fn(os.fd, bb_order_first);
@@ -586,16 +586,6 @@ fn gen_functions(node Ast) {
 		}
 		node = node.next;
 	}
-}
-
-fn get_outfile(enable bool, name str, ext str) OutStream {
-	if (!enable) || (ctx.out_base == nil) {
-		return nil;
-	}
-	var fname str = strcat(ctx.out_base, "-");
-	fname = strcat(fname, name);
-	fname = strcat(fname, ext);
-	return OutFd(fd_create(fname));
 }
 
 fn emit_data_chunk(dc DataChunk) {
