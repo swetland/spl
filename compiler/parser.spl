@@ -154,6 +154,8 @@ fn parse_ident() Ast {
 	return nil; // unreachable
 }
 
+fn parse_array_typeof() Type;
+
 fn parse_primary_expr() Ast {
 	var node Ast;
 	if ctx.tok == tNUM {
@@ -180,9 +182,21 @@ fn parse_primary_expr() Ast {
 	} else if ctx.tok == tNEW {
 		next();
 		require(tOPAREN);
-		var type Type = parse_type(false);
+		var type Type;
+		var szarg Ast;
+		if ctx.tok == tOBRACK {
+			next();
+			szarg = parse_expr();
+			require(tCBRACK);
+			type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, 0);
+			szarg = ast_make_lr(AST_MUL, szarg,
+					ast_make_simple(AST_CONST, type_size(type.of)));
+		} else {
+			type = parse_type(false);
+			szarg = ast_make_simple(AST_CONST, type_size(type));
+		}
 		node = ast_make_symbol(symbol_find(ctx.str_new_fn));
-		node = ast_make_lr(AST_CALL, node, ast_make_simple(AST_CONST, type_size(type)));
+		node = ast_make_lr(AST_CALL, node, szarg);
 		if type.kind == TYPE_STRUCT {
 			node.type = type.of;
 		} else if type.kind == TYPE_ARRAY {
