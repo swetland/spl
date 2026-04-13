@@ -22,7 +22,7 @@ asmlib=(build/stdlib-abi0.s32 build/syscall-abi0.s32)
 
 rm -f ${out}.ast ${out}.s32 ${out}.bin
 mkdir -p out/run2
-out/emu -q out/compiler2a.bin -ast ${out}.ast -out ${out}.s32 ${spllib[*]} ${libs[*]} ${src}
+out/emu -hgp -q out/compiler2a.bin -ast ${out}.ast -out ${out}.s32 ${spllib[*]} ${libs[*]} ${src}
 out/asm -o ${out}.bin ${asmlib[*]} ${out}.s32
-out/emu -q ${out}.bin
+out/emu -hgp -q ${out}.bin
 
