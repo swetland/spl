@@ -1039,9 +1039,17 @@ void parse_primary_expr(void) {
 	} else if (ctx.tok == tNEW) {
 		next();
 		require(tOPAREN);
+		if (ctx.tok == tOBRACK) {
+			next();
+			emit_impl("calloc(");
+			parse_expr();
+			emit_impl(",sizeof(");
+			require(tCBRACK);
+		} else {
+			emit_impl("calloc(1,sizeof(");
+		}
 		Type *type = parse_type(false);
 		require(tCPAREN);
-		emit_impl("calloc(1,sizeof(");
 		emit_impl_typename(type, 0);
 		emit_impl("))");
 		return;
