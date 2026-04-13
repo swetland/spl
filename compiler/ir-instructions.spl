@@ -169,6 +169,7 @@ struct Inst {
 	a i32,
 	b i32,
 	c i32,
+	i i32,
 };
 
 // implementation in ir-blocks.spl
@@ -186,6 +187,7 @@ struct BasicBlock {
 	id u32,
 	//pcount u32,
 	tag str,
+	live_in *BitSet,
 };
 
 // obtain a fresh virtual register
@@ -392,37 +394,37 @@ fn inst_disasm(os OutStream, ins Inst) {
 		imm = "i";
 	}
 	if op == INS_NOT {
-		os.fmt("    not @, @\n").reg(ins.a).reg(ins.c);
+		os.fmt("not @, @\n").reg(ins.a).reg(ins.c);
 	} else if op == INS_NEG {
-		os.fmt("    neg @, @\n").reg(ins.a).reg(ins.c);
+		os.fmt("neg @, @\n").reg(ins.a).reg(ins.c);
 	} else if op < INS_MOV {
 		// ALU and CMP instructions
-		os.fmt("    @@ @, @, @\n").s(iop_name[op]).s(imm).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
+		os.fmt("@@ @, @, @\n").s(iop_name[op]).s(imm).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_MOV {
-		os.fmt("    mov@ @, @\n").s(imm).reg(ins.a).arg(ins.c,ins.op);
+		os.fmt("mov@ @, @\n").s(imm).reg(ins.a).arg(ins.c,ins.op);
 	} else if (op == INS_LOAD) | (op == INS_STORE) {
 		var sz str = isz_name[(ins.op & INF_SZ_MASK) >> INF_SZ_SHIFT];
-		os.fmt("    @@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
+		os.fmt("@@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_LABEL {
 		if ins.b != 0 {
-			os.fmt("    label bb.@, \"@\"\n").n(ins.a).s(ir_string(ins.b));
+			os.fmt("label bb.@, \"@\"\n").n(ins.a).s(ir_string(ins.b));
 		} else {
-			os.fmt("    label bb.@\n").n(ins.a);
+			os.fmt("label bb.@\n").n(ins.a);
 		}
 	} else if op == INS_JUMP {
-		os.fmt("    jump @\n").label(ins.a);
+		os.fmt("jump @\n").label(ins.a);
 	} else if op == INS_BRANCH {
-		os.fmt("    @ @, @, @\n").s(iop_name[op]).reg(ins.a).label(ins.b).label(ins.c);
+		os.fmt("@ @, @, @\n").s(iop_name[op]).reg(ins.a).label(ins.b).label(ins.c);
 	} else if op == INS_CALL {
-		os.fmt("    call @\n").s(ir_string(ins.a));
+		os.fmt("call @\n").s(ir_string(ins.a));
 	} else if op == INS_RET {
-		os.fmt("    ret @\n").reg(ins.a);
+		os.fmt("ret @\n").reg(ins.a);
 	} else if op == INS_SET {
-		os.fmt("    set '@, @\n").n(ins.a).reg(ins.c);
+		os.fmt("set '@, @\n").n(ins.a).reg(ins.c);
 	} else if op == INS_GET {
-		os.fmt("    get @, '@\n").reg(ins.a).n(ins.c);
+		os.fmt("get @, '@\n").reg(ins.a).n(ins.c);
 	} else {
-		os.fmt("    inval 0x@\n").x(ins.op);
+		os.fmt("inval 0x@\n").x(ins.op);
 	}
 }
 

@@ -1,12 +1,24 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-var reg_next i32 = REG_VIRT_0;
+struct RegInfo {
+	inst *Inst,
+	used i32,
+	live i32,
+	dead i32,
+};
+
+var reg_info []RegInfo;
+var reg_next i32 = 0;
 
 // obtain a fresh virtual register
 fn ir_reg_get() i32 {
 	var r i32 = reg_next;
 	reg_next++;
+	reg_info[r].used = 0;
+	reg_info[r].inst = nil;
+	reg_info[r].live = -1;
+	reg_info[r].dead = -1;
 	return r;
 }
 
@@ -18,13 +30,6 @@ fn ir_reg_put(r i32) {
 		reg_next--;
 	}
 }
-
-struct RegInfo {
-	inst *Inst,
-	used i32,
-};
-
-var reg_info []RegInfo;
 
 struct Phi {
 	next *Phi,
@@ -77,6 +82,7 @@ var bb_idx []*BasicBlock;
 
 var bb_order_first BlockList;
 var bb_order_last BlockList;
+var bb_order_count i32;
 
 // target for new instructions
 var bb_active BasicBlock = nil;
@@ -255,15 +261,14 @@ fn sym_to_vid_store(sym Symbol, vr i32) i32 {
 fn bb_reset() {
 	var n i32 = 0;
 	while n < reg_next {
-		reg_info[n].used = 0;
-		reg_info[n].inst = nil;
 		n++;
 	}
-	reg_next = REG_VIRT_0;
+	reg_next = 0;
 	bb_next_id = 0;
 	bb_active = nil;
 	bb_order_first = nil;
 	bb_order_last = nil;
+	bb_order_count = 0;
 }
 
 fn inst_track_use(i Inst, r i32) {
@@ -335,6 +340,7 @@ fn (bb BasicBlock) place() {
 		bb_order_last.next = bl;
 	}
 	bb_order_last = bl;
+	bb_order_count++;
 }
 
 fn (bb BasicBlock) link_to(target BasicBlock) {
@@ -699,14 +705,130 @@ fn inst_remove(i Inst) {
 	}
 }
 
+// TODO: actually split edges
+fn split_critical_edges(bl BlockList) {
+	while bl != nil {
+		var bb BasicBlock = bl.bb;
+		var n i32 = 0;
+		var phi Phi = bb.phi;
+		while phi != nil {
+			if phi.count > 0 { n++; }
+			phi = phi.next;
+		}
+		if bb.count > 1 {
+			var pl BlockList = bb.prev;
+			while pl != nil {
+				if pl.bb.next0 && pl.bb.next1 {
+					Warn("critical edge from bb.@ to bb.@ (@ phis)")
+						.n(pl.bb.id).n(bb.id).n(n);
+				}
+				pl = pl.next;
+			}
+		}
+		bl = bl.next;
+	}
+}
+
+fn number_instructions(bl BlockList) i32 {
+	var n i32 = 0;
+	while bl != nil {
+		var ins Inst = bl.bb.first;
+		while ins != nil {
+			ins.i = n;
+			n++;
+			ins = ins.next;
+		}
+		bl = bl.next;
+	}
+	return n;
+}
+
+fn reg_use(live BitSet, vr i32, i Inst) {
+	if vr & VF_SPECIAL { return; }
+	live.set(vr);
+	if reg_info[vr].dead < 0 {
+		reg_info[vr].dead = i.i;
+	}
+}
+
+fn reg_def(live BitSet, i Inst) {
+	var vr i32 = i.a;
+	if vr & VF_SPECIAL { return; }
+	live.clear(vr);
+	reg_info[vr].live = i.i;
+}
+
+fn dump_live_set(tag str, live BitSet) {
+	live.rewind();
+	var n i32 = live.next();
+	while n >= 0 {
+		Warn("@ @").s(tag).n(n);
+		n = live.next();
+	}
+}
+
+// prereq: instructions must be numbered
+fn compute_live_ranges(blist []*BasicBlock, nb i32, nr i32) {
+	while nb > 0 {
+		nb--;
+		var bb BasicBlock = blist[nb];
+		Warn("compute-live-range bb.@ @:@")
+			.n(bb.id).n(bb.first.i).n(bb.last.i);
+
+		var live BitSet = BitSet_make(nr);
+		if bb.next0 && bb.next0.live_in {
+			live.union(bb.next0.live_in);
+		}
+		if bb.next1 && bb.next1.live_in {
+			live.union(bb.next1.live_in);
+		}
+		dump_live_set("live-out", live);
+		var i Inst = bb.last;
+		while i != nil {
+			if i.op & INF_USE_A { reg_use(live, i.a, i); }
+			if i.op & INF_USE_B { reg_use(live, i.b, i); }
+			if i.op & INF_USE_C { reg_use(live, i.c, i); }
+			if i.op & INF_SET_A { reg_def(live, i); }
+			i = i.prev;
+		}
+		dump_live_set("live-in", live);
+		bb.live_in = live;
+	}
+	var n i32 = 0;
+	while n < reg_next {
+		if reg_info[n].dead >= 0 {
+			Warn("live range %@ @:@").n(n)
+				.n(reg_info[n].live)
+				.n(reg_info[n].dead);
+		}
+		n++;
+	}
+}
+
+fn dump_ir(os OutStream, _bl BlockList, ni i32);
+
 fn finalize_fn(_bl BlockList) {
+	// this may insert additional BasicBlocks
+	split_critical_edges(_bl);
+
+	// build array of BasicBlocks
+	var blist []*BasicBlock = __new(4 * bb_order_count);
+	var n i32 = 0;
+	var bl BlockList = _bl;
+	while bl != nil {
+		blist[n] = bl.bb;
+		bl = bl.next;
+		n++;
+	}
+
 	// place get and set instructions for phis
 	phis_to_insts(_bl);
 
 	// remove any instructions with unused results
 	var count i32 = 0;
-	var n i32 = 0;
+	n = 0;
 	while n < reg_next {
+		reg_info[n].dead = -1;
 		if reg_info[n].used == 0 {
 			if reg_info[n].inst {
 				inst_remove(reg_info[n].inst);
@@ -715,8 +837,78 @@ fn finalize_fn(_bl BlockList) {
 		}
 		n++;
 	}
-
 	Warn("finalize: removed @ dead instructions").n(count);
+
+	var ni i32 = number_instructions(_bl);
+
+	compute_live_ranges(blist, bb_order_count, reg_next);
+
+	var os OutStream = ctx_make_outfile(true, ctx.curfn, ".ir0");
+	if os {
+		dump_ir(os, _bl, ni);
+		os.close();
+	}
+}
+
+fn fill(s str, c i32) {
+	var i i32 = 0;
+	while s[i] {
+		if s[i] == ' ' { s[i] = c; }
+		i++;
+	}
+}
+
+fn dump_ir(os OutStream, bl BlockList, ni i32) {
+	// start with a blank chart register count wide
+	// and instruction count tall
+	var art []str = new([ni]str);
+
+	var n i32 = 0;
+	while n < ni {
+		var s str = new([reg_next + 1]u8);
+		var i i32 = 0;
+		while i < reg_next {
+			s[i] = ' ';
+			i++;
+		}
+		s[i] = 0;
+		art[n] = s;
+		n++;
+	}
+
+	// draw live intervals for each register
+	n = 0;
+	while n < reg_next {
+		var i i32 = reg_info[n].live;
+		if i != -1 {
+			var dead i32 = reg_info[n].dead;
+			while i <= dead {
+				art[i][n] = '|';
+				i++;
+			}
+		}
+		n++;
+	}
+
+	// for each instruction, write
+	// lineno + chart line + disassembly
+	n = 0;
+	while bl != nil {
+		var i Inst = bl.bb.first;
+		while i != nil {
+			if i.op & INF_IS_LABEL { fill(art[n], '.'); }
+			writec(os.fd, '0' + (n / 100) % 10);
+			writec(os.fd, '0' + (n / 10) % 10);
+			writec(os.fd, '0' + n % 10);
+			writec(os.fd, ' ');
+			writes(os.fd, art[n]);
+			writec(os.fd, ' ');
+			inst_disasm(os, i);
+			i = i.next;
+			n++;
+		}
+		bl = bl.next;
+	}
 }
 
 // tools to write textual representations of BasicBlocks and Insts
@@ -764,6 +956,7 @@ fn dump_bb(os OutStream, bb BasicBlock) {
 	dump_phis(os, bb);
 	var ins Inst = bb.first;
 	while ins != nil {
+		os.fmt("    ");
 		inst_disasm(os, ins);
 		ins = ins.next;
 	}
