@@ -94,3 +94,9 @@ fn FmtLn(os OutStream, msg str) OutStream {
 	return Fmt(os, msg);
 }
 
+fn (os OutStream) close() {
+	if os.fd >= 0 {
+		fd_close(os.fd);
+		os.fd = -1;
+	}
+}
