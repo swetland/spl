@@ -38,10 +38,10 @@ fn make_data_chunk(kind u32, n u32) DataChunk {
 		n = (n + 3) >> 2;
 	} else {
 		// allocate a pointer map
-		dc.pmap = __new(((n + 31) >> 5) * 4);
+		dc.pmap = new([(n + 31) >> 5]u32);
 	}
 	dc.next = nil;
-	dc.data = __new(n * 4);
+	dc.data = new([n]u32);
 	dc.kind = kind;
 	dc.count = n;
 	dc.id = data_id;

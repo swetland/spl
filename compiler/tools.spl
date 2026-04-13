@@ -384,7 +384,7 @@ fn type_size(type Type) i32 {
 fn _mangle(a str, b str) String {
 	var alen i32 = strlen(a);
 	var blen i32 = strlen(b);
-	var s []u8 = __new(alen + blen + 2); // TODO: use static buffer
+	var s []u8 = new([alen + blen + 2]u8); // TODO: use static buffer
 	var n i32 = 0;
 	var i i32 = 0;
 	while i < alen {

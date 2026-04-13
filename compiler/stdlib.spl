@@ -65,7 +65,7 @@ fn strlen(s str) u32 {
 fn strcat(a str, b str) str {
 	var la i32 = strlen(a);
 	var lb i32 = strlen(b);
-	var x str = __new(la + lb + 1);
+	var x str = new([la + lb + 1]u8);
 	var xi i32 = 0;
 	var i i32 = 0;
 	while i < la {
