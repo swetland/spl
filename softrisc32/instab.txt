@@ -37,8 +37,9 @@ iiiiiiiiiiiiiiiiaaaaattttt001011 divi    %t, %a, %i
 00000000001bbbbbaaaaattttt011011 rem     %t, %a, %b
 00000000000000000000100000011111 ret
 0000000000000000aaaaa00000011111 jr      %a
-0000000000000000aaaaattttt011111 jalr    %t, %a
-iiiiiiiiiiibbbbbaaaaattttt011111 jalr    %t, %a, %i
+00000000000bbbbbaaaaattttt011111 jalr    %t, %a, %b
+0000000000000000aaaaattttt001111 jalr    %t, %a
+iiiiiiiiiiibbbbbaaaaattttt001111 jalr    %t, %a, %i
 iiiiiiiiiiiiiiiiaaaaattttt100000 ldw     %t, %i(%a)
 iiiiiiiiiiiiiiiiaaaaattttt100001 ldh     %t, %i(%a)
 iiiiiiiiiiiiiiiiaaaaattttt100010 ldb     %t, %i(%a)

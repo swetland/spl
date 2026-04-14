@@ -626,11 +626,18 @@ int parse_line(State *s) {
 		emit(ins_j(J_SYSRET, 0, 0));
 		break;
 	case tJALR:
-		parse_2r_c(s, &t, &a);
+		parse_2r(s, &t, &a);
+		if (s->tok != tCOMMA) {
+			emit(ins_i(IR_JALR, t, a, 0));
+			break;
+		}
+		next(s);
 		if (s->tok == tNUMBER) {
-			emit(ins_i(IR_JALR, t, a, s->num));
+			parse_num(s, &i);
+			emit(ins_i(IR_JALR, t, a, i));
 		} else if (s->tok == tREGISTER) {
-			emit(ins_r(IR_JALR, t, a, s->num, 0));
+			parse_reg(s, &b);
+			emit(ins_r(IR_JALR, t, a, b, 0));
 		} else {
 			die("expected register or immediate");
 		}
