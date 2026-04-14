@@ -11,6 +11,20 @@ fn print_indent(fd i32) {
 	}
 }
 
+fn print_fn_type(fd i32, type Type) {
+	writes(fd, "(");
+	var param Symbol = type.list;
+	while param != nil {
+		writes(fd, param.name.text);
+		if param.next != nil {
+			writes(fd, ", ");
+		}
+		param = param.next;
+	}
+	writes(fd, ") ");
+	writes(fd, type.of.name.text);
+}
+
 fn print_type(fd i32, type Type) {
 	while true {
 		if type == ctx.type_str {
@@ -24,6 +38,10 @@ fn print_type(fd i32, type Type) {
 			if type.count { writei(fd, type.count); }
 			writes(fd, "]");
 			type = type.of;
+		} else if type.kind == TYPE_FN {
+			writes(fd, "fn");
+			print_fn_type(fd, type);
+			return;
 		} else {
 			break;
 		}
@@ -44,17 +62,7 @@ fn _dump_ast_node(fd i32, node Ast) {
 		writex(fd, node.ival);
 	} else if kind == AST_FUNC {
 		writes(fd, node.sym.name.text);
-		writes(fd, "(");
-		var param Symbol = node.sym.type.list;
-		while param != nil {
-			writes(fd, param.name.text);
-			if param.next != nil {
-				writes(fd, ", ");
-			}
-			param = param.next;
-		}
-		writes(fd, ") ");
-		writes(fd, node.sym.type.of.name.text);
+		print_fn_type(fd, node.sym.type);
 	} else if kind == AST_BLOCK {
 		writes(fd, "(");
 		var sym Symbol = node.sym;

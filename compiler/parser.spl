@@ -21,7 +21,7 @@ fn require(tok Token) {
 
 fn parse_expr() Ast;
 fn parse_block() Ast;
-fn parse_type(fwd_ref_ok u32) Type;
+fn parse_type(fwd_ref_ok bool, missing_ok bool) Type;
 
 fn parse_name(what str) String {
 	if ctx.tok != tIDN {
@@ -192,7 +192,7 @@ fn parse_primary_expr() Ast {
 			szarg = ast_make_lr(AST_MUL, szarg,
 					ast_make_simple(AST_CONST, type_size(type.of)));
 		} else {
-			type = parse_type(false);
+			type = parse_type(false, false);
 			szarg = ast_make_simple(AST_CONST, type_size(type));
 		}
 		node = ast_make_symbol(symbol_find(ctx.str_new_fn));
@@ -332,7 +332,7 @@ fn parse_struct_type(name String) Type {
 		} else {
 			ptr = false;
 		}
-		var ftype Type = parse_type(true);
+		var ftype Type = parse_type(true, false);
 		if (ftype.kind == TYPE_ARRAY) && (ftype.count == 0) { ptr = true; }
 		if ptr {
 			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) {
@@ -362,13 +362,13 @@ fn parse_struct_type(name String) Type {
 fn parse_array_typeof() Type {
 	if ctx.tok == tSTAR {
 		next();
-		var type Type = parse_type(false);
+		var type Type = parse_type(false, false);
 		if type.kind != TYPE_STRUCT {
 			Error("pointer to non-struct");
 		}
 		return type.of;
 	} else {
-		return parse_type(false);
+		return parse_type(false, false);
 	}
 }
 
@@ -392,7 +392,9 @@ fn parse_array_type() Type {
 	return type;
 }
 
-fn parse_type(fwd_ref_ok u32) Type {
+fn parse_fn_type() Type;
+
+fn parse_type(fwd_ref_ok bool, missing_ok bool) Type {
 	if ctx.tok == tSTAR { // pointer-to
 		Error("pointer types not supported");
 		//next();
@@ -401,9 +403,8 @@ fn parse_type(fwd_ref_ok u32) Type {
 		next();
 		return parse_array_type();
 	} else if ctx.tok == tFN {
-		Error("func types not supported");
-		//next();
-		//return parse_func_type();
+		next();
+		return parse_fn_type();
 	} else if ctx.tok == tSTRUCT {
 		Error ("anonymous struct types not supported");
 		//next();
@@ -425,7 +426,9 @@ fn parse_type(fwd_ref_ok u32) Type {
 		}
 		return type;
 	} else {
-		expected("type");
+		if !missing_ok {
+			expected("type");
+		}
 	}
 	return nil;
 }
@@ -619,7 +622,7 @@ fn parse_var(kind SymbolKind) Ast {
 	var node Ast = nil;
 	var posn u32 = ctx.srcloc;
 	var name String = parse_name("variable name");
-	var type Type = parse_type(false);
+	var type Type = parse_type(false, false);
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		type = type.of; // use the pointer-to-struct
 	}
@@ -784,7 +787,7 @@ fn parse_block() Ast {
 fn parse_param(ival i32) Symbol {
 	var kind SymbolKind = SYMBOL_VAR | SYMBOL_PARAM;
 	var name String = parse_name("parameter name");
-	var type Type = parse_type(false);
+	var type Type = parse_type(false, false);
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		type = type.of; // use the pointer-to-struct
 	}
@@ -809,23 +812,10 @@ fn parse_fn_body(sym Symbol) Ast {
 	return block;
 }
 
-fn parse_fn() Ast {
-	scope_push(SCOPE_FUNC);
+// shared between parse_fn() for top-level function declarations
+// and definitions and parse_fn_type() for function types
+fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
 	var posn u32 = ctx.srcloc;
-	var n u32 = 0;
-	var method_of Type = nil;
-
-	if ctx.tok == tOPAREN {
-		next();
-		// (self SelfType) ...
-		var sym Symbol = parse_param(0);
-		method_of = sym.type.of;
-		require(tCPAREN);
-		n++;
-	}
-
-	var fname String = parse_name("function name");
-	var rtype Type = ctx.type_void;
 
 	require(tOPAREN);
 	if ctx.tok != tCPAREN {
@@ -839,12 +829,13 @@ fn parse_fn() Ast {
 	}
 	require(tCPAREN);
 
-	if (ctx.tok != tOBRACE) && (ctx.tok != tSEMI) {
-		rtype = parse_type(false);
+	var rtype Type = parse_type(false, true);
+	if rtype == nil {
+		rtype = ctx.type_void;
+	}
+	if rtype.kind == TYPE_STRUCT {
 		// struct return types are adjusted to pointer-to-struct
-		if rtype.kind == TYPE_STRUCT {
-			rtype = rtype.of;
-		}
+		rtype = rtype.of;
 	}
 
 	var type Type = type_make(fname, TYPE_FN, rtype, nil, n);
@@ -857,8 +848,16 @@ fn parse_fn() Ast {
 		type.name = fname;
 	}
 
+	if node == nil {
+		// if we have not been provided with an AST node, we're
+		// just parsing the type, not a full top-level declaration
+		// or definition, so wrap things up here:
+		type.list = scope_pop();
+		return type;
+	}
+
 	var sym Symbol = symbol_make_in_scope(fname, type, SYMBOL_FN, 0, nil);
-	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
+	sym.ival = posn;
 	node.sym = sym;
 
 	var prev Symbol = symbol_find_in(fname, ctx.global);
@@ -876,9 +875,8 @@ fn parse_fn() Ast {
 		node.left = parse_fn_body(sym);
 	}
 
-	// save parameters
-	sym.type.list = scope_pop();
-	sym.ival = posn;
+	// save parameters (must do this *after* fn body parsing)
+	type.list = scope_pop();
 
 	// if there is an existing global sharing the name...
 	if prev != nil {
@@ -902,6 +900,34 @@ fn parse_fn() Ast {
 	// is *not* the one referenced by the fn definition, though their
 	// names are identical so linkage works out, but this is still a
 	// little weird.  Ideally should fuse them.
+	return nil;
+}
+
+fn parse_fn_type() Type {
+	scope_push(SCOPE_FUNC);
+	return parse_fn_core(nil, nil, nil, 0);
+}
+
+fn parse_fn() Ast {
+	scope_push(SCOPE_FUNC);
+	var posn u32 = ctx.srcloc;
+	var n u32 = 0;
+	var method_of Type = nil;
+
+	if ctx.tok == tOPAREN {
+		next();
+		// (self SelfType) ...
+		var sym Symbol = parse_param(0);
+		method_of = sym.type.of;
+		require(tCPAREN);
+		n = 1;
+	}
+
+	var fname String = parse_name("function name");
+
+	var node Ast = ast_posn(ast_make_simple(AST_FUNC, 0), posn);
+	parse_fn_core(fname, method_of, node, n);
+
 	return node;
 }
 

@@ -85,6 +85,7 @@ struct Type {
 	kind TypeKind,
 	// slice/array: number of slots
 	// struct: total byte size
+	// fn: parameter count
 	count u32,
 	methods *Symbol,
 };
