@@ -141,12 +141,11 @@ fn gen_string_const(s str) i32 {
 }
 
 fn gen_call(fcall Ast) i32 {
-	var sym Symbol = fcall.left.sym;
-	if sym == nil {
-		// TODO: should be impossible
-		GenError(fcall, "calling undefined function");
+	var type Type = fcall.left.type;
+	if type.kind != TYPE_FN {
+		GenError(fcall, "calling a non-function");
 	}
-	emit("    subi sp, sp, @\n").n(sym.type.count * 4);
+	emit("    subi sp, sp, @\n").n(type.count * 4);
 	var node Ast = fcall.right;
 	var n i32 = 0;
 	while node != nil {
@@ -156,17 +155,28 @@ fn gen_call(fcall Ast) i32 {
 		n++;
 		node = node.next;
 	}
-	if n != sym.type.count {
-		GenError(fcall, "parameter count mismatch for '@': expected @, found @").s(sym.name.text).n(sym.type.count).n(n);
+	if n != type.count {
+		GenError(fcall, "parameter count mismatch: expected @, found @").n(type.count).n(n);
 	}
 	emit_save_tmp();
-	// TODO: possibly better way to get the (mangled) canonical
-	// function name from a method than indirecting through the type?
-	emit("    call @\n").s(sym.type.name.text);
-	emit("    addi sp, sp, @\n").n(sym.type.count * 4);
+	if (fcall.left.kind == AST_SYMBOL) && (fcall.left.sym.kind & SYMBOL_FN) {
+		// TODO: possibly better way to get the (mangled) canonical
+		// function name from a method than indirecting through the type?
+		var sym Symbol = fcall.left.sym;
+		if sym == nil {
+			// TODO: should be impossible
+			GenError(fcall, "calling undefined function");
+		}
+		emit("    call @\n").s(sym.type.name.text);
+	} else {
+		// fn pointer
+		var fptr i32 = gen_expr(fcall.left);
+		emit("    jalr ra, x@\n").n(fptr);
+	}
+	emit("    addi sp, sp, @\n").n(type.count * 4);
 	emit_load_tmp();
 
-	if sym.type.of == ctx.type_void {
+	if type.of == ctx.type_void {
 		return 0;
 	} else {
 		var t i32 = get_reg();
@@ -291,8 +301,10 @@ fn gen_load(node Ast) i32 {
 		emit("    ldw x@, @(fp)\n").n(t).n(sym.ival);
 	} else if sym.kind & SYMBOL_LOCAL {
 		emit("    ldw x@, -@(fp)\n").n(t).n(sym.ival);
-	} else if sym.kind & SYMBOL_GLOBAL{
+	} else if sym.kind & SYMBOL_GLOBAL {
 		emit("    ldw x@, @(gp)\n").n(t).n(sym.ival);
+	} else if sym.kind & SYMBOL_FN {
+		emit("    la x@, @\n").n(t).s(sym.type.name.text);
 	} else {
 		GenError(node, "unsupported symbol for load '@' @").s(sym.name.text).x(sym.kind);
 	}
