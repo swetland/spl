@@ -11,18 +11,23 @@ base=${base##*/}
 out=out/run2/${base}
 
 srcdir=$(dirname $src)
-mapfile -t libs < <(cat ${src} | grep '//:lib:')
+mapfile -t libs < <(cat ${src} | grep '//:lib:.*spl')
 len=${#libs[@]}
 for ((i = 0; i < len; i++)); do
-	libs[i]=${srcdir}/${libs[i]##*:}
+	spllib[i]=${srcdir}/${libs[i]##*:}
+done
+mapfile -t libs < <(cat ${src} | grep '//:lib:.*s32')
+len=${#libs[@]}
+for ((i = 0; i < len; i++)); do
+	asmlib[i]=${srcdir}/${libs[i]##*:}
 done
 
-spllib=(build/stdlib-abi0.spl compiler/stdlib.spl compiler/io.spl)
-asmlib=(build/stdlib-abi0.s32 build/syscall-abi0.s32)
+stdspllib=(build/stdlib-abi0.spl compiler/stdlib.spl compiler/io.spl)
+stdasmlib=(build/stdlib-abi0.s32 build/syscall-abi0.s32)
 
 rm -f ${out}.ast ${out}.s32 ${out}.bin
 mkdir -p out/run2
-out/emu -hgp -q out/compiler2a.bin -ast ${out}.ast -out ${out}.s32 ${spllib[*]} ${libs[*]} ${src}
-out/asm -o ${out}.bin ${asmlib[*]} ${out}.s32
+out/emu -hgp -q out/compiler2a.bin -ast ${out}.ast -out ${out}.s32 ${stdspllib[*]} ${spllib[*]} ${src}
+out/asm -o ${out}.bin ${stdasmlib[*]} ${asmlib[*]} ${out}.s32
 out/emu -hgp -q ${out}.bin
 

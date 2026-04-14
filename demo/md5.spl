@@ -1,4 +1,6 @@
 
+//:lib:md5.s32
+
 struct MD5 {
 	icount u32,
 	bcount u32,
@@ -170,6 +172,8 @@ fn md5_fini(m MD5) {
 }
 
 fn start() i32 {
+	var os OutStream = OutFd(1);
+
 	var m MD5 = new(MD5);
 	var d []u8 = new([32768]u8);
 
@@ -180,10 +184,7 @@ fn start() i32 {
 		i++;
 	}
 	md5_fini(m);
-	_hexout_(m.hash[0]);
-	_hexout_(m.hash[1]);
-	_hexout_(m.hash[2]);
-	_hexout_(m.hash[3]);
+	os.fmt("@ @ @ @\n").x(m.hash[0]).x(m.hash[1]).x(m.hash[2]).x(m.hash[3]);
 
 	return 0;
 }
