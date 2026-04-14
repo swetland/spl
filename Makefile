@@ -1,6 +1,9 @@
 .PRECIOUS: out/%.impl.c out/%.type.h out/%.decl.h
 
-all: out/asm out/emu out/iremu out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.bin
+COMPILERS := out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.bin
+#COMPILERS += out/compiler3b.s32
+
+all: out/asm out/emu out/iremu $(COMPILERS)
 
 SKIP :=
 ifeq (,$(filter noskip,$(MAKECMDGOALS)))
@@ -46,7 +49,7 @@ FRONTEND_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
 GEN_SR32_SRC += compiler/gen-global-data.spl compiler/gen-sr32-abi0.spl
 
 # full compiler backend used by stage3
-GEN_IR_SRC := compiler/gen-global-data.spl compiler/ir-types-sr32.spl
+GEN_IR_SRC := compiler/bits.spl compiler/gen-global-data.spl compiler/ir-types-sr32.spl
 GEN_IR_SRC += compiler/ir-instructions.spl compiler/ir-blocks.spl compiler/ir-gen.spl
 
 # stage1 which is built by the transpiler
@@ -117,6 +120,16 @@ COMPILER3A_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3a.s3
 out/compiler3a.bin: ./out/asm $(COMPILER3A_ASM)
 	./out/asm -o $@ $(COMPILER3A_ASM)
 
+# compiler3b: SPL compiler written in SPL, compiled by compiler3a
+#
+out/compiler3b.s32: out/compiler3a.bin out/emu $(COMPILER3_SRC)
+	@echo ''
+	@echo '### BUILDING STAGE 3A COMPILER USING STAGE 2B COMPILER ###'
+	./out/emu -q ./out/compiler3a.bin -stats -ir -ast out/compiler3b.ast -out $@ $(COMPILER3_SRC)
+
+COMPILER3B_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3b.s32
+out/compiler3b.bin: ./out/asm $(COMPILER3A_ASM)
+	./out/asm -o $@ $(COMPILER3A_ASM)
 
 # rules for building out/.../foo.bin from .../foo.spl
 #
@@ -184,6 +197,16 @@ $(foreach n,0 1 2 3,$(eval $(call mktestrule,$n)))
 # rules 1025.0, 1025.1, 1025.2, and 1025.3 defined to run
 # that test against stage0, stage1, etc compilers
 $(foreach n,0 1 2 3,$(foreach x,$(ALLTESTS$n),$(eval $(call mkrule,$(firstword $(subst -, ,$(patsubst out/test$n/%,%,$(x)))).$n,$(x)))))
+
+out/ir2dot: build/ir2dot.c
+	gcc -Wall -o $@ $<
+%.ir.dot: %.ir out/ir2dot
+	./out/ir2dot < $< > $@
+%.ir.pdf: %.ir.dot
+	dot -Tpdf $< -o $@
+
+%.run2: %.spl out/compiler2a.bin out/emu
+	@./build/run2 $<
 
 __FORCE__: ;
 
