@@ -199,6 +199,24 @@ fn type_find(name String) Type {
 	return nil;
 }
 
+fn type_anon(name String) Type {
+	var t Type = ctx.anontypelist;
+	while t != nil {
+		if t.name == name {
+			return t;
+		}
+		t = t.next;
+	}
+	// pass nil as name to type_make so we don't
+	// get put on the global type list
+	t = type_make(nil, TYPE_ANON, nil, nil, 0);
+	t.name = name;
+	t.of = type_make(nil, TYPE_POINTER, t, nil, 0);
+	t.next = ctx.anontypelist;
+	ctx.anontypelist = t;
+	return t;
+}
+
 fn type_find_field(type Type, name String) Symbol {
 	if type.kind != TYPE_STRUCT {
 		Error("not a struct");

@@ -70,6 +70,7 @@ enum TypeKind {
 	TYPE_FN,
 	TYPE_ENUM,
 	TYPE_UNDEFINED, // fwd ref to a struct
+	TYPE_ANON, // opaque/template type
 };
 
 var type_kind []str = {
@@ -280,6 +281,7 @@ struct Context {
 
 	stringlist *String,	// intern table
 	typelist *Type,		// all types
+	anontypelist *Type,     // anonymous types
 
 	scope *Scope,		// top of Scope stack
 	global *Scope,		// the global scope

@@ -339,7 +339,7 @@ fn parse_struct_type(name String) Type {
 		var ftype Type = parse_type(true, false);
 		if (ftype.kind == TYPE_ARRAY) && (ftype.count == 0) { ptr = true; }
 		if ptr {
-			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) {
+			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) || (ftype.kind == TYPE_ANON) {
 				// use the pointer-to-struct
 				ftype = ftype.of;
 			} else if ftype.kind == TYPE_ARRAY {
@@ -415,24 +415,27 @@ fn parse_named_type(name String, fwd_ref_ok bool) Type {
 }
 
 fn parse_type(fwd_ref_ok bool, missing_ok bool) Type {
-	if ctx.tok == tSTAR { // pointer-to
-		Error("pointer types not supported");
-		//next();
-		//return type_make(nil, TYPE_POINTER, parse_type(true), nil, 0);
+	if ctx.tok == tIDN {
+		var name String = ctx.ident;
+		next();
+		return parse_named_type(name, fwd_ref_ok);
 	} else if ctx.tok == tOBRACK { // array-of
 		next();
 		return parse_array_type();
 	} else if ctx.tok == tFN {
 		next();
 		return parse_fn_type();
+	} else if ctx.tok == tDOLLAR {
+		next();
+		return type_anon(parse_name("anonymous type"));
+	} if ctx.tok == tSTAR { // pointer-to
+		Error("pointer types not supported");
+		//next();
+		//return type_make(nil, TYPE_POINTER, parse_type(true), nil, 0);
 	} else if ctx.tok == tSTRUCT {
 		Error ("anonymous struct types not supported");
 		//next();
 		//return parse_struct_type(nil);
-	} else if ctx.tok == tIDN {
-		var name String = ctx.ident;
-		next();
-		return parse_named_type(name, fwd_ref_ok);
 	} else {
 		if !missing_ok {
 			expected("type");
@@ -631,7 +634,7 @@ fn parse_var(kind SymbolKind) Ast {
 	var posn u32 = ctx.srcloc;
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false, false);
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
+	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) || (type.kind == TYPE_ANON) {
 		type = type.of; // use the pointer-to-struct
 	}
 	if (type.kind == TYPE_ARRAY) {
@@ -796,7 +799,7 @@ fn parse_param(ival i32, require_name bool) Symbol {
 	var kind SymbolKind = SYMBOL_VAR | SYMBOL_PARAM;
 	var name String;
 	var type Type;
-	if (ctx.tok != tIDN) && (!require_name) {
+	if (ctx.tok != tIDN) && (ctx.tok != tDOLLAR) && (!require_name) {
 		// A non-identifier can only (validly) be something
 		// like an array type, and only if !require_name.
 		type = parse_type(false, false);
@@ -806,7 +809,7 @@ fn parse_param(ival i32, require_name bool) Symbol {
 	} else {
 		// otherwise consume the token, which may be the name...
 		name = parse_name("parameter name");
-		if require_name || (ctx.tok == tIDN) {
+		if require_name || (ctx.tok == tIDN) || (ctx.tok == tDOLLAR) {
 			// if the next token is also an ident token,
 			// or we are requiring names, parse it as the type
 			type = parse_type(false, false);
@@ -820,7 +823,7 @@ fn parse_param(ival i32, require_name bool) Symbol {
 			kind |= SYMBOL_ANON;
 		}
 	}
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
+	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) || (type.kind == TYPE_ANON) {
 		type = type.of; // use the pointer-to-struct
 	}
 	if type.kind == TYPE_ARRAY {
@@ -872,7 +875,6 @@ fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
 		// struct return types are adjusted to pointer-to-struct
 		rtype = rtype.of;
 	}
-
 	var type Type = type_make(fname, TYPE_FN, rtype, nil, n);
 
 	if method_of != nil {
@@ -1004,6 +1006,10 @@ fn parse_init() {
 fn parse_program() Ast {
 	var node Ast = nil;
 	while true {
+		// anonymous types only have scope for the
+		// currently being parsed top-level entity
+		ctx.anontypelist = nil;
+
 		if ctx.tok == tEOF {
 			break;
 		} else if ctx.tok == tENUM {

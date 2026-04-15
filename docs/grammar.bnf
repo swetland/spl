@@ -17,6 +17,8 @@ global = "var" name type-name [ "=" init-expr ] ";"
 
 type = array-type | slice-type | fn-type | type-name
 
+type-name = name | "$" name
+
 array-type = "[" const-expr "]" array-of-type
 
 slice-type = "[" "]" array-of-type

@@ -42,6 +42,9 @@ fn print_type(fd i32, type Type) {
 			writes(fd, "fn");
 			print_fn_type(fd, type);
 			return;
+		} else if type.kind == TYPE_ANON {
+			writes(fd, "$");
+			break;
 		} else {
 			break;
 		}
