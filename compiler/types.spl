@@ -323,8 +323,13 @@ struct Context {
 	str_type_array *String,
 
 	// output options
-	with_ir bool,
+	options u32,
 	out_base str,
+};
+
+enum CtxOptions {
+	OPT_WITH_IR = 1,
+	OPT_PANIC_ON_ERROR = 2,
 };
 
 var ctx Context;

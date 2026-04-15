@@ -149,7 +149,11 @@ fn start() i32 {
 			continue;
 		}
 		if streq(arg, "-ir") {
-			ctx.with_ir = true;
+			ctx.options |= OPT_WITH_IR;
+			continue;
+		}
+		if streq(arg, "-panic") {
+			ctx.options |= OPT_PANIC_ON_ERROR;
 			continue;
 		}
 		if streq(arg, "-ast") {

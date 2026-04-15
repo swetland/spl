@@ -29,7 +29,11 @@ fn make_OutStream(msg str, fd i32, flags u32, tag str) OutStream {
 }
 
 fn Error(msg str) OutStream {
-	return make_OutStream(msg, 2, OS_FATAL | OS_NEWLINE | OS_INTERRUPT, ": error: ");
+	var flags u32 = OS_FATAL | OS_NEWLINE | OS_INTERRUPT;
+	if ctx.options & OPT_PANIC_ON_ERROR {
+		flags |= OS_PANIC;
+	}
+	return make_OutStream(msg, 2, flags, ": error: ");
 }
 
 fn Warn(msg str) OutStream {

@@ -12,6 +12,8 @@ enum OutStreamFlags {
 	OS_INTERRUPT = 4,
 	// emit a newline when done formatting (once):
 	OS_NEWLINE_ONCE = 8,
+	// crash on error (useful to get a stack trace)
+	OS_PANIC = 16,
 };
 
 struct OutStream {
@@ -38,6 +40,9 @@ fn os_advance(os OutStream) {
 		if os.flags & (OS_NEWLINE | OS_NEWLINE_ONCE) {
 			writec(os.fd, '\n');
 			os.flags &= (~OS_NEWLINE_ONCE);
+		}
+		if os.flags & OS_PANIC {
+			sys_panic();
 		}
 		if os.flags & OS_FATAL {
 			os_exit(1);

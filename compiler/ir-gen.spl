@@ -569,7 +569,7 @@ fn gen_fn(node Ast) {
 
 	finalize_fn(bb_order_first);
 
-	var is OutStream = ctx_make_outfile(ctx.with_ir, name, ".ir");
+	var is OutStream = ctx_make_outfile(ctx.options & OPT_WITH_IR, name, ".ir");
 	if is != nil {
 		is.fmt("\n// fn @\n").s(name);
 		dump_bb_list(is, bb_order_first);
