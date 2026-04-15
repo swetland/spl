@@ -193,6 +193,12 @@ void timeout_handler(int sig, siginfo_t *si, void *uc) {
 	exit(1);
 }
 
+void ctrl_c_handler(int n) {
+	if (write(2, "\nINTERRUPT\n", 11) != 11) ;
+	dump_cpu_state();
+	exit(1);
+}
+
 void set_time_limit(int seconds) {
 	timer_t tid;
 	struct sigevent sev;
@@ -232,6 +238,8 @@ int main(int argc, char** argv) {
 	CpuState *cs = &CS;
 	memset(cs, 0, sizeof(CpuState));
 	cs->mem = mem;
+
+	signal(SIGINT, ctrl_c_handler);
 
 	while (argc > 1) {
 		if (!strcmp(argv[1], "-tf")) {
