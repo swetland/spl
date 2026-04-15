@@ -48,3 +48,6 @@ sys_get_alloc_count:
 sys_get_alloc_bytes:
 	syscall 0x302
 	ret
+
+sys_panic:
+	stw zero, 0(zero)

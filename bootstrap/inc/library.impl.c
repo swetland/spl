@@ -87,7 +87,7 @@ unsigned fn_fd_get_pos(int fd) {
 	return lseek(fd, 0, SEEK_CUR);
 }
 
-void fn_abort(void) {
+void fn_sys_panic(void) {
 	abort();
 }
 

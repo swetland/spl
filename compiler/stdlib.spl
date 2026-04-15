@@ -22,6 +22,8 @@ fn os_exit(n i32);
 fn os_arg(n u32) str;
 fn os_arg_count() u32;
 
+fn sys_panic();
+
 fn streq(s1 str, s2 str) bool {
 	var n u32 = 0;
 	while true {
