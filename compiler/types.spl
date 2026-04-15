@@ -23,6 +23,8 @@ enum SymbolKind {
 	SYMBOL_GLOBAL    = 0x040,
 	// flags: function decl (vs defn)
 	SYMBOL_DECL      = 0x080,
+	// flags: unnamed parameter
+	SYMBOL_ANON      = 0x100,
 };
 
 struct Symbol {
@@ -313,6 +315,7 @@ struct Context {
 	type_u8 *Type,
 
 	str_new_fn *String,
+	str_underscore *String,
 	str_type_unknown *String,
 	str_type_pointer *String,
 	str_type_array *String,

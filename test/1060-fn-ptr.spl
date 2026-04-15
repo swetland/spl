@@ -8,11 +8,17 @@ struct Foo {
 	f fn(a i32, b i32) i32,
 };
 
-fn call(f fn(a i32, b i32) i32, a i32, b i32) i32 {
+fn call(f fn(i32, i32) i32, a i32, b i32) i32 {
 	return f(a, b);
 }
 
+fn nth(a []i32, n i32) i32 {
+	return a[n];
+}
+
 fn start() i32 {
+	var z fn([]i32, i32) i32 = nth;
+
 	_hexout_(add(1, 2));
 
 	var f fn(a i32, b i32) i32 = add;

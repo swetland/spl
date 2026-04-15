@@ -143,7 +143,7 @@ fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival i32, scope
 	sym.kind = kind;
 	sym.ival = ival;
 	if scope != nil {
-		if symbol_find_in(name, scope) != nil {
+		if (symbol_find_in(name, scope) != nil) && (!(kind & SYMBOL_ANON)) {
 			Error("cannot redefine '@'").s(name.text);
 		}
 		scope_add(scope, sym);
@@ -313,6 +313,7 @@ fn ctx_init() {
 	ctx.type_str     = type_make(string_make("str", 3), TYPE_POINTER, type_make(nil, TYPE_ARRAY, ctx.type_u8, nil, 0), nil, 0);
 
 	ctx.str_new_fn       = string_make("__new", 5);
+	ctx.str_underscore   = string_make("_", 1);
 	ctx.str_type_unknown = string_make("???", 3);
 	ctx.str_type_pointer = string_make("*", 1);
 	ctx.str_type_array   = string_make("[]", 2);

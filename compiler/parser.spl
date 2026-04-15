@@ -398,6 +398,22 @@ fn parse_array_type() Type {
 
 fn parse_fn_type() Type;
 
+fn parse_named_type(name String, fwd_ref_ok bool) Type {
+	var type Type = type_find(name);
+	if type == nil {
+		if fwd_ref_ok {
+			// pointer-to-struct is so commonly used, we always
+			// create it alongside the struct and they reference
+			// each other via their of fields
+			type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
+			type.of = type_make(nil, TYPE_POINTER, type, nil, 0);
+		} else {
+			Error("undefined type '@' not usable here").s(name.text);
+		}
+	}
+	return type;
+}
+
 fn parse_type(fwd_ref_ok bool, missing_ok bool) Type {
 	if ctx.tok == tSTAR { // pointer-to
 		Error("pointer types not supported");
@@ -416,19 +432,7 @@ fn parse_type(fwd_ref_ok bool, missing_ok bool) Type {
 	} else if ctx.tok == tIDN {
 		var name String = ctx.ident;
 		next();
-		var type Type = type_find(name);
-		if type == nil {
-			if fwd_ref_ok {
-				// pointer-to-struct is so commonly used, we always
-				// create it alongside the struct and they reference
-				// each other via their of fields
-				type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
-				type.of = type_make(nil, TYPE_POINTER, type, nil, 0);
-			} else {
-				Error("undefined type '@' not usable here").s(name.text);
-			}
-		}
-		return type;
+		return parse_named_type(name, fwd_ref_ok);
 	} else {
 		if !missing_ok {
 			expected("type");
@@ -788,20 +792,46 @@ fn parse_block() Ast {
 	return block;
 }
 
-fn parse_param(ival i32) Symbol {
+fn parse_param(ival i32, require_name bool) Symbol {
 	var kind SymbolKind = SYMBOL_VAR | SYMBOL_PARAM;
-	var name String = parse_name("parameter name");
-	var type Type = parse_type(false, false);
+	var name String;
+	var type Type;
+	if (ctx.tok != tIDN) && (!require_name) {
+		// A non-identifier can only (validly) be something
+		// like an array type, and only if !require_name.
+		type = parse_type(false, false);
+		// and we'll use "_" for the anonymous name
+		name = ctx.str_underscore;
+		kind |= SYMBOL_ANON;
+	} else {
+		// otherwise consume the token, which may be the name...
+		name = parse_name("parameter name");
+		if require_name || (ctx.tok == tIDN) {
+			// if the next token is also an ident token,
+			// or we are requiring names, parse it as the type
+			type = parse_type(false, false);
+		} else {
+			// otherwise the name we have must be the name of
+			// a named type (followed by a comma, cparen, etc)
+			// so parse it thusly
+			type = parse_named_type(name, false);
+			// and we'll use "_" for the anonymous name
+			name = ctx.str_underscore;
+			kind |= SYMBOL_ANON;
+		}
+	}
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		type = type.of; // use the pointer-to-struct
 	}
 	if type.kind == TYPE_ARRAY {
 		type = type_make_ptr(type);
 	}
-	// check only in current scope to avoid errors
-	// about pnames that mask globals (which is allowed)
-	if symbol_find_in(name, ctx.scope) != nil {
-		Error("duplicate parameter name '@'").s(name.text);
+	if require_name {
+		// check only in current scope to avoid errors
+		// about pnames that mask globals (which is allowed)
+		if symbol_find_in(name, ctx.scope) != nil {
+			Error("duplicate parameter name '@'").s(name.text);
+		}
 	}
 	return symbol_make(name, type, kind, ival);
 }
@@ -820,14 +850,15 @@ fn parse_fn_body(sym Symbol) Ast {
 // and definitions and parse_fn_type() for function types
 fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
 	var posn u32 = ctx.srcloc;
+	var require_name bool = (node != nil);
 
 	require(tOPAREN);
 	if ctx.tok != tCPAREN {
-		parse_param(4 * n);
+		parse_param(4 * n, require_name);
 		n++;
 		while ctx.tok == tCOMMA {
 			next();
-			parse_param(4 * n);
+			parse_param(4 * n, require_name);
 			n++;
 		}
 	}
@@ -921,7 +952,7 @@ fn parse_fn() Ast {
 	if ctx.tok == tOPAREN {
 		next();
 		// (self SelfType) ...
-		var sym Symbol = parse_param(0);
+		var sym Symbol = parse_param(0, true);
 		method_of = sym.type.of;
 		require(tCPAREN);
 		n = 1;
