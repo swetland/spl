@@ -215,7 +215,6 @@ fn type_anon(name String) Type {
 	// get put on the global type list
 	t = type_make(nil, TYPE_ANON, nil, nil, 0);
 	t.name = name;
-	t.of = type_make(nil, TYPE_POINTER, t, nil, 0);
 	t.next = ctx.anontypelist;
 	ctx.anontypelist = t;
 	return t;

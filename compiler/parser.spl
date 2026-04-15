@@ -339,7 +339,7 @@ fn parse_struct_type(name String) Type {
 		var ftype Type = parse_type(true, false);
 		if (ftype.kind == TYPE_ARRAY) && (ftype.count == 0) { ptr = true; }
 		if ptr {
-			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) || (ftype.kind == TYPE_ANON) {
+			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) {
 				// use the pointer-to-struct
 				ftype = ftype.of;
 			} else if ftype.kind == TYPE_ARRAY {
@@ -634,7 +634,7 @@ fn parse_var(kind SymbolKind) Ast {
 	var posn u32 = ctx.srcloc;
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false, false);
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) || (type.kind == TYPE_ANON) {
+	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		type = type.of; // use the pointer-to-struct
 	}
 	if (type.kind == TYPE_ARRAY) {
@@ -823,7 +823,7 @@ fn parse_param(ival i32, require_name bool) Symbol {
 			kind |= SYMBOL_ANON;
 		}
 	}
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) || (type.kind == TYPE_ANON) {
+	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		type = type.of; // use the pointer-to-struct
 	}
 	if type.kind == TYPE_ARRAY {
