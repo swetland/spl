@@ -1,0 +1,103 @@
+
+program = ( enum-def | struct-def | fn-def | fn-decl | global )*
+
+enum-def = "enum" name "{" enum-value * "}" ";"
+
+enum-value = name [ "=" const-expr ] ","
+
+struct-def = "struct" name "{" field-def * "}" ";"
+
+field-def = name [ "*" ] type ","
+
+fn-def = fn-signature block ";"
+
+fn-decl = fn-signature ";"
+
+global = "var" name type-name [ "=" init-expr ] ";"
+
+type = array-type | slice-type | fn-type | type-name
+
+array-type = "[" const-expr "]" array-of-type
+
+slice-type = "[" "]" array-of-type
+
+array-of-type = [ "*" ] type-name
+
+fn-signature = "fn" [ "(" name type ")" ] name fn-params [ type ]
+
+fn-type = "fn" fn-params [ type ]
+
+fn-params = "(" ( fn-param ( "," fn-param )* ) ")"
+
+fn-param = [ name ] type
+
+block = "{" ( statment )* "}"
+
+statement = return | break | continue | while | if | var | expr-statement | ";"
+
+return = "return" [ expr ] ";"
+
+break = "break" ";"
+
+continue = "continue" ";"
+
+while = "while" expr block
+
+if = "if" expr block ( "else" "if" expr block )* ) [ "else" block ]
+
+var = "var" name type [ "=" init-expr ] ";"
+
+expr-statement = expr [ incdec | assign ]
+
+indec = "++" | "--"
+
+assign = ( "=" | add-assign mul-assign ) expr
+
+expr = and-expr ( "||" and-expr )*
+
+and-expr = rel-expr ( "&&" rel-expr )*
+
+rel-expr = add-expr ( rel-op add-expr )*
+
+rel-op = "==" | "!=" | "<" | "<=" | ">" | ">="
+
+add-expr = mul-expr ( add-op mul-expr )*
+
+add-op = "+" | "-" | "|" | "^"
+
+add-assign = "+=" | "-=" | "|=" | "^="
+
+mul-expr = unary-expr ( mul-op unary-expr )*
+
+mul-op = "*" | "/" | "%" | "&" | "<<" | ">>"
+
+mul-assign = "*=" | "/=" | "%=" | "&=" | "<<=" | ">>="
+
+unary-expr = [ "-" | "+" | "!" | "~" ] primary-expr
+
+primary-expr = constant | "(" expr ")" | new | ident-expr
+
+constant = number | string | "true" | "false" | "nil"
+
+new = "new" "(" new-type ")"
+
+new-type = "[" expr "]" array-of-type | type-name
+
+ident-expr = name [ fn-args ] ( field-expr | method-expr | index-expr )*
+
+field-expr = "." name
+
+method-expr = "." name fn-args
+
+fn-args = "(" [ expr ( "," expr ")* ] ")"
+
+index-expr = "[" expr "]"
+
+init-expr = expr | array-init | struct-init
+
+array-init = "[" [ const-expr ( "," const-expr )* ] "]"
+
+struct-init = "{" ( [ field-init ( "," field-init )* ] "}"
+
+field-init = name ":" ( expr | struct-init )
+
