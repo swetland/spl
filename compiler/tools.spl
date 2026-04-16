@@ -213,7 +213,7 @@ fn type_anon(name String) Type {
 	}
 	// pass nil as name to type_make so we don't
 	// get put on the global type list
-	t = type_make(nil, TYPE_ANON, nil, nil, 0);
+	t = type_make(nil, TYPE_ANON, nil, nil, 4);
 	t.name = name;
 	t.next = ctx.anontypelist;
 	ctx.anontypelist = t;
@@ -395,6 +395,7 @@ fn type_size(type Type) i32 {
 	if kind == TYPE_NIL { return 4; }
 	if kind == TYPE_BOOL { return 4; }
 	if kind == TYPE_POINTER { return 4; }
+	if kind == TYPE_ANON { return type.count; }
 	//if kind == TYPE_SLICE { return 24; }
 	if kind == TYPE_ARRAY { return type_size(type.of) * type.count; }
 	if kind == TYPE_STRUCT { return type.count; }
