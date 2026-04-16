@@ -194,10 +194,10 @@ fn parse_primary_expr() Ast {
 			require(tCBRACK);
 			type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, 0);
 			szarg = ast_make_lr(AST_MUL, szarg,
-					ast_make_simple(AST_CONST, type_size(type.of)));
+					ast_make_const(type_size(type.of), ctx.type_u32));
 		} else {
 			type = parse_type(false, false);
-			szarg = ast_make_simple(AST_CONST, type_size(type));
+			szarg = ast_make_const(type_size(type), ctx.type_u32);
 		}
 		node = ast_make_symbol(symbol_find(ctx.str_new_fn));
 		node = ast_make_lr(AST_CALL, node, szarg);
