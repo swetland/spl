@@ -137,7 +137,7 @@ fn phi_resolve(bb BasicBlock, phi Phi) {
 	}
 
 	var n i32 = 0;
-	var args []i32 = __new(4 * bb.count);
+	var args []i32 = new([bb.count]i32);
 	var bl BlockList = bb.prev;
 	while bl != nil {
 		var val i32 = phi_lookup(bl.bb, phi.sym);
@@ -463,6 +463,11 @@ fn inst_make_imm(i Inst, val i32) {
 	i.c = val;
 }
 
+fn b2i32(cond bool) i32 {
+	if cond { return 1; }
+	return 0;
+}
+
 // Convert this instruction to a simpler form in situations
 // where it depends on vregs that are set by constant loads,
 // and so on.
@@ -588,12 +593,12 @@ fn inst_simplify(i Inst) bool {
 	if op == INS_OR  { inst_make_mov(i, valb | valc); return false; }
 	if op == INS_XOR { inst_make_mov(i, valb ^ valc); return false; }
 
-	if op == INS_CMP_EQ { inst_make_mov(i, valb == valc); return false; }
-	if op == INS_CMP_NE { inst_make_mov(i, valb != valc); return false; }
-	if op == INS_CMP_LT { inst_make_mov(i, valb < valc); return false; }
-	if op == INS_CMP_LE { inst_make_mov(i, valb <= valc); return false; }
-	if op == INS_CMP_GT { inst_make_mov(i, valb > valc); return false; }
-	if op == INS_CMP_GE { inst_make_mov(i, valb >= valc); return false; }
+	if op == INS_CMP_EQ { inst_make_mov(i, b2i32(valb == valc)); return false; }
+	if op == INS_CMP_NE { inst_make_mov(i, b2i32(valb != valc)); return false; }
+	if op == INS_CMP_LT { inst_make_mov(i, b2i32(valb < valc)); return false; }
+	if op == INS_CMP_LE { inst_make_mov(i, b2i32(valb <= valc)); return false; }
+	if op == INS_CMP_GT { inst_make_mov(i, b2i32(valb > valc)); return false; }
+	if op == INS_CMP_GE { inst_make_mov(i, b2i32(valb >= valc)); return false; }
 	return false;
 }
 
@@ -812,7 +817,7 @@ fn finalize_fn(_bl BlockList) {
 	split_critical_edges(_bl);
 
 	// build array of BasicBlocks
-	var blist []*BasicBlock = __new(4 * bb_order_count);
+	var blist []*BasicBlock = new([bb_order_count]*BasicBlock);
 	var n i32 = 0;
 	var bl BlockList = _bl;
 	while bl != nil {
