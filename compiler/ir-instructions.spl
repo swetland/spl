@@ -304,7 +304,7 @@ fn inst_storei(sz i32, a i32, b i32, c i32) {
 	inst_make(INS_STORE | INF_C_IMM | ins_size_flag(sz), a, b, c);
 }
 
-fn inst_cdata_str(s str) i32 {
+fn inst_cdata_str(s String) i32 {
 	return inst_make(INS_CDATA, ir_reg_get(), -1, make_cdata_str(s));
 }
 
