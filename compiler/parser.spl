@@ -274,6 +274,7 @@ fn parse_rel_expr() Ast {
 		var op u32 = (ctx.tok - tEQ) + AST_EQ;
 		next();
 		node = ast_posn(ast_make_lr(op, node, parse_add_expr()), posn);
+		node.type = ctx.type_bool;
 	}
 	return node;
 }
@@ -664,7 +665,7 @@ fn parse_var(kind SymbolKind) Ast {
 			node = ast_make_simple(AST_ARRAY, type.count);
 			node.type = type.of;
 		} else {
-			node = ast_make_simple(AST_CONST, 0);
+			node = ast_make_const(0, sym.type);
 		}
 	}
 	require(tSEMI);
