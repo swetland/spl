@@ -1,0 +1,40 @@
+
+fn quicksort(A []$type, len i32, off i32, compare fn(a $type, b $type) i32) {
+	if len < 2 { return; }
+	var pivot $type = A[off + len / 2];
+	var i i32 = 0;
+	var j i32 = len - 1;
+	while true {
+		while (compare(A[off + i], pivot) < 0) { i++; }
+		while (compare(A[off + j], pivot) > 0) { j--; }
+		if i >= j { break; }
+		var tmp $type = A[off + i];
+		A[off + i] = A[off + j];
+		A[off + j] = tmp;
+		i++;
+		j--;
+	}
+	quicksort(A, i, off, compare);
+	quicksort(A, len - i, i, compare);
+}
+
+var list []i32 = { 7, 42, 3, 4, 8, 99, 78, 9, 5, };
+
+fn cmpi32(a i32, b i32) i32 {
+	return a - b;
+}
+
+fn print(A []i32, len i32) {
+	var n i32 = 0;
+	while n < len {
+		_hexout_(A[n]);
+		n++;
+	}
+}
+
+fn start() i32 {
+	quicksort(list, 9, 0, cmpi32);
+	print(list, 9);
+	return 0;
+}
+
