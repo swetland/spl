@@ -49,10 +49,10 @@ fn (rc RegCopy) reset(tmp i32) {
 
 fn RegCopy_make(max i32, tmp i32) RegCopy {
 	var rc RegCopy = new(RegCopy);
-	rc.todo = new([max]u32);
-	rc.avail = new([max]u32);
+	rc.todo = new([max]i32);
+	rc.avail = new([max]i32);
 	rc.reg = new([max]RegInfo);
-	rc.copy = new([(max + 1) * 2]RegCopy);
+	rc.copy = new([(max + 1) * 2]CopyPair);
 	rc.max = max;
 	rc.reset(tmp);
 	return rc;
