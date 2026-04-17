@@ -1,0 +1,193 @@
+// Copyright 2026, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+// copy of compiler/sequentialize.spl
+
+// An implementation of the "parallel copy sequentialization"
+// algorithm described in "Revisiting Out-of-SSA Translation for
+// Correctness, Code Quality, and Efficiency", Boissinot et al 2009.
+
+struct RegInfo {
+	// global name for this local register
+	name i32,
+	// register that must be copied into this one (or -1)
+	pred i32,
+	// original register value currently contained (or -1)
+	loc i32,
+};
+
+struct CopyPair {
+	src i32,
+	dst i32,
+};
+
+struct RegCopy {
+	// table of all (nr) local register state
+	reg []RegInfo,
+	nr i32,
+	// stack of (tsp) registers needing to receive copies
+	todo []i32,
+	tsp i32,
+	// stack of (asp) registers currently safe to copy into
+	avail []i32,
+	asp i32,
+	// result list of (nc) sequential copies to execute
+	copy []CopyPair,
+	nc i32,
+	max i32,
+	tmp i32,
+};
+
+fn (rc RegCopy) reset(tmp i32) {
+	rc.reg[0].name = tmp;
+	rc.reg[0].pred = -1;
+	rc.reg[0].loc = -1;
+	rc.nr = 1;
+	rc.tsp = 0;
+	rc.asp = 0;
+	rc.nc = 0;
+	rc.tmp = tmp;
+}
+
+fn RegCopy_make(max i32, tmp i32) RegCopy {
+	var rc RegCopy = new(RegCopy);
+	rc.todo = new([max]i32);
+	rc.avail = new([max]i32);
+	rc.reg = new([max]RegInfo);
+	rc.copy = new([(max + 1) * 2]CopyPair);
+	rc.max = max;
+	rc.reset(tmp);
+	return rc;
+}
+
+fn (rc RegCopy) _map(name i32) i32 {
+	var n i32 = 1;
+	while n < rc.nr {
+		if name == rc.reg[n].name {
+			return n;
+		}
+		n++;
+	}
+	rc.reg[n].name = name;
+	rc.reg[n].pred = -1;
+	rc.reg[n].loc = -1;
+	rc.nr = n + 1;
+	return n;
+}
+
+fn (rc RegCopy) copy(src i32, dst i32) i32 {
+	// illegal to copy back to source
+	if (src == dst) { return -1; }
+
+	// temp register must never be a src or dst
+	if (src == rc.tmp) || (dst == rc.tmp) { return -2; }
+
+	var n i32 = rc.nr;
+	var r []RegInfo = rc.reg;
+	src = rc._map(src);
+	dst = rc._map(dst);
+
+	// illegal to copy multiple srcs to one dst
+	if r[dst].pred != -1 { return -3; }
+
+	r[src].loc = src;
+	r[dst].pred = src;
+	rc.todo[rc.tsp] = dst;
+	rc.tsp++;
+
+	// track possible initial targets in avail
+	rc.avail[rc.asp] = dst;
+	rc.asp++;
+	return 0;
+}
+
+// remove item from todo list
+fn (rc RegCopy) done(dst i32) {
+	var n i32 = 0;
+	while n < rc.tsp {
+		if rc.todo[n] == dst {
+			rc.tsp--;
+			while n < rc.tsp {
+				rc.todo[n] = rc.todo[n + 1];
+				n++;
+			}
+			return;
+		}
+		n++;
+	}
+}
+
+fn (rc RegCopy) sequentialize() i32 {
+	var r []RegInfo = rc.reg;
+
+	// determine which (if any) of the destinations
+	// is available at the begining, and adjust the
+	// avail stack to contain only those
+	var i i32 = 0;
+	var j i32 = 0;
+	while i < rc.asp {
+		if r[rc.avail[i]].loc == -1 {
+			// target is available
+			rc.avail[j] = rc.avail[i];
+			j++;
+		}
+		i++;
+	}
+	rc.asp = j;
+
+	while rc.tsp {
+		while rc.asp {
+			// while a register is available to write into,
+			// schedule a copy from its specified predecessor
+			rc.asp--;
+			var dst i32 = rc.avail[rc.asp];
+			var pred i32 = r[dst].pred;
+			var src i32 = r[pred].loc;
+			rc.copy[rc.nc].src = r[src].name;
+			rc.copy[rc.nc].dst = r[dst].name;
+			rc.nc++;
+			// remove from todo list
+			rc.done(dst);
+			// note that the pred value can now be found in
+			// this destination register
+			r[pred].loc = dst;
+			if (pred == src) && (r[pred].pred != -1) {
+				// make vacated source available to be
+				// copied into if it has a predecessor
+				rc.avail[rc.asp] = pred;
+				rc.asp++;
+			}
+		}
+		if rc.tsp {
+			// nothing available, but still work to do
+			rc.tsp--;
+			var dst i32 = rc.todo[rc.tsp];
+			// copy a register into the temporary registr
+			rc.copy[rc.nc].src = r[dst].name;
+			rc.copy[rc.nc].dst = r[0].name;
+			rc.nc++;
+			r[dst].loc = 0;
+			// opening it up to be copied into
+			rc.avail[rc.asp] = dst;
+			rc.asp++;
+		}
+	}
+}
+
+fn start() i32 {
+	var rc RegCopy = RegCopy_make(32, 999);
+	rc.copy(10, 20);
+	rc.copy(30, 40);
+	rc.copy(20, 10);
+	rc.copy(40, 50);
+	rc.copy(17, 23);
+	rc.copy(50, 30);
+	rc.sequentialize();
+	var n i32 = 0;
+	while n < rc.nc {
+		_hexout_(rc.copy[n].src);
+		_hexout_(rc.copy[n].dst);
+		n++;
+	}
+	return rc.nc;
+}
