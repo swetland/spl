@@ -81,7 +81,7 @@ primary-expr = constant | "(" expr ")" | new | ident-expr
 
 constant = number | string | "true" | "false" | "nil"
 
-new = "new" "(" new-type ")"
+new = "new" "(" new-type [ "," expr ] ")"
 
 new-type = "[" expr "]" array-of-type | type-name
 
