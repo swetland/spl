@@ -1,7 +1,6 @@
 
 fn start() i32 {
 	var a [10]u32 = new([10]u32);
-	_hexout_(a);
 	a[0] = 1;
 	a[9] = 10;
 	_hexout_(a[0]);
