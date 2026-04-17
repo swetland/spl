@@ -7,7 +7,7 @@
 struct String {
 	next *String,
 	len u32,
-	text [256]u8,
+	text [1]u8,
 };
 
 enum SymbolKind {

@@ -64,7 +64,7 @@ fn string_make(text str, len u32) String {
 		}
 		s = s.next;
 	}
-	s = new(String);
+	s = new(String, len);
 	s.len = len;
 	strcpyn(s.text, text, len + 1);
 	s.next = ctx.stringlist;

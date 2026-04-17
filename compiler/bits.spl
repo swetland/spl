@@ -26,7 +26,7 @@ struct BitSet {
 
 fn BitSet_make(size_in_bits u32) BitSet {
 	var size u32 = (size_in_bits + 31) >> 5;
-	var bs BitSet = new([8 + size]u32);
+	var bs BitSet = new(BitSet, size * 4);
 	bs.size = size;
 	return bs;
 }
