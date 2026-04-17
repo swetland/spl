@@ -1,0 +1,10 @@
+
+fn foo(a $xyz, b $xyz) { }
+
+fn start() i32 {
+	var aa i32 = 0;
+	var bb str = "";
+	foo(aa,bb);
+	return 0;
+}
+

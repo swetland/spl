@@ -1,0 +1,11 @@
+
+fn foo(a $xyz, f fn(i i32, x $xyz)) { }
+
+fn bar(one i32, two u32) {}
+
+fn start() i32 {
+	var aa i32 = 0;
+	foo(aa, bar);
+	return 0;
+}
+
