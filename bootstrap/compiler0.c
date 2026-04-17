@@ -1049,9 +1049,14 @@ void parse_primary_expr(void) {
 			emit_impl("calloc(1,sizeof(");
 		}
 		Type *type = parse_type(false);
-		require(tCPAREN);
 		emit_impl_typename(type, 0);
+		if (ctx.tok == tCOMMA) {
+			next();
+			emit_impl(")+(");
+			parse_expr();
+		}
 		emit_impl("))");
+		require(tCPAREN);
 		return;
 	} else if (ctx.tok == tIDN) {
 		parse_ident();
