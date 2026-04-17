@@ -282,6 +282,7 @@ struct Context {
 	stringlist *String,	// intern table
 	typelist *Type,		// all types
 	anontypelist *Type,     // anonymous types
+	anonmap *AnonTypeUse,	// tracking current use of anonymous types
 
 	scope *Scope,		// top of Scope stack
 	global *Scope,		// the global scope

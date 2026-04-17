@@ -932,7 +932,7 @@ fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
 			Error("fn @ redefined").s(sym.name.text);
 		}
 		// signature must not change
-		if types_match(prev.type, sym.type) == false {
+		if types_match(prev.type, sym.type, false) == false {
 			Error("fn @ differs from previous definition at @:@")
 			.s(sym.name.text).s(srcloc_file(prev.ival)).n(srcloc_line(prev.ival));
 		}

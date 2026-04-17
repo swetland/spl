@@ -177,7 +177,7 @@ fn gen_assign(node Ast) i32 {
 	if kind == AST_SYMBOL {
 		if (node.left.type.kind == TYPE_POINTER) &&
 			(node.right.type.kind != TYPE_POINTER) {
-			if !types_match(node.left.type.of, node.right.type) {
+			if !types_match(node.left.type.of, node.right.type, false) {
 				GenError(node, "cannot obtain @ from @").t(node.left.type).t(node.right.type);
 			}
 			return gen_store(node.left.sym, gen_addr(node.right));

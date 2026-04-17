@@ -235,22 +235,61 @@ fn type_find_field(type Type, name String) Symbol {
 	return nil;
 }
 
-fn types_match(a Type, b Type) bool {
+struct AnonTypeUse {
+	next *AnonTypeUse,
+	type *Type,
+	isa *Type,
+};
+
+fn types_match(a Type, b Type, fcall bool) bool;
+fn type_size(t Type) i32;
+
+fn anon_type_match(a Type, b Type) bool {
+	var atu AnonTypeUse = ctx.anonmap;
+	while atu {
+		// if this anon type been used already it
+		// must be used in the same way as before
+		if atu.type == b {
+			if types_match(a, atu.isa, true) { return true; }
+			Error("type $@ cannot be both @ and @")
+				.s(b.name.text).t(atu.isa).t(a);
+		}
+		atu = atu.next;
+	}
+	// anon types currently most be word shaped
+	if type_size(a) > 4 {
+		Error("type $@ cannot be @ (wrong shape)")
+			.s(b.name.text).t(atu.isa).t(a);
+	}
+	// remember the assignment so we require further
+	// use to be compatible
+	atu = new(AnonTypeUse);
+	atu.type = b;
+	atu.isa = a;
+	atu.next = ctx.anonmap;
+	ctx.anonmap = atu;
+	return true;
+}
+
+fn types_match(a Type, b Type, fcall bool) bool {
 	// simple case: same object
 	if a == b { return true; }
 	// not the same, but one is nil
 	if (a == nil) || (b == nil) { return false; }
+	if fcall && (b.kind == TYPE_ANON) {
+		return anon_type_match(a, b);
+	}
 	// cannot match if of different kind
 	if a.kind != b.kind { return false; }
 	// cannot match if counts differ
 	if a.count != b.count { return false; }
 	// cannot match if -of types differ
-	if !types_match(a.of, b.of) { return false; }
+	if !types_match(a.of, b.of, fcall) { return false; }
 	// cannot match if field/param type lists differ
 	var aa Symbol = a.list;
 	var bb Symbol = b.list;
 	while aa != nil {
-		if !types_match(aa.type, bb.type) { return false; }
+		if !types_match(aa.type, bb.type, fcall) { return false; }
 		aa = aa.next;
 		bb = bb.next;
 	}

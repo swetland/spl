@@ -141,8 +141,8 @@ fn gen_string_const(s str) i32 {
 }
 
 //TODO: should bool convert to 0/1 value?
-fn is_assignable(src Type, dst Type) bool {
-	if types_match(src, dst) { return true; }
+fn is_assignable(src Type, dst Type, fcall bool) bool {
+	if types_match(src, dst, fcall) { return true; }
 	var dk TypeKind = dst.kind;
 	var sk TypeKind = src.kind;
 	if dk == TYPE_U32 {
@@ -186,7 +186,7 @@ fn is_assignable(src Type, dst Type) bool {
 		if (src.kind != TYPE_ARRAY) || (dst.kind != TYPE_ARRAY) {
 			return false;
 		}
-		if types_match(src.of, dst.of) {
+		if types_match(src.of, dst.of, fcall) {
 			return true;
 		}
 	}
@@ -196,10 +196,12 @@ fn is_assignable(src Type, dst Type) bool {
 fn fn_check_args(node Ast, type Type, arg Ast) {
 	var n i32 = 0;
 	var param Symbol = type.list;
+	ctx.anonmap = nil;
 	while arg != nil {
 		if param == nil { return; }
-		if !is_assignable(arg.type, param.type) {
-			GenError(node, "arg @: cannot assign @ to @")
+		ctx.linenumber = arg.srcloc;
+		if !is_assignable(arg.type, param.type, true) {
+			Error("arg @: cannot assign @ to @")
 				.n(n).t(arg.type).t(param.type);
 		}
 		arg = arg.next;
@@ -383,10 +385,10 @@ fn gen_load(node Ast) i32 {
 fn gen_assign(node Ast) i32 {
 	var left Ast = node.left;
 	var right Ast = node.right;
-	if !is_assignable(right.type, left.type) {
+	if !is_assignable(right.type, left.type, false) {
 		if (right.type.kind == TYPE_ARRAY)
 			&& (left.type.kind == TYPE_POINTER)
-			&& is_assignable(right.type, left.type.of) {
+			&& is_assignable(right.type, left.type.of, false) {
 			// can assign arrays to array pointers, they convert
 		} else {
 			GenError(node, "cannot assign @ to @").t(right.type).t(left.type);
