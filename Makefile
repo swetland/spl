@@ -150,7 +150,7 @@ TESTDEPS0 := out/compiler0 build/runtest build/compile0
 TESTDEPS0 += $(wildcard bootstrap/inc/*.h) $(wildcard bootstrap/inc/*.c)
 TESTDEPSX := out/asm out/emu build/runtest build/stdlib-abi0.spl build/stdlib-abi0.s32
 TESTDEPS1 := $(TESTDEPSX) out/compiler1
-TESTDEPS2 := $(TESTDEPSX) out/compiler2a.bin
+TESTDEPS2 := $(TESTDEPSX) out/compiler2b.bin
 TESTDEPS3 := $(TESTDEPSX) out/compiler3a.bin out/iremu
 
 SRCTESTS := $(sort $(filter-out $(SKIP),$(wildcard test/*.spl)))
