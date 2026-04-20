@@ -4,8 +4,6 @@
 struct RegInfo {
 	inst *Inst,
 	used i32,
-	live i32,
-	dead i32,
 };
 
 var reg_info []RegInfo;
@@ -17,8 +15,6 @@ fn ir_reg_get() i32 {
 	reg_next++;
 	reg_info[r].used = 0;
 	reg_info[r].inst = nil;
-	reg_info[r].live = -1;
-	reg_info[r].dead = -1;
 	return r;
 }
 
@@ -751,8 +747,8 @@ fn number_instructions(bl BlockList) i32 {
 fn reg_use(live BitSet, vr i32, i Inst) {
 	if vr & VF_SPECIAL { return; }
 	live.set(vr);
-	if reg_info[vr].dead < 0 {
-		reg_info[vr].dead = i.i;
+	if reg_info[vr].inst.x < 0 {
+		reg_info[vr].inst.x = i.i;
 	}
 }
 
@@ -760,7 +756,6 @@ fn reg_def(live BitSet, i Inst) {
 	var vr i32 = i.a;
 	if vr & VF_SPECIAL { return; }
 	live.clear(vr);
-	reg_info[vr].live = i.i;
 }
 
 fn dump_live_set(tag str, live BitSet) {
@@ -801,10 +796,9 @@ fn compute_live_ranges(blist []*BasicBlock, nb i32, nr i32) {
 	}
 	var n i32 = 0;
 	while n < reg_next {
-		if reg_info[n].dead >= 0 {
-			Warn("live range %@ @:@").n(n)
-				.n(reg_info[n].live)
-				.n(reg_info[n].dead);
+		var i Inst = reg_info[n].inst;
+		if i && (i.x >= 0) {
+			Warn("live range %@ @:@").n(n).n(i.i).n(i.x);
 		}
 		n++;
 	}
@@ -833,10 +827,10 @@ fn finalize_fn(_bl BlockList) {
 	var count i32 = 0;
 	n = 0;
 	while n < reg_next {
-		reg_info[n].dead = -1;
 		if reg_info[n].used == 0 {
 			if reg_info[n].inst {
 				inst_remove(reg_info[n].inst);
+				reg_info[n].inst = nil;
 				count++;
 			}
 		}
@@ -844,9 +838,15 @@ fn finalize_fn(_bl BlockList) {
 	}
 	Warn("finalize: removed @ dead instructions").n(count);
 
+	// at this point, count reginfo slots have a nil .inst
+
 	var ni i32 = number_instructions(_bl);
 
 	compute_live_ranges(blist, bb_order_count, reg_next);
+
+	// at this point every instruction referenced via
+	// a reginfo slot has a nonzero .i and should have a
+	// nonzero .x, representing its live range
 
 	var os OutStream = ctx_make_outfile(true, ctx.curfn, ".ir0");
 	if os {
@@ -884,9 +884,10 @@ fn dump_ir(os OutStream, bl BlockList, ni i32) {
 	// draw live intervals for each register
 	n = 0;
 	while n < reg_next {
-		var i i32 = reg_info[n].live;
-		if i != -1 {
-			var dead i32 = reg_info[n].dead;
+		var ins Inst = reg_info[n].inst;
+		if ins != nil {
+			var i i32 = ins.i;
+			var dead i32 = ins.x;
 			while i <= dead {
 				art[i][n] = '|';
 				i++;

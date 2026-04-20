@@ -169,7 +169,8 @@ struct Inst {
 	a i32,
 	b i32,
 	c i32,
-	i i32,
+	i i32, // instruction number / live range start
+	x i32, // retire number / live range end
 };
 
 // implementation in ir-blocks.spl
@@ -214,6 +215,8 @@ fn _inst_make(op u32, a i32, b i32, c i32) Inst {
 	ins.a = a;
 	ins.b = b;
 	ins.c = c;
+	ins.i = -1;
+	ins.x = -1;
 	return ins;
 }
 
