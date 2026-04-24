@@ -804,7 +804,11 @@ fn compute_live_ranges(blist []*BasicBlock, nb i32, nr i32) {
 	}
 }
 
-fn dump_ir(os OutStream, _bl BlockList, ni i32);
+fn comparerange(a Inst, b Inst) i32 {
+	return a.i - b.i;
+}
+
+fn dump_ir(os OutStream, _bl BlockList, ni i32, ranges []*Inst, nranges i32);
 
 fn finalize_fn(_bl BlockList) {
 	// this may insert additional BasicBlocks
@@ -848,9 +852,22 @@ fn finalize_fn(_bl BlockList) {
 	// a reginfo slot has a nonzero .i and should have a
 	// nonzero .x, representing its live range
 
+	// build a sorted list of live ranges
+	var list []*Inst = new([reg_next]*Inst);
+	n = 0;
+	count = 0;
+	while n < reg_next{
+		if reg_info[n].inst {
+			list[count] = reg_info[n].inst;
+			count++;
+		}
+		n++;
+	}
+	quicksort(list, count, 0, comparerange);
+
 	var os OutStream = ctx_make_outfile(true, ctx.curfn, ".ir0");
 	if os {
-		dump_ir(os, _bl, ni);
+		dump_ir(os, _bl, ni, list, count);
 		os.close();
 	}
 }
@@ -863,16 +880,16 @@ fn fill(s str, c i32) {
 	}
 }
 
-fn dump_ir(os OutStream, bl BlockList, ni i32) {
+fn dump_ir(os OutStream, bl BlockList, ni i32, ranges []*Inst, nranges i32) {
 	// start with a blank chart register count wide
 	// and instruction count tall
 	var art []str = new([ni]str);
 
 	var n i32 = 0;
 	while n < ni {
-		var s str = new([reg_next + 1]u8);
+		var s str = new([nranges + 1]u8);
 		var i i32 = 0;
-		while i < reg_next {
+		while i < nranges {
 			s[i] = ' ';
 			i++;
 		}
@@ -881,17 +898,15 @@ fn dump_ir(os OutStream, bl BlockList, ni i32) {
 		n++;
 	}
 
-	// draw live intervals for each register
+	// draw live intervals for each range
 	n = 0;
-	while n < reg_next {
-		var ins Inst = reg_info[n].inst;
-		if ins != nil {
-			var i i32 = ins.i;
-			var dead i32 = ins.x;
-			while i <= dead {
-				art[i][n] = '|';
-				i++;
-			}
+	while n < nranges {
+		var ins Inst = ranges[n];
+		var i i32 = ins.i;
+		var dead i32 = ins.x;
+		while i <= dead {
+			art[i][n] = '|';
+			i++;
 		}
 		n++;
 	}
