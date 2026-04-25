@@ -470,14 +470,14 @@ fn (bb BasicBlock) set_name(name String) {
 fn inst_make_mov(i Inst, val i32) {
 	//Warn("simplify @ @").s(iop_name[i.op & INS_OP_MASK]).n(val);
 	i.op = INS_MOV | INF_C_IMM | iop_props[INS_MOV];
-	i.op &= (~INF_USE_C);
+	i.op &^= INF_USE_C;
 	i.b = 0;
 	i.c = val;
 }
 
 fn inst_make_imm(i Inst, val i32) {
 	i.op |= INF_C_IMM;
-	i.op &= (~INF_USE_C);
+	i.op &^= INF_USE_C;
 	i.c = val;
 }
 
@@ -622,7 +622,7 @@ fn inst_simplify(i Inst) bool {
 
 fn inst_flip_alu(i Inst, op i32, newc i32) {
 	// transform alu %a0, %b0, %c0 -> alui %a0, %c0, newc
-	i.op = (i.op & (~(INS_OP_MASK|INF_USE_C))) | op | INF_C_IMM;
+	i.op = (i.op &^ (INS_OP_MASK|INF_USE_C)) | op | INF_C_IMM;
 	i.b = i.c;
 	i.c = newc;
 }
@@ -1156,7 +1156,7 @@ fn serialize_header(fd i32) {
 }
 
 fn serialize_cdata(fd i32) {
-	var sz u32 = (sdata_size + 3) & (~3);
+	var sz u32 = (sdata_size + 3) &^ 3;
 	writeu32(fd, TAG_IR_DATA);
 	writeu32(fd, sz >> 2);
 	writeu32(fd, -1);

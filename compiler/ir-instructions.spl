@@ -205,7 +205,7 @@ fn _inst_make(op u32, a i32, b i32, c i32) Inst {
 
 	// immediate variants do not use arg c as a register
 	if op & INF_C_IMM {
-		op &= (~INF_USE_C);
+		op &^= INF_USE_C;
 	}
 
 	var ins Inst = new(Inst);
