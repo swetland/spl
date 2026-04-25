@@ -567,16 +567,16 @@ fn gen_fn(node Ast) {
 
 	var name str = node.sym.name.text;
 
-	finalize_fn(bb_order_first);
+	finalize_fn(bb_order);
 
 	var is OutStream = ctx_make_outfile(ctx.options & OPT_WITH_IR, name, ".ir");
 	if is != nil {
 		is.fmt("\n// fn @\n").s(name);
-		dump_bb_list(is, bb_order_first);
+		dump_bb_list(is, bb_order);
 		is.close();
 	}
 
-	serialize_fn(os.fd, bb_order_first);
+	serialize_fn(os.fd, bb_order);
 }
 
 fn gen_functions(node Ast) {

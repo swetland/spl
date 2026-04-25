@@ -45,6 +45,38 @@ struct BlockList {
 	bb *BasicBlock,
 };
 
+struct BlockVec {
+	len i32,
+	cap i32,
+	data []*BasicBlock,
+};
+
+fn BlockVec_make() BlockVec {
+	var bl BlockVec = new(BlockVec);
+	bl.len = 0;
+	bl.cap = 16;
+	bl.data = new([bl.cap]*BasicBlock);
+	return bl;
+}
+
+fn (bl BlockVec) append(bb BasicBlock) {
+	if bl.len == bl.cap {
+		//TODO: realloc and/or memcpy
+		bl.cap *= 2;
+		var list []*BasicBlock = new([bl.cap]*BasicBlock);
+		var old []*BasicBlock = bl.data;
+		var n u32 = 0;
+		var len u32 = bl.len;
+		while n < len {
+			list[n] = old[n];
+			n++;
+		}
+		bl.data = list;
+	}
+	bl.data[bl.len] = bb;
+	bl.len++;
+}
+
 enum BBFlags {
 	// Filled blocks contain all their instructions
 	// Filled blocks may provide defs for successors
@@ -76,9 +108,7 @@ enum BBFlags {
 var bb_next_id i32 = 0;
 var bb_idx []*BasicBlock;
 
-var bb_order_first BlockList;
-var bb_order_last BlockList;
-var bb_order_count i32;
+var bb_order BlockVec;
 
 // target for new instructions
 var bb_active BasicBlock = nil;
@@ -102,25 +132,27 @@ fn (phi Phi) is_trivial() bool {
 	return true;
 }
 
-fn phis_to_insts(bl BlockList) {
-	while bl != nil {
-		var phi Phi = bl.bb.phi;
+fn phis_to_insts(blist []*BasicBlock, bcount i32) {
+	var bn i32 = 0;
+	while bn < bcount {
+		var bb BasicBlock = blist[bn];
+		var phi Phi = bb.phi;
 		while phi != nil {
 			if phi.count > 0 {
-				if phi.count != bl.bb.count {
+				if phi.count != bb.count {
 					Error("phi count mismatch");
 				}
 				// previous block list
-				var pbl BlockList = bl.bb.prev;
+				var pbl BlockList = bb.prev;
 				while pbl != nil {
 					pbl.bb.add_set(phi.vini, phi_lookup(pbl.bb, phi.sym));
 					pbl = pbl.next;
 				}
-				bl.bb.add_get(phi.vini, phi.vini);
+				bb.add_get(phi.vini, phi.vini);
 			}
 			phi = phi.next;
 		}
-		bl = bl.next;
+		bn++;
 	}
 }
 
@@ -262,9 +294,7 @@ fn bb_reset() {
 	reg_next = 0;
 	bb_next_id = 0;
 	bb_active = nil;
-	bb_order_first = nil;
-	bb_order_last = nil;
-	bb_order_count = 0;
+	bb_order = BlockVec_make();
 }
 
 fn inst_track_use(i Inst, r i32) {
@@ -328,15 +358,7 @@ fn (bb BasicBlock) place() {
 		Error("bb.@ placed twice").n(bb.id);
 	}
 	bb.flags |= BB_PLACED;
-	var bl BlockList = new(BlockList);
-	bl.bb = bb;
-	if bb_order_last == nil {
-		bb_order_first = bl;
-	} else {
-		bb_order_last.next = bl;
-	}
-	bb_order_last = bl;
-	bb_order_count++;
+	bb_order.append(bb);
 }
 
 fn (bb BasicBlock) link_to(target BasicBlock) {
@@ -679,6 +701,93 @@ fn ir_strlen(id i32) u32 {
 	return global_names[id].len;
 }
 
+fn is_boring_block(bb BasicBlock) bool {
+	if bb == nil {
+		return false;
+	}
+	if bb.first.next == bb.last {
+		if bb.last.op & INF_IS_B_U {
+			return true;
+		}
+	}
+}
+
+fn (bb BasicBlock) replace_prev(oldp BasicBlock, newp BasicBlock) {
+	var bl BlockList = bb.prev;
+	while bl {
+		if bl.bb == oldp {
+			bl.bb = newp;
+			return;
+		}
+		bl = bl.next;
+	}
+	Error("bb.@ does not have bb.@ as a prev").n(bb.id).n(oldp.id);
+}
+
+// merge blocks if possible
+fn cleanup_blocks(bl BlockVec) {
+	var blist []*BasicBlock = bl.data;
+	var bcount i32 = bl.len;
+
+	var bn i32 = 0;
+	while bn < bcount {
+		var bb BasicBlock = blist[bn];
+		bn++;
+		if bb.flags & BB_DEAD {
+			continue;
+		}
+		if (bb.last.op & INF_IS_B_U) && (bb.next0.count == 1) {
+			var bb2 BasicBlock = bb.next0;
+			// This block jumps to another block that has
+			// no other predecessors.  Absorb it.
+			Warn("merging bb.@ with bb.@").n(bb.id).n(bb.next0.id);
+
+			// we've acquired bb2's branch, so update next ptr(s)
+			bb.next0 = bb2.next0;
+			bb.next1 = bb2.next1;
+
+			// and fix up prev ptr(s) as well
+			if bb.next0 {
+				bb.next0.replace_prev(bb2, bb);
+			}
+			if bb.next1 {
+				bb.next1.replace_prev(bb2, bb);
+			}
+
+			// last is the branch, which we'll discard
+			// in favor of whatever bb2 is doing...
+			var ins Inst = bb.last.prev;
+			ins.next = bb2.first.next;
+			ins.next.prev = ins;
+			bb.last = bb2.last;
+
+			// clean up now-abandoned bb2
+			//TODO: free bb2 and related bits
+			bb2.first = nil;
+			bb2.last = nil;
+			bb2.flags |= BB_DEAD;
+
+			// check to see if we can merge *again*
+			// does not happen with current test cases
+			// impossible?
+			// bn++;
+		}
+	}
+
+	// remove any dead blocks from the list
+	bn = 0;
+	var n i32 = 0;
+	while bn < bcount {
+		if !(blist[bn].flags & BB_DEAD) {
+			blist[n] = blist[bn];
+			n++;
+		}
+		bn++;
+	}
+	// update list length
+	bl.len = n;
+}
+
 fn inst_remove(i Inst);
 
 fn reg_disuse(r i32) {
@@ -730,16 +839,17 @@ fn split_critical_edges(bl BlockList) {
 	}
 }
 
-fn number_instructions(bl BlockList) i32 {
+fn number_instructions(blist []*BasicBlock, bcount i32) i32 {
 	var n i32 = 0;
-	while bl != nil {
-		var ins Inst = bl.bb.first;
+	var bn i32 = 0;
+	while bn < bcount {
+		var ins Inst = blist[bn].first;
 		while ins != nil {
 			ins.i = n;
 			n++;
 			ins = ins.next;
 		}
-		bl = bl.next;
+		bn++;
 	}
 	return n;
 }
@@ -768,10 +878,10 @@ fn dump_live_set(tag str, live BitSet) {
 }
 
 // prereq: instructions must be numbered
-fn compute_live_ranges(blist []*BasicBlock, nb i32, nr i32) {
-	while nb > 0 {
-		nb--;
-		var bb BasicBlock = blist[nb];
+fn compute_live_ranges(blist []*BasicBlock, bcount i32, nr i32) {
+	while bcount > 0 {
+		bcount--;
+		var bb BasicBlock = blist[bcount];
 		Warn("compute-live-range bb.@ @:@")
 			.n(bb.id).n(bb.first.i).n(bb.last.i);
 
@@ -808,28 +918,22 @@ fn comparerange(a Inst, b Inst) i32 {
 	return a.i - b.i;
 }
 
-fn dump_ir(os OutStream, _bl BlockList, ni i32, ranges []*Inst, nranges i32);
+// TODO: make this nondestructive so we can do it
+fn dump_ir(os OutStream, blist []*BasicBlock, bcount i32,
+	ni i32, ranges []*Inst, nranges i32);
 
-fn finalize_fn(_bl BlockList) {
+fn finalize_fn(bl BlockVec) {
+	cleanup_blocks(bl);
+
 	// this may insert additional BasicBlocks
-	split_critical_edges(_bl);
-
-	// build array of BasicBlocks
-	var blist []*BasicBlock = new([bb_order_count]*BasicBlock);
-	var n i32 = 0;
-	var bl BlockList = _bl;
-	while bl != nil {
-		blist[n] = bl.bb;
-		bl = bl.next;
-		n++;
-	}
+	//split_critical_edges(_bl);
 
 	// place get and set instructions for phis
-	phis_to_insts(_bl);
+	phis_to_insts(bl.data, bl.len);
 
 	// remove any instructions with unused results
 	var count i32 = 0;
-	n = 0;
+	var n i32 = 0;
 	while n < reg_next {
 		if reg_info[n].used == 0 {
 			if reg_info[n].inst {
@@ -844,9 +948,9 @@ fn finalize_fn(_bl BlockList) {
 
 	// at this point, count reginfo slots have a nil .inst
 
-	var ni i32 = number_instructions(_bl);
+	var ni i32 = number_instructions(bl.data, bl.len);
 
-	compute_live_ranges(blist, bb_order_count, reg_next);
+	compute_live_ranges(bl.data, bl.len, reg_next);
 
 	// at this point every instruction referenced via
 	// a reginfo slot has a nonzero .i and should have a
@@ -867,7 +971,7 @@ fn finalize_fn(_bl BlockList) {
 
 	var os OutStream = ctx_make_outfile(true, ctx.curfn, ".ir0");
 	if os {
-		dump_ir(os, _bl, ni, list, count);
+		dump_ir(os, bl.data, bl.len, ni, list, count);
 		os.close();
 	}
 }
@@ -880,7 +984,8 @@ fn fill(s str, c i32) {
 	}
 }
 
-fn dump_ir(os OutStream, bl BlockList, ni i32, ranges []*Inst, nranges i32) {
+fn dump_ir(os OutStream, blist []*BasicBlock, bcount i32,
+	ni i32, ranges []*Inst, nranges i32) {
 	// start with a blank chart register count wide
 	// and instruction count tall
 	var art []str = new([ni]str);
@@ -914,8 +1019,9 @@ fn dump_ir(os OutStream, bl BlockList, ni i32, ranges []*Inst, nranges i32) {
 	// for each instruction, write
 	// lineno + chart line + disassembly
 	n = 0;
-	while bl != nil {
-		var i Inst = bl.bb.first;
+	var bn i32 = 0;
+	while bn < bcount {
+		var i Inst = blist[bn].first;
 		while i != nil {
 			if i.op & INF_IS_LABEL { fill(art[n], '.'); }
 			writec(os.fd, '0' + (n / 100) % 10);
@@ -928,7 +1034,7 @@ fn dump_ir(os OutStream, bl BlockList, ni i32, ranges []*Inst, nranges i32) {
 			i = i.next;
 			n++;
 		}
-		bl = bl.next;
+		bn++;
 	}
 }
 
@@ -983,43 +1089,45 @@ fn dump_bb(os OutStream, bb BasicBlock) {
 	}
 }
 
-fn dump_bb_list(os OutStream, bl BlockList) {
-	while bl != nil {
-		dump_bb(os, bl.bb);
-		bl = bl.next;
+fn dump_bb_list(os OutStream, bl BlockVec) {
+	var bn i32 = 0;
+	while bn < bl.len {
+		dump_bb(os, bl.data[bn]);
+		bn++;
 	}
 }
 
 // tools to serialize BasicBlocks and DataChunks
 var global_ic i32 = 0;
 
-// TODO: make this nondestructive so we can do it
 // at multiple stages of optimization, etc
-fn serialize_fn(fd i32, blist BlockList) {
-	var bl BlockList = blist;
+fn serialize_fn(fd i32, bl BlockVec) {
+	var blist []*BasicBlock = bl.data;
+	var bcount i32 = bl.len;
+	var bn i32 = 0;
 	// count the fn header as an instruction, since it'll be
 	// transformed into one on load, but don't include it
 	// in the count
 	global_ic++;
 	var n i32 = global_ic;
-	while bl != nil {
+	while bn < bcount {
+		var inst Inst = blist[bn].first;
 		// record the instruction number in each block's label
-		bl.bb.first.c = global_ic;
-		var inst Inst = bl.bb.first;
+		inst.c = global_ic;
 		while inst != nil {
 			global_ic++;
 			inst = inst.next;
 		}
-		bl = bl.next;
+		bn++;
 	}
 
-	bl = blist;
+	bn = 0;
 	writeu32(fd, TAG_IR_FUNC);
 	writeu32(fd, global_ic - n); // ins count
-	writeu32(fd, bl.bb.first.b); // global name id
+	writeu32(fd, blist[0].first.b); // global name id
 	writeu32(fd, reg_next);      // max virtual reg used
-	while bl != nil {
-		var inst Inst = bl.bb.first;
+	while bn < bcount {
+		var inst Inst = blist[bn].first;
 		while inst != nil {
 			var op u32 = inst.op & INS_OP_MASK;
 			// translate bb.ids to instruction numbers via labels
@@ -1036,7 +1144,7 @@ fn serialize_fn(fd i32, blist BlockList) {
 			writeu32(fd, inst.c);
 			inst = inst.next;
 		}
-		bl = bl.next;
+		bn++;
 	}
 }
 
