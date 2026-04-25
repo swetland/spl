@@ -83,7 +83,7 @@ fn gen_ptr_addr(node Ast) i32 {
 			// and dereference it
 			return inst_ldwi(gaddr, 0);
 		} else {
-			GenError(node, "gen_ptr_addr cannot resolve '@' @")
+			ErrorAt(node, "gen_ptr_addr cannot resolve '@' @")
 				.s(sym.name.text).x(sym.kind);
 		}
 	}
@@ -93,7 +93,7 @@ fn gen_ptr_addr(node Ast) i32 {
 	if kind == AST_FIELD {
 		return inst_ldwi(gen_field_addr(node), 0);
 	}
-	GenError(node, "sorry... @ in ptr addr expr").s(ast_kind[kind]);
+	ErrorAt(node, "sorry... @ in ptr addr expr").s(ast_kind[kind]);
 	return 0;
 }
 
@@ -108,7 +108,7 @@ fn gen_field_addr(node Ast) i32 {
 		ar = gen_addr(node.left);
 	}
 	if type.kind != TYPE_STRUCT {
-		GenError(node, "invalid FIELD reference");
+		ErrorAt(node, "invalid FIELD reference");
 	}
 	return inst_alui(INS_ADD, ar, node.right.sym.ival);
 }
@@ -121,11 +121,11 @@ fn gen_index_addr(node Ast) i32 {
 		type = type.of;
 		ar = gen_ptr_addr(node.left);
 	} else {
-		//GenError(node, "crap");
+		//ErrorAt(node, "crap");
 		ar = gen_addr(node.left);
 	}
 	if type.kind != TYPE_ARRAY {
-		GenError(node, "index of non-array type");
+		ErrorAt(node, "index of non-array type");
 	}
 	var ir i32 = gen_expr(node.right);
 	var sz i32 = type_size(type.of);
@@ -152,11 +152,11 @@ fn gen_addr(node Ast) i32 {
 	if kind == AST_CALL {
 		// TODO more strict type matching
 		if node.type.kind != TYPE_POINTER {
-			GenError(node, "fn @ does not return a pointer").s(node.left.sym.name.text);
+			ErrorAt(node, "fn @ does not return a pointer").s(node.left.sym.name.text);
 		}
 		return gen_call(node);
 	}
-	GenError(node, "sorry... @ in addr expr").s(ast_kind[kind]);
+	ErrorAt(node, "sorry... @ in addr expr").s(ast_kind[kind]);
 }
 
 fn gen_array_load(node Ast) i32 {
@@ -183,7 +183,7 @@ fn gen_assign(node Ast) i32 {
 		if (node.left.type.kind == TYPE_POINTER) &&
 			(node.right.type.kind != TYPE_POINTER) {
 			if !types_match(node.left.type.of, node.right.type, false) {
-				GenError(node, "cannot obtain @ from @").t(node.left.type).t(node.right.type);
+				ErrorAt(node, "cannot obtain @ from @").t(node.left.type).t(node.right.type);
 			}
 			return gen_store(node.left.sym, gen_addr(node.right));
 		} else {
@@ -205,7 +205,7 @@ fn gen_call(fcall Ast) i32 {
 	var sym Symbol = fcall.left.sym;
 	if sym == nil {
 		// TODO: should be impossible
-		GenError(fcall, "calling undefined function");
+		ErrorAt(fcall, "calling undefined function");
 	}
 
 	if sym.type.count > 0 {
@@ -219,7 +219,7 @@ fn gen_call(fcall Ast) i32 {
 		n++;
 	}
 	if n != sym.type.count {
-		GenError(fcall, "parameter count mismatch for '@': expected @, found @").s(sym.name.text).n(sym.type.count).n(n);
+		ErrorAt(fcall, "parameter count mismatch for '@': expected @, found @").s(sym.name.text).n(sym.type.count).n(n);
 	}
 
 	// TODO: possibly better way to get the (mangled) canonical
@@ -356,7 +356,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }
 	//if kind == AST_NEW { }
-	GenError(node, "unsupported @ in expr").s(ast_kind[kind]);
+	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
 	return 0;
 }
 
@@ -374,14 +374,14 @@ fn gen_return(node Ast) {
 
 fn gen_break(node Ast) {
 	if loop_exit == nil {
-		GenError(node, "break used outside of loop");
+		ErrorAt(node, "break used outside of loop");
 	}
 	inst_jump(loop_exit);
 }
 
 fn gen_continue(node Ast) {
 	if loop_cont == nil {
-		GenError(node, "continue used outside of loop");
+		ErrorAt(node, "continue used outside of loop");
 	}
 	inst_jump(loop_cont);
 }
@@ -486,7 +486,7 @@ fn gen_block(node Ast) { //dup
 		} else if ast_is_expr(kind) {
 			gen_expr(node);
 		} else {
-			GenError(node, "unsupported @ in block").s(ast_kind[kind]);
+			ErrorAt(node, "unsupported @ in block").s(ast_kind[kind]);
 		}
 		node = node.next;
 	}

@@ -3,10 +3,6 @@
 
 // Shared code for managing data chunks
 
-fn GenError(node Ast, msg str) OutStream {
-	return ErrorAt(node, msg);
-}
-
 enum DataChunkKind {
 	DATA_U8,
 	DATA_U32,
@@ -114,7 +110,7 @@ fn gen_global_array_init(node Ast) u32 {
 			sz = sz * tsz / 4;
 		}
 	} else {
-		GenError(node, "illegal array init");
+		ErrorAt(node, "illegal array init");
 	}
 	var dc DataChunk = make_data_chunk(kind, sz);
 	node = node.left;
@@ -158,7 +154,7 @@ fn gen_global_data(all Ast) {
 				var id u32 = gen_global_array_init(node.right);
 				write_data_chunk(dc, n, id, true);
 			} else if node.right.kind == AST_ASSIGN {
-				GenError(node, "global struct init unsupported");
+				ErrorAt(node, "global struct init unsupported");
 			} else {
 				var val i32 = eval_const_expr(node.right);
 				write_data_chunk(dc, n, val, false);

@@ -208,9 +208,8 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 	ctx.anonmap = nil;
 	while arg != nil {
 		if param == nil { return; }
-		ctx.linenumber = arg.srcloc;
 		if !is_assignable(arg.type, param.type, true) {
-			Error("arg @: cannot assign @ to @")
+			ErrorAtSrcLoc(arg.srcloc, "arg @: cannot assign @ to @")
 				.n(n).t(arg.type).t(param.type);
 		}
 		arg = arg.next;
@@ -222,7 +221,7 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 fn gen_call(fcall Ast) i32 {
 	var type Type = fcall.left.type;
 	if type.kind != TYPE_FN {
-		GenError(fcall, "calling a non-function");
+		ErrorAt(fcall, "calling a non-function");
 	}
 	emit("    subi sp, sp, @\n").n(type.count * 4);
 	var node Ast = fcall.right;
@@ -236,7 +235,7 @@ fn gen_call(fcall Ast) i32 {
 		node = node.next;
 	}
 	if n != type.count {
-		GenError(fcall, "parameter count mismatch: expected @, found @").n(type.count).n(n);
+		ErrorAt(fcall, "parameter count mismatch: expected @, found @").n(type.count).n(n);
 	}
 	emit_save_tmp();
 	if (fcall.left.kind == AST_SYMBOL) && (fcall.left.sym.kind & SYMBOL_FN) {
@@ -245,7 +244,7 @@ fn gen_call(fcall Ast) i32 {
 		var sym Symbol = fcall.left.sym;
 		if sym == nil {
 			// TODO: should be impossible
-			GenError(fcall, "calling undefined function");
+			ErrorAt(fcall, "calling undefined function");
 		}
 		emit("    call @\n").s(sym.type.name.text);
 	} else {
@@ -277,7 +276,7 @@ fn gen_field_addr(node Ast) i32 {
 		type = type.of;
 	}
 	if type.kind != TYPE_STRUCT {
-		GenError(node, "invalid FIELD reference");
+		ErrorAt(node, "invalid FIELD reference");
 	}
 	var ar i32 = gen_addr(left);
 	if ptr {
@@ -304,7 +303,7 @@ fn gen_index_addr(node Ast) i32 {
 		emit("    ldw x@, (x@) // array ptr deref\n").n(ar).n(ar);
 	}
 	if type.kind != TYPE_ARRAY {
-		GenError(node, "index of non-array type");
+		ErrorAt(node, "index of non-array type");
 	}
 	var ir i32 = gen_expr(node.right);
 	var sz i32 = type_size(type.of);
@@ -353,7 +352,7 @@ fn gen_addr(node Ast) i32 {
 		} else if sym.kind & SYMBOL_GLOBAL {
 			emit("    addi x@, gp, @\n").n(t).n(sym.ival);
 		} else {
-			GenError(node, "unsupported store for '@' @").s(sym.name.text).x(sym.kind);
+			ErrorAt(node, "unsupported store for '@' @").s(sym.name.text).x(sym.kind);
 		}
 		return t;
 	}
@@ -368,7 +367,7 @@ fn gen_addr(node Ast) i32 {
 			return gen_call(node);
 		}
 	}
-	GenError(node, "sorry... @ in addr expr").s(ast_kind[kind]);
+	ErrorAt(node, "sorry... @ in addr expr").s(ast_kind[kind]);
 	return 0;
 }
 
@@ -386,7 +385,7 @@ fn gen_load(node Ast) i32 {
 	} else if sym.kind & SYMBOL_FN {
 		emit("    la x@, @\n").n(t).s(sym.type.name.text);
 	} else {
-		GenError(node, "unsupported symbol for load '@' @").s(sym.name.text).x(sym.kind);
+		ErrorAt(node, "unsupported symbol for load '@' @").s(sym.name.text).x(sym.kind);
 	}
 	return t;
 }
@@ -400,7 +399,7 @@ fn gen_assign(node Ast) i32 {
 			&& is_assignable(right.type, left.type.of, false) {
 			// can assign arrays to array pointers, they convert
 		} else {
-			GenError(node, "cannot assign @ to @").t(right.type).t(left.type);
+			ErrorAt(node, "cannot assign @ to @").t(right.type).t(left.type);
 		}
 	}
 	if (left.kind == AST_INDEX) {
@@ -483,7 +482,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }
 	if kind == AST_NEW { }
-	GenError(node, "unsupported @ in expr").s(ast_kind[kind]);
+	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
 	return 0;
 }
 
@@ -515,14 +514,14 @@ fn gen_while(node Ast) {
 
 fn gen_break(node Ast) {
 	if break_target < 0 {
-		GenError(node, "break used outside of loop");
+		ErrorAt(node, "break used outside of loop");
 	}
 	emit_jump(break_target);
 }
 
 fn gen_continue(node Ast) {
 	if continue_target < 0 {
-		GenError(node, "continue used outside of loop");
+		ErrorAt(node, "continue used outside of loop");
 	}
 	emit_jump(continue_target);
 }
@@ -552,11 +551,11 @@ fn gen_if(node Ast) {
 fn gen_return(node Ast) {
 	if node.left == nil {
 		if return_type != ctx.type_void {
-			GenError(node, "return value required");
+			ErrorAt(node, "return value required");
 		}
 	} else {
 		if return_type == ctx.type_void {
-			GenError(node, "void function must not return a value");
+			ErrorAt(node, "void function must not return a value");
 		}
 		var x i32 = gen_expr(node.left);
 		emit("    mv rv, x@\n").n(x);
@@ -584,7 +583,7 @@ fn gen_block(node Ast) {
 		} else if ast_is_expr(kind) {
 			put_reg(gen_expr(node));
 		} else {
-			GenError(node, "unsupported @ in block").s(ast_kind[kind]);
+			ErrorAt(node, "unsupported @ in block").s(ast_kind[kind]);
 		}
 		node = node.next;
 	}
@@ -688,7 +687,7 @@ fn gen_global_inits(node Ast) {
 				var id u32 = gen_global_array_init(node.right);
 				emit("    .word G$@ // @\n").n(id).s(sym.name.text);
 			} else if node.right.kind == AST_ASSIGN {
-				GenError(node, "global struct init unsupported");
+				ErrorAt(node, "global struct init unsupported");
 			} else {
 				var val i32 = eval_const_expr(node.right);
 				emit("    .word @ // @\n").n(val).s(sym.name.text);
