@@ -27,6 +27,11 @@ fn gen_binop(node Ast, op IRop) i32 {
 	return inst_alu(op, gen_expr(node.left), gen_expr(node.right));
 }
 
+fn gen_clrop(node Ast) i32 {
+	return inst_alu(INS_AND, gen_expr(node.left),
+		inst_alu(INS_NOT, 0, gen_expr(node.right)));
+}
+
 fn gen_unop(node Ast, op IRop) i32 {
 	return inst_alu(op, 0, gen_expr(node.left));
 }
@@ -339,6 +344,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_LSL { return gen_binop(node, INS_LSL); }
 	if kind == AST_LSR { return gen_binop(node, INS_LSR); }
 	if kind == AST_NOT { return gen_unop(node, INS_NOT); }
+	if kind == AST_CLR { return gen_clrop(node); }
 	if kind == AST_NEG { return gen_unop(node, INS_NEG); }
 	if kind == AST_BOOL_NOT { return gen_bool_not(node); }
 	if kind == AST_BOOL_AND { return gen_bool_and(node); }
