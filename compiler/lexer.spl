@@ -247,6 +247,7 @@ fn _next() Token {
 			if nc == '-' { tok = tDEC; nc = scan(); }
 		} else if tok == tAMP {
 			if nc == '&' { tok = tAND; nc = scan(); }
+			if nc == '^' { tok = tCLR; nc = scan(); }
 		} else if tok == tPIPE {
 			if nc == '|' { tok = tOR; nc = scan(); }
 		} else if tok == tGT {

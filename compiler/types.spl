@@ -134,7 +134,7 @@ enum AstKind {
 	// Add Ops (maintain order matched w/ lexer)
 	AST_ADD, AST_SUB, AST_OR, AST_XOR,
 	// Mul Ops (maintain order matched w/ lexer)
-	AST_MUL, AST_DIV, AST_MOD, AST_AND, AST_LSL, AST_LSR,
+	AST_MUL, AST_DIV, AST_MOD, AST_LSL, AST_LSR, AST_AND, AST_CLR,
 	// uncategorized ops
 	AST_NOT, AST_BOOL_AND, AST_BOOL_OR, AST_BOOL_NOT, AST_NEG,
 	AST_KIND_COUNT,
@@ -148,7 +148,7 @@ var ast_kind []str = {
 	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN", "ARRAY", "NEW",
 	"EQ", "NE", "LT", "LE", "GT", "GE",
 	"ADD", "SUB", "OR", "XOR",
-	"MUL", "DIV", "MOD", "AND", "LSL", "LSR",
+	"MUL", "DIV", "MOD", "LSL", "LSR", "AND", "CLR",
 	"NOT", "BOOL AND", "BOOL OR", "BOOL NOT", "NEG",
 };
 
@@ -211,10 +211,10 @@ enum Token {
 	// AddOps (do not reorder)
 	tPLUS, tMINUS, tPIPE, tCARET, tx14, tx15, tx16, tx17,
 	// MulOps (do not reorder)
-	tSTAR, tSLASH, tPERCENT, tAMP, tLEFT, tRIGHT, tx1E, tx1F,
+	tSTAR, tSLASH, tPERCENT, tLEFT, tRIGHT, tAMP, tCLR, tx1F,
 	// AsnOps (do not reorder)
 	tADDEQ, tSUBEQ, tOREQ, tXOREQ, tx24, tx25, tx26, tx27,
-	tMULEQ, tDIVEQ, tMODEQ, tANDEQ, tLSEQ, tRSEQ, t2E, t2F,
+	tMULEQ, tDIVEQ, tMODEQ, tLSEQ, tRSEQ, tANDEQ, tCLREQ, t2F,
 	// Various, UnaryNot, LogicalOps,
 	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
@@ -231,13 +231,13 @@ enum Token {
 };
 
 var tnames []str = {
-	"<EOF>", "<EOL>", "{",  "}",  "[",   "]",   "(",   ")",
-	"==",    "!=",    "<",  "<=", ">",   ">=",  "",    "",
-	"+",     "-",     "|",  "^",  "",    "",    "",    "",
-	"*",     "/",     "%",  "&",  "<<",  ">>",  "",    "",
-	"+=",    "-=",    "|=", "^=", "",    "",    "",    "",
-	"*=",    "/=",    "%=", "&=", "<<=", ">>=", "",    "",
-	";",     ":",     ".",  ",",  "~",   "&&",  "||",  "!",
+	"<EOF>", "<EOL>", "{",  "}",  "[",    "]",   "(",   ")",
+	"==",    "!=",    "<",  "<=", ">",    ">=",  "",    "",
+	"+",     "-",     "|",  "^",  "",     "",    "",    "",
+	"*",     "/",     "%",  "<<", ">>",   "&",   "&^",  "",
+	"+=",    "-=",    "|=", "^=", "",     "",    "",    "",
+	"*=",    "/=",    "%=", "<<=", ">>=", "&=",  "&^=", "",
+	";",     ":",     ".",  ",",  "~",    "&&",  "||",  "!",
 	"=",     "++",    "--",
 	"@",     "$",     "?",  "#",  "`",
 	"new", "fn", "struct", "var", "enum",

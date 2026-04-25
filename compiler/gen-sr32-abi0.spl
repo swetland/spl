@@ -108,6 +108,15 @@ fn gen_binop(node Ast, op str) i32 {
 	return a;
 }
 
+fn gen_clrop(node Ast) i32 {
+	var a i32 = gen_expr(node.left);
+	var b i32 = gen_expr(node.right);
+	emit("    not x@, x@\n").n(b).n(b);
+	emit_binop("and", a, a, b);
+	put_reg(b);
+	return a;
+}
+
 fn gen_unop(node Ast, op str) i32 {
 	var x i32 = gen_expr(node.left);
 	emit("    @ x@, x@\n").s(op).n(x).n(x);
@@ -459,6 +468,7 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_DIV { return gen_binop(node, "div"); }
 	if kind == AST_MOD { return gen_binop(node, "rem"); }
 	if kind == AST_AND { return gen_binop(node, "and"); }
+	if kind == AST_CLR { return gen_clrop(node); }
 	if kind == AST_LSL { return gen_binop(node, "sll"); }
 	if kind == AST_LSR { return gen_binop(node, "srl"); }
 	if kind == AST_NOT { return gen_unop(node, "not"); }
