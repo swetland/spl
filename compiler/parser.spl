@@ -939,7 +939,7 @@ fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
 		// if this is a definition flag that we've been defined
 		// in the symbol that's in the global symbol table
 		if !(sym.kind & SYMBOL_DECL) {
-			prev.kind &= (~SYMBOL_DECL);
+			prev.kind &^= SYMBOL_DECL;
 		}
 	}
 

@@ -39,7 +39,7 @@ fn os_advance(os OutStream) {
 	if os.msg[n] == 0 {
 		if os.flags & (OS_NEWLINE | OS_NEWLINE_ONCE) {
 			writec(os.fd, '\n');
-			os.flags &= (~OS_NEWLINE_ONCE);
+			os.flags &^= OS_NEWLINE_ONCE;
 		}
 		if os.flags & OS_PANIC {
 			sys_panic();

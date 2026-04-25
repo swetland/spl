@@ -55,7 +55,7 @@ fn put_reg(n i32) {
 		if (tmp_mask & n) == 0 {
 			Error("freeing unallocated temporary register @").n(n);
 		}
-		tmp_mask &= (~n);
+		tmp_mask &^= n;
 	}
 }
 
