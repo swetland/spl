@@ -8,12 +8,10 @@ enum OutStreamFlags {
 	OS_FATAL = 1,
 	// emit a newline when done formatting:
 	OS_NEWLINE = 2,
-	// emit a newline ahead of the error tag:
-	OS_INTERRUPT = 4,
 	// emit a newline when done formatting (once):
-	OS_NEWLINE_ONCE = 8,
-	// crash on error (useful to get a stack trace)
-	OS_PANIC = 16,
+	OS_NEWLINE_ONCE = 4,
+	// crash when done formatting (useful to get a stack trace)
+	OS_PANIC = 8,
 };
 
 struct OutStream {

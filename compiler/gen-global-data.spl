@@ -4,10 +4,7 @@
 // Shared code for managing data chunks
 
 fn GenError(node Ast, msg str) OutStream {
-	writes(2, "\n");
-	print_srcloc(2, node.srcloc);
-	writes(2, ": error: ");
-	return make_OutStream(msg, 2, OS_FATAL | OS_NEWLINE | OS_INTERRUPT, nil);
+	return ErrorAt(node, msg);
 }
 
 enum DataChunkKind {

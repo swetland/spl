@@ -11,33 +11,51 @@ fn (os OutStream) t(type Type) OutStream {
 	return os;
 }
 
-fn make_OutStream(msg str, fd i32, flags u32, tag str) OutStream {
+fn ErrorAtSrcLoc(srcloc u32, msg str) OutStream {
 	var os OutStream = new(OutStream);
-	os.msg = msg;
-	os.idx = 0;
-	os.flags = flags;
-	os.fd = fd;
-	if tag != nil {
-		if flags & OS_INTERRUPT {
-			writes(fd, "\n");
-		}
-		print_srcloc(fd, ctx.linenumber);
-		writes(fd, tag);
+	os.fd = 2;
+	os.flags = OS_FATAL | OS_NEWLINE;
+	if ctx.options & OPT_PANIC_ON_ERROR {
+		os.flags |= OS_PANIC;
 	}
+	writes(2, "\n");
+	print_srcloc(2, srcloc);
+	writes(2, ": error: ");
+	os.msg = msg;
 	os_advance(os);
 	return os;
 }
 
+fn ErrorAt(node Ast, msg str) OutStream {
+	return ErrorAtSrcLoc(node.srcloc, msg);
+}
+
 fn Error(msg str) OutStream {
-	var flags u32 = OS_FATAL | OS_NEWLINE | OS_INTERRUPT;
-	if ctx.options & OPT_PANIC_ON_ERROR {
-		flags |= OS_PANIC;
+	return ErrorAtSrcLoc(ctx.linenumber, msg);
+}
+
+var warn_os OutStream;
+
+fn WarnAtSrcLoc(srcloc u32, msg str) OutStream {
+	if warn_os == nil {
+		warn_os = new(OutStream);
+		warn_os.fd = 2;
+		warn_os.flags = OS_NEWLINE;
 	}
-	return make_OutStream(msg, 2, flags, ": error: ");
+	print_srcloc(2, srcloc);
+	writes(2, ": warning: ");
+	warn_os.msg = msg;
+	warn_os.idx = 0;
+	os_advance(warn_os);
+	return warn_os;
+}
+
+fn WarnAt(node Ast, msg str) OutStream {
+	return WarnAtSrcLoc(node.srcloc, msg);
 }
 
 fn Warn(msg str) OutStream {
-	return make_OutStream(msg, 2, OS_NEWLINE, ": warning: ");
+	return WarnAtSrcLoc(ctx.linenumber, msg);
 }
 
 // tools for strings, symbols, and ASTs
