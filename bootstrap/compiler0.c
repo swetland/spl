@@ -1466,9 +1466,16 @@ void parse_expr_statement(void) {
 		next();
 		parse_expr();
 	} else if ((ctx.tok & tcMASK) == tcMEQOP) {
-		emit_impl(" %s ", tnames[ctx.tok]);
-		next();
-		parse_expr();
+		if (ctx.tok == tCLREQ) {
+			emit_impl(" &= (~(");
+			next();
+			parse_expr();
+			emit_impl("))");
+		} else {
+			emit_impl(" %s ", tnames[ctx.tok]);
+			next();
+			parse_expr();
+		}
 	} else if ((ctx.tok == tINC) || (ctx.tok == tDEC)) {
 		emit_impl(" %s", tnames[ctx.tok]);
 		next();
