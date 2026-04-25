@@ -515,10 +515,10 @@ enum {
 	// AddOps (do not reorder)
 	tPLUS, tMINUS, tPIPE, tCARET, tx14, tx15, tx16, tx17,
 	// MulOps (do not reorder)
-	tSTAR, tSLASH, tPERCENT, tAMP, tLEFT, tRIGHT, tx1E, tx1F,
+	tSTAR, tSLASH, tPERCENT, tLEFT, tRIGHT, tAMP, tCLR, tx1F,
 	// AsnOps (do not reorder)
 	tADDEQ, tSUBEQ, tOREQ, tXOREQ, tx24, tx25, tx26, tx27,
-	tMULEQ, tDIVEQ, tMODEQ, tANDEQ, tLSEQ, tRSEQ, t2E, t2F,
+	tMULEQ, tDIVEQ, tMODEQ, tLSEQ, tRSEQ, tANDEQ, tCLREQ, t2F,
 	// Various, UnaryNot, LogicalOps,
 	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
@@ -536,12 +536,12 @@ enum {
 
 const char *tnames[] = {
 	"<EOF>", "<EOL>", "{",  "}",  "[",   "]",   "(",   ")",
-	"==",    "!=",    "<",  "<=", ">",   ">=",  "",    "",
-	"+",     "-",     "|",  "^",  "",    "",    "",    "",
-	"*",     "/",     "%",  "&",  "<<",  ">>",  "",    "",
-	"+=",    "-=",    "|=", "^=", "",    "",    "",    "",
-	"*=",    "/=",    "%=", "&=", "<<=", ">>=", "",    "",
-	";",     ":",     ".",  ",",  "~",   "&&",  "||",  "!",
+	"==",    "!=",    "<",  "<=",  ">",   ">=",  "",    "",
+	"+",     "-",     "|",  "^",   "",    "",    "",    "",
+	"*",     "/",     "%",  "<<",  ">>",  "&",   "&^",  "",
+	"+=",    "-=",    "|=", "^=",  "",    "",    "",    "",
+	"*=",    "/=",    "%=", "<<=", ">>=", "&=",  "&^=", "",
+	";",     ":",     ".",  ",",   "~",   "&&",  "||",  "!",
 	"=",     "++",    "--",
 	"@",
 	"new", "fn", "struct", "var", "enum",
@@ -792,6 +792,7 @@ token_t _next() {
 			if (nc == '-') { tok = tDEC; nc = scan(); }
 		} else if (tok == tAMP) {
 			if (nc == '&') { tok = tAND; nc = scan(); }
+			if (nc == '^') { tok = tCLR; nc = scan(); }
 		} else if (tok == tPIPE) {
 			if (nc == '|') { tok = tOR; nc = scan(); }
 		} else if (tok == tGT) {
@@ -1100,9 +1101,16 @@ void parse_mul_expr(void) {
 	unsigned x = emit_impl_oparen();
 	parse_unary_expr();
 	while ((ctx.tok & tcMASK) == tcMULOP) {
-		emit_impl(" %s ", tnames[ctx.tok]);
-		next();
-		parse_unary_expr();
+		if (ctx.tok == tCLR) {
+			emit_impl(" & (~(");
+			next();
+			parse_unary_expr();
+			emit_impl("))");
+		} else {
+			emit_impl(" %s ", tnames[ctx.tok]);
+			next();
+			parse_unary_expr();
+		}
 		x |= KEEP_PARENS;
 	}
 	emit_impl_cparen(x);
