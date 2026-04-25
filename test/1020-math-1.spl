@@ -14,6 +14,8 @@ fn test(v2 i32, v5 i32, v31 i32, v128000 i32) {
 	print(v31 % 17);
 	print(v128000 * v31);
 	print(-v128000);
+	print(0xfff &^ v2);
+	print(0xfff &^ v5);
 }
 
 fn start() i32 {
