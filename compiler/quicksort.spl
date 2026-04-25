@@ -1,0 +1,22 @@
+// Copyright 2023, Brian Swetland <swetland@frotz.net>
+// Licensed under the Apache License, Version 2.0.
+
+fn quicksort(A []$type, len i32, off i32, compare fn(a $type, b $type) i32) {
+	if len < 2 { return; }
+	var pivot $type = A[off + len / 2];
+	var i i32 = 0;
+	var j i32 = len - 1;
+	while true {
+		while (compare(A[off + i], pivot) < 0) { i++; }
+		while (compare(A[off + j], pivot) > 0) { j--; }
+		if i >= j { break; }
+		var tmp $type = A[off + i];
+		A[off + i] = A[off + j];
+		A[off + j] = tmp;
+		i++;
+		j--;
+	}
+	quicksort(A, i, off, compare);
+	quicksort(A, len - i, i, compare);
+}
+
