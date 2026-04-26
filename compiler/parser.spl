@@ -21,7 +21,7 @@ fn require(tok Token) {
 
 fn parse_expr() Ast;
 fn parse_block() Ast;
-fn parse_type(fwd_ref_ok bool, missing_ok bool) Type;
+fn parse_type(missing_ok bool) Type;
 
 fn parse_name(what str) String {
 	if ctx.tok != tIDN {
@@ -166,7 +166,7 @@ fn parse_new() Ast {
 		require(tCBRACK);
 		node.type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, 0);
 	} else {
-		node.type = parse_type(false, false);
+		node.type = parse_type(false);
 		if ctx.tok == tCOMMA {
 			next();
 			node.left = parse_expr();
@@ -295,6 +295,14 @@ fn parse_expr() Ast {
 fn parse_struct_type(name String) Type {
 	var type Type = type_find(name);
 
+	if ctx.tok == tSEMI {
+		// forward decl
+		if type == nil {
+			type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
+			type.of = type_make(nil, TYPE_POINTER, type, nil, 0);
+		}
+		return type;
+	}
 	if type == nil {
 		// pointer-to-struct is so commonly used, we always
 		// create it alongside the struct and they reference
@@ -326,7 +334,7 @@ fn parse_struct_type(name String) Type {
 		} else {
 			ptr = false;
 		}
-		var ftype Type = parse_type(true, false);
+		var ftype Type = parse_type(false);
 		if (ftype.kind == TYPE_ARRAY) && (ftype.count == 0) { ptr = true; }
 		if ptr {
 			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) {
@@ -356,13 +364,13 @@ fn parse_struct_type(name String) Type {
 fn parse_array_typeof() Type {
 	if ctx.tok == tSTAR {
 		next();
-		var type Type = parse_type(false, false);
+		var type Type = parse_type(false);
 		if type.kind != TYPE_STRUCT {
 			Error("pointer to non-struct");
 		}
 		return type.of;
 	} else {
-		return parse_type(false, false);
+		return parse_type(false);
 	}
 }
 
@@ -388,27 +396,19 @@ fn parse_array_type() Type {
 
 fn parse_fn_type() Type;
 
-fn parse_named_type(name String, fwd_ref_ok bool) Type {
+fn parse_named_type(name String) Type {
 	var type Type = type_find(name);
 	if type == nil {
-		if fwd_ref_ok {
-			// pointer-to-struct is so commonly used, we always
-			// create it alongside the struct and they reference
-			// each other via their of fields
-			type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
-			type.of = type_make(nil, TYPE_POINTER, type, nil, 0);
-		} else {
-			Error("undefined type '@' not usable here").s(name.text);
-		}
+		Error("undefined type '@' not usable here").s(name.text);
 	}
 	return type;
 }
 
-fn parse_type(fwd_ref_ok bool, missing_ok bool) Type {
+fn parse_type(missing_ok bool) Type {
 	if ctx.tok == tIDN {
 		var name String = ctx.ident;
 		next();
-		return parse_named_type(name, fwd_ref_ok);
+		return parse_named_type(name);
 	} else if ctx.tok == tOBRACK { // array-of
 		next();
 		return parse_array_type();
@@ -623,7 +623,7 @@ fn parse_var(kind SymbolKind) Ast {
 	var node Ast = nil;
 	var posn u32 = ctx.srcloc;
 	var name String = parse_name("variable name");
-	var type Type = parse_type(false, false);
+	var type Type = parse_type(false);
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		type = type.of; // use the pointer-to-struct
 	}
@@ -792,7 +792,7 @@ fn parse_param(ival i32, require_name bool) Symbol {
 	if (ctx.tok != tIDN) && (ctx.tok != tDOLLAR) && (!require_name) {
 		// A non-identifier can only (validly) be something
 		// like an array type, and only if !require_name.
-		type = parse_type(false, false);
+		type = parse_type(false);
 		// and we'll use "_" for the anonymous name
 		name = ctx.str_underscore;
 		kind |= SYMBOL_ANON;
@@ -802,12 +802,12 @@ fn parse_param(ival i32, require_name bool) Symbol {
 		if require_name || (ctx.tok == tIDN) || (ctx.tok == tDOLLAR) {
 			// if the next token is also an ident token,
 			// or we are requiring names, parse it as the type
-			type = parse_type(false, false);
+			type = parse_type(false);
 		} else {
 			// otherwise the name we have must be the name of
 			// a named type (followed by a comma, cparen, etc)
 			// so parse it thusly
-			type = parse_named_type(name, false);
+			type = parse_named_type(name);
 			// and we'll use "_" for the anonymous name
 			name = ctx.str_underscore;
 			kind |= SYMBOL_ANON;
@@ -857,7 +857,7 @@ fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
 	}
 	require(tCPAREN);
 
-	var rtype Type = parse_type(false, true);
+	var rtype Type = parse_type(true);
 	if rtype == nil {
 		rtype = ctx.type_void;
 	}

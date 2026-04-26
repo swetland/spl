@@ -4,6 +4,9 @@
 // ================================================================
 // data types
 
+struct Type;
+struct AnonTypeUse;
+
 struct String {
 	next *String,
 	len u32,
