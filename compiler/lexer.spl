@@ -33,7 +33,7 @@ var lextab [256]u8 = {
 //	p     q     r     s     t     u     v     w
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 //	x     y     z     {     |     }     ~
-	tIDN, tIDN, tIDN, tOBRACE, tPIPE, tCBRACE, tNOT, tINV,
+	tIDN, tIDN, tIDN, tOBRACE, tPIPE, tCBRACE, tTILDE, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,

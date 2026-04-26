@@ -222,7 +222,7 @@ fn parse_unary_expr() Ast {
 	} else if op == tBANG {
 		next();
 		return ast_posn(ast_make_l(AST_BOOL_NOT, parse_unary_expr()), posn);
-	} else if op == tNOT {
+	} else if op == tCARET {
 		next();
 		return ast_posn(ast_make_l(AST_NOT, parse_unary_expr()), posn);
 	} else if op == tAMP {

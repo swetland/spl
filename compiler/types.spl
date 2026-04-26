@@ -216,7 +216,7 @@ enum Token {
 	tADDEQ, tSUBEQ, tOREQ, tXOREQ, tx24, tx25, tx26, tx27,
 	tMULEQ, tDIVEQ, tMODEQ, tLSEQ, tRSEQ, tANDEQ, tCLREQ, t2F,
 	// Various, UnaryNot, LogicalOps,
-	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
+	tSEMI, tCOLON, tDOT, tCOMMA, tTILDE, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
 	tAT, tDOLLAR, tQUERY, tHASH, tBACKTICK,
 	// Keywords

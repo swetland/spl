@@ -43,7 +43,7 @@ fn eval_const_expr(node Ast) i32 {
 		return eval_const_binop(node);
 	}
 	if kind == AST_NOT {
-		return ~eval_const_expr(node.left);
+		return ^eval_const_expr(node.left);
 	}
 	if kind == AST_NEG {
 		return -eval_const_expr(node.left);
