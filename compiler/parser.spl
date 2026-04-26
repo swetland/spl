@@ -76,7 +76,7 @@ fn parse_field_ref(node Ast, name String) Ast {
 		type = type.of;
 	}
 	if type.kind != TYPE_STRUCT {
-		Error("expected struct found @").t(type);
+		Error("cannot access a field of type @").t(type);
 	}
 	var sym Symbol = type.list;
 	while sym != nil {
