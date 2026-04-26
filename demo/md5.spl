@@ -52,16 +52,16 @@ fn md5_step(m MD5) {
 	var i u32 = 0;
 	while i < 64 {
 		if i < 16 {
-			F = (B & C) | ((~B) & D);
+			F = (B & C) | ((^B) & D);
 			g = i;
 		} else if i < 32 {
-			F = (D & B) | ((~D) & C);
+			F = (D & B) | ((^D) & C);
 			g = 5 * i + 1;
 		} else if i < 48 {
 			F = B ^ C ^ D;
 			g = 3 * i + 5;
 		} else {
-			F = C ^ (B | (~D));
+			F = C ^ (B | (^D));
 			g = 7 * i;
 		}
 		F = F + A + K[i] + M[g & 15];
