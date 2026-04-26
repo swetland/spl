@@ -173,6 +173,9 @@ struct Inst {
 	x i32, // retire number / live range end
 };
 
+struct Phi;
+struct BlockList;
+
 // implementation in ir-blocks.spl
 struct BasicBlock {
 	first *Inst,
