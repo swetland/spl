@@ -520,7 +520,7 @@ enum {
 	tADDEQ, tSUBEQ, tOREQ, tXOREQ, tx24, tx25, tx26, tx27,
 	tMULEQ, tDIVEQ, tMODEQ, tLSEQ, tRSEQ, tANDEQ, tCLREQ, t2F,
 	// Various, UnaryNot, LogicalOps,
-	tSEMI, tCOLON, tDOT, tCOMMA, tNOT, tAND, tOR, tBANG,
+	tSEMI, tCOLON, tDOT, tCOMMA, tTILDE, tAND, tOR, tBANG,
 	tASSIGN, tINC, tDEC,
 	tAT,
 	// Keywords
@@ -569,7 +569,7 @@ u8 lextab[256] = {
 	tMSC, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
 	tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN, tIDN,
-	tIDN, tIDN, tIDN, tOBRACE, tPIPE, tCBRACE, tNOT, tINV,
+	tIDN, tIDN, tIDN, tOBRACE, tPIPE, tCBRACE, tTILDE, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
@@ -1083,7 +1083,7 @@ void parse_unary_expr(void) {
 		next();
 		parse_unary_expr();
 		emit_impl(")");
-	} else if (op == tNOT) {
+	} else if (op == tCARET) {
 		emit_impl("(~");
 		next();
 		parse_unary_expr();
