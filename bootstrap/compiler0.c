@@ -76,13 +76,9 @@ enum {
 	TYPE_BOOL,
 	TYPE_U8,
 	TYPE_U32,
-//	TYPE_NIL,
-//	TYPE_POINTER,
 	TYPE_ARRAY,
-	TYPE_SLICE,
 	TYPE_STR,
 	TYPE_STRUCT,
-//	TYPE_FUNC,
 	TYPE_ENUM,
 	TYPE_UNDEFINED,
 };
@@ -345,9 +341,6 @@ void ctx_init() {
 	ctx.outptr = ctx.outbuf;
 }
 
-void dump_file_line(const char* fn, u32 offset);
-void dump_error_ctxt();
-
 void error(const char *fmt, ...) {
 	va_list ap;
 
@@ -355,15 +348,7 @@ void error(const char *fmt, ...) {
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
-
-	if (ctx.linenumber > 0) {
-		// dump_file_line(ctx.filename, ctx.lineoffset);
-	}
 	fprintf(stderr, "\n");
-
-#if 0
-	dump_error_ctxt();
-#endif
 
 	if (ctx.flags & cfAbortOnError) {
 		abort();
@@ -1254,19 +1239,13 @@ void emit_impl_typename(Type *type, int ref) {
 Type *parse_type(void) {
 	if (ctx.tok == tSTAR) { // pointer-to
 		error("pointer types not supported");
-		//next();
-		//return type_make(nil, TYPE_POINTER, parse_type(true), nil, 0);
 	} else if (ctx.tok == tOBRACK) { // array-of
 		next();
 		return parse_array_type();
 	} else if (ctx.tok == tFN) {
 		error("func types not supported");
-		//next();
-		//return parse_func_type();
 	} else if (ctx.tok == tSTRUCT) {
 		error ("anonymous struct types not supported");
-		//next();
-		//return parse_struct_type(nil);
 	} else if (ctx.tok == tIDN) {
 		String *name = ctx.ident;
 		next();
@@ -1344,7 +1323,6 @@ void parse_return(void) {
 }
 
 void parse_break(void) {
-	// XXX break-to-labeled-loop support
 	Scope *scope = scope_find(SCOPE_LOOP);
 	if (scope == nil) {
 		error("break must be used from inside a looping construct");
@@ -1354,7 +1332,6 @@ void parse_break(void) {
 }
 
 void parse_continue(void) {
-	// XXX continue-to-labeled-loop support
 	Scope *scope = scope_find(SCOPE_LOOP);
 	if (scope == nil) {
 		error("continue must be used from inside a looping construct");
@@ -1389,7 +1366,6 @@ void parse_struct_init(Symbol *var) {
 			emit_impl("}");
 		} else {
 			parse_expr();
-			//emit_impl( "0x%x", ctx.num);
 		}
 		emit_impl( ",");
 		if (ctx.tok != tCBRACE) {
@@ -1525,11 +1501,6 @@ Symbol *parse_param(String *fname) {
 	String *pname = parse_name("parameter name");
 	Type *ptype = parse_type();
 
-	// arrays and structs are always passed as reference parameters
-	//if ((ptype->kind == TYPE_ARRAY) || (ptype->kind == TYPE_RECORD)) {
-	//	ptype = type_make_ptr(ptype);
-	//}
-
 	if (symbol_find_in(pname, ctx.scope)) {
 		error("duplicate parameter name '%s'", pname->text);
 	}
@@ -1583,7 +1554,7 @@ void parse_function(void) {
 		return;
 	}
 
-	emit_decl("t$%s%s fn_%s(", rtype->name->text, 
+	emit_decl("t$%s%s fn_%s(", rtype->name->text,
 		rtype->kind == TYPE_STRUCT ? "*" : "", fname->text);
 	emit_impl("t$%s%s fn_%s(", rtype->name->text,
 		rtype->kind == TYPE_STRUCT ? "*" : "", fname->text);
