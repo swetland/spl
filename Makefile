@@ -5,29 +5,7 @@ COMPILERS := out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.
 
 all: out/asm out/emu out/iremu $(COMPILERS)
 
-# list of tests to skip for various compiler stages
-SKIPALL := test/2011-err-array-oob-const.spl
-SKIPANON := test/1071-anon-sort.spl
-SKIPANON += test/2070-err-anon-1.spl test/2071-err-anon-2.spl
-SKIP0 := $(SKIPALL) $(SKIPANON)
-SKIP0 += test/1060-fn-ptr.spl
-SKIP0 += test/1049-arrays-and-structs.spl
-SKIP0 += test/3100-sequentialize.spl
-SKIP1 := $(SKIPALL)
-SKIP1 += test/1040-structs.spl
-SKIP2 := $(SKIPALL)
-SKIP2 += test/1021-numbers.spl test/1040-structs.spl
-SKIP3 := $(SKIPALL) $(SKIPANON)
-SKIP3 += test/1060-fn-ptr.spl
-SKIP3 += test/1021-numbers.spl test/1040-structs.spl
-
-ifneq (,$(filter noskip,$(MAKECMDGOALS)))
-SKIP0 :=
-SKIP1 :=
-SKIP2 :=
-SKIP3 :=
-endif
-noskip:
+include build/test-exclusions.mk
 
 test: out/test/summary.txt
 
