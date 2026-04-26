@@ -907,11 +907,7 @@ String *parse_name(const char* what) {
 
 void parse_expr(void);
 
-// fwd_ref_ok indicates that an undefined typename
-// may be treated as a forward reference.  This is
-// only used for pointers (because their size does
-// not depend on their target).
-Type *parse_type(bool fwd_ref_ok);
+Type *parse_type();
 
 int is_type(const char* typename) {
 	String *name = ctx.ident;
@@ -1170,7 +1166,12 @@ void parse_expr(void) {
 
 Type *parse_struct_type(String *name) {
 	Type *rectype = type_find(name);
-
+	if (ctx.tok == tSEMI) {
+		if (!rectype) {
+			emit_type("typedef struct t$%s t$%s;\n", name->text, name->text);
+			return type_make(name, TYPE_UNDEFINED, nil, nil, 0);
+		}
+	}
 	if (rectype) {
 		if (rectype->kind == TYPE_UNDEFINED) {
 			// resolve forward ref
@@ -1250,7 +1251,7 @@ void emit_impl_typename(Type *type, int ref) {
 	emit_impl("t$%s", type->name->text);
 }
 
-Type *parse_type(bool fwd_ref_ok) {
+Type *parse_type(void) {
 	if (ctx.tok == tSTAR) { // pointer-to
 		error("pointer types not supported");
 		//next();
@@ -1271,11 +1272,7 @@ Type *parse_type(bool fwd_ref_ok) {
 		next();
 		Type *type = type_find(name);
 		if (type == nil) {
-			if (fwd_ref_ok) {
-				type = type_make(name, TYPE_UNDEFINED, nil, nil, 0);
-			} else {
-				error("undefined type '%s' not usable here", name->text);
-			}
+			error("undefined type '%s' not usable here", name->text);
 		}
 		return type;
 	} else {
@@ -1417,7 +1414,7 @@ void parse_array_init(Symbol *var) {
 
 void parse_var(void) {
 	String *name = parse_name("variable name");
-	Type *type = parse_type(false);
+	Type *type = parse_type();
 	Symbol *var = symbol_make(name, type);
 
 	if (ctx.tok == tASSIGN) {
@@ -1526,7 +1523,7 @@ void parse_block(void) {
 
 Symbol *parse_param(String *fname) {
 	String *pname = parse_name("parameter name");
-	Type *ptype = parse_type(false);
+	Type *ptype = parse_type();
 
 	// arrays and structs are always passed as reference parameters
 	//if ((ptype->kind == TYPE_ARRAY) || (ptype->kind == TYPE_RECORD)) {
@@ -1550,7 +1547,7 @@ void parse_function(void) {
 		// ( Type self ) method ( ...
 		next();
 		String *pname = parse_name("self parameter name");
-		Type *mtype = parse_type(false);
+		Type *mtype = parse_type();
 		symbol_make(pname, mtype);
 		require(tCPAREN);
 		fname = parse_name("method name");
@@ -1571,7 +1568,7 @@ void parse_function(void) {
 	require(tCPAREN);
 
 	if ((ctx.tok != tOBRACE) && (ctx.tok != tSEMI)) {
-		rtype = parse_type(false);
+		rtype = parse_type();
 	}
 
 	// TODO: more complete type if needed...
