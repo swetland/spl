@@ -481,7 +481,6 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_FIELD { return gen_field_load(node); }
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }
-	if kind == AST_NEW { }
 	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
 	return 0;
 }
@@ -642,6 +641,7 @@ fn gen_fn(node Ast) {
 	if node.left == nil {
 		return;
 	}
+	validate_fn(node);
 	return_type = node.sym.type.of;
 	return_target = make_label();
 	ctx.curfn = node.sym.name.text;

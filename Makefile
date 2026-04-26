@@ -59,7 +59,7 @@ out/compiler0: bootstrap/compiler0.c
 
 # front end and common code shared among stage1 and later
 FRONTEND_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/tools.spl
-FRONTEND_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl
+FRONTEND_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl compiler/validate.spl
 
 # sr32 compiler backend used by stage1 and stage2
 GEN_SR32_SRC += compiler/gen-global-data.spl compiler/gen-sr32-abi0.spl

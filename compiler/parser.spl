@@ -161,37 +161,20 @@ fn parse_ident() Ast {
 fn parse_array_typeof() Type;
 
 fn parse_new() Ast {
+	var node Ast = ast_make_simple(AST_NEW, 0);
 	require(tOPAREN);
-	var type Type;
-	var szarg Ast;
 	if ctx.tok == tOBRACK {
 		next();
-		szarg = parse_expr();
+		node.left = parse_expr();
 		require(tCBRACK);
-		type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, 0);
-		szarg = ast_make_lr(AST_MUL, szarg, ast_make_const(
-				type_size(type.of), ctx.type_u32));
+		node.type = type_make(nil, TYPE_ARRAY, parse_array_typeof(), nil, 0);
 	} else {
-		type = parse_type(false, false);
-		szarg = ast_make_const(type_size(type), ctx.type_u32);
+		node.type = parse_type(false, false);
+		if ctx.tok == tCOMMA {
+			next();
+			node.left = parse_expr();
+		}
 	}
-	if ctx.tok == tCOMMA {
-		next();
-		szarg = ast_make_lr(AST_ADD, szarg, parse_expr());
-	}
-	var node Ast = ast_make_symbol(symbol_find(ctx.str_new_fn));
-	node = ast_make_lr(AST_CALL, node, szarg);
-	if type.kind == TYPE_STRUCT {
-		node.type = type.of;
-	} else if type.kind == TYPE_ARRAY {
-		node.type = type_make_ptr(type);
-	} else {
-		Error("cannot allocate '@' with new").s(type.name.text);
-	}
-	// TODO: do this instead and transform to call later on:
-	//node = ast_make_simple(AST_NEW, 0);
-	//node.type = parse_type(false);
-	//node.type = node.type.of;
 	require(tCPAREN);
 	return node;
 }

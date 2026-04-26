@@ -127,7 +127,7 @@ enum AstKind {
 	AST_CALL,     // l=SYMBOL r=EXPR*
 	AST_ASSIGN,   // l=lhsEXPR r=rhsEXPR
 	AST_ARRAY,    // l=EXPR* type: array-of-...
-	AST_NEW,      // name: typename  <<TODO: sym instead?
+	AST_NEW,      // l=EXPR(arraycount or extraalloc) type: type
 // binary expressions
 	// Rel Ops (maintain order matched w/ lexer)
 	AST_EQ, AST_NE, AST_LT, AST_LE, AST_GT, AST_GE,
