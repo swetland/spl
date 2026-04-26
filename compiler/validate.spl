@@ -1,33 +1,47 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-
-fn validate_expr(node Ast) i32;
+fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
-fn validate_call(node Ast) i32 {
-	return 0;
+fn validate_call(node Ast) {
 }
 
-fn validate_assign(node Ast) i32 {
-	validate_expr(node.left);
+fn validate_lhs(node Ast) {
+	var kind AstKind = node.kind;
+	if kind == AST_SYMBOL {
+		if !(node.sym.kind & SYMBOL_VAR) {
+			WarnAt(node, "invalid lhs symbol '@'").s(node.sym.name.text);
+		}
+		return;
+	}
+	if kind == AST_FIELD {
+		validate_lhs(node.left);
+		return;
+	}
+	if kind == AST_INDEX {
+		validate_lhs(node.left);
+		validate_expr(node.right);
+		return;
+	}
+	ErrorAt(node, "unknown lhs @").s(ast_kind[kind]);
+}
+
+fn validate_assign(node Ast) {
+	validate_lhs(node.left);
 	validate_expr(node.right);
-	return 0;
 }
 
-fn validate_array_load(node Ast) i32 {
-	return 0;
+fn validate_field_load(node Ast) {
 }
 
-fn validate_field_load(node Ast) i32 {
-	return 0;
+fn validate_array_load(node Ast) {
 }
 
-fn validate_load(node Ast) i32 {
-	return 0;
+fn validate_load(node Ast) {
 }
 
-fn validate_new(node Ast) i32 {
+fn validate_new(node Ast) {
 	var szarg Ast;
 	if node.type.kind == TYPE_ARRAY {
 		szarg = ast_make_lr(AST_MUL, node.left, ast_make_const(
@@ -55,38 +69,33 @@ fn validate_new(node Ast) i32 {
 	return validate_call(node);
 }
 
-fn validate_relop(node Ast) i32 {
+fn validate_relop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
-	return 0;
 }
 
-fn validate_binop(node Ast) i32 {
+fn validate_binop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
-	return 0;
 }
 
-fn validate_unop(node Ast) i32 {
+fn validate_unop(node Ast) {
 	validate_expr(node.left);
-	return 0;
 }
 
-fn validate_bool_binop(node Ast) i32 {
+fn validate_bool_binop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
-	return 0;
 }
 
-fn validate_bool_unop(node Ast) i32 {
+fn validate_bool_unop(node Ast) {
 	validate_expr(node.left);
-	return 0;
 }
 
-fn validate_expr(node Ast) i32 {
+fn validate_expr(node Ast) {
 	var kind i32 = node.kind;
-	if kind == AST_CONST    { return 0; }
-	if kind == AST_SYMBOL   { return validate_load(node); }
+	if kind == AST_CONST    { return; }
+	if kind == AST_SYMBOL   { return; }
 	if kind == AST_EQ       { return validate_relop(node); }
 	if kind == AST_NE       { return validate_relop(node); }
 	if kind == AST_LT       { return validate_relop(node); }
@@ -109,7 +118,7 @@ fn validate_expr(node Ast) i32 {
 	if kind == AST_BOOL_NOT { return validate_bool_unop(node); }
 	if kind == AST_BOOL_AND { return validate_bool_binop(node); }
 	if kind == AST_BOOL_OR  { return validate_bool_binop(node); }
-	if kind == AST_STRING   { return 0; }
+	if kind == AST_STRING   { return; }
 	if kind == AST_INDEX    { return validate_array_load(node); }
 	if kind == AST_FIELD    { return validate_field_load(node); }
 	if kind == AST_CALL     { return validate_call(node); }
@@ -117,8 +126,6 @@ fn validate_expr(node Ast) i32 {
 	if kind == AST_DEREF    { }
 	if kind == AST_NEW      { return validate_new(node); }
 	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
-	return 0;
-
 }
 
 fn validate_if(node Ast) {
@@ -145,9 +152,19 @@ fn validate_continue(node Ast) {
 fn validate_break(node Ast) {
 }
 
+var v_return_type Type;
+
 fn validate_return(node Ast) {
-	if node.left != nil {
+	node.type = v_return_type;
+	if node.left {
 		validate_expr(node.left);
+		if (v_return_type == ctx.type_void) && (node.left.type != ctx.type_void) {
+			ErrorAt(node, "void function must not return a value");
+		}
+	} else {
+		if v_return_type != ctx.type_void {
+			ErrorAt(node, "return value required");
+		}
 	}
 }
 
@@ -177,6 +194,7 @@ fn validate_block(node Ast) {
 }
 
 fn validate_fn(node Ast) {
+	v_return_type = node.sym.type.of;
 	//TODO: stash as context for errors
 	//Warn("validate_fn '@'").s(node.sym.name.text);
 	validate_block(node.left);
