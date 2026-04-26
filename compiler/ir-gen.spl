@@ -372,16 +372,10 @@ fn gen_return(node Ast) {
 }
 
 fn gen_break(node Ast) {
-	if loop_exit == nil {
-		ErrorAt(node, "break used outside of loop");
-	}
 	inst_jump(loop_exit);
 }
 
 fn gen_continue(node Ast) {
-	if loop_cont == nil {
-		ErrorAt(node, "continue used outside of loop");
-	}
 	inst_jump(loop_cont);
 }
 

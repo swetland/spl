@@ -146,12 +146,6 @@ fn validate_while(node Ast) {
 	validate_block(node.right);
 }
 
-fn validate_continue(node Ast) {
-}
-
-fn validate_break(node Ast) {
-}
-
 var v_return_type Type;
 
 fn validate_return(node Ast) {
@@ -175,9 +169,9 @@ fn validate_block(node Ast) {
 		if kind == AST_WHILE {
 			validate_while(node);
 		} else if kind == AST_BREAK {
-			validate_break(node);
+			// validated by parser
 		} else if kind == AST_CONTINUE {
-			validate_continue(node);
+			// validated by parser
 		} else if kind == AST_RETURN {
 			validate_return(node);
 		} else if kind == AST_IF {

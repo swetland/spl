@@ -512,16 +512,10 @@ fn gen_while(node Ast) {
 }
 
 fn gen_break(node Ast) {
-	if break_target < 0 {
-		ErrorAt(node, "break used outside of loop");
-	}
 	emit_jump(break_target);
 }
 
 fn gen_continue(node Ast) {
-	if continue_target < 0 {
-		ErrorAt(node, "continue used outside of loop");
-	}
 	emit_jump(continue_target);
 }
 
