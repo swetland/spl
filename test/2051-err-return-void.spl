@@ -1,0 +1,4 @@
+
+fn start() i32 {
+	return;
+}

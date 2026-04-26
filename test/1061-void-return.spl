@@ -1,0 +1,12 @@
+
+fn voidfunc1() {
+}
+
+fn voidfunc2() {
+	return voidfunc1();
+}
+
+fn start() i32 {
+	voidfunc2();
+	return 0;
+}

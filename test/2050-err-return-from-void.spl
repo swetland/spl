@@ -1,0 +1,9 @@
+
+fn something() {
+	return 1;
+}
+
+fn start() i32 {
+	something();
+	return 0;
+}
