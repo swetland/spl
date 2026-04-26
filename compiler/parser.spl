@@ -72,9 +72,6 @@ fn parse_fcall(fnode Ast, self Ast) Ast {
 
 fn parse_field_ref(node Ast, name String) Ast {
 	var type Type = node.type;
-	if type == nil {
-		Error("BOGUS NODE TYPE @").s(ast_kind[node.kind]);
-	}
 	if type.kind == TYPE_POINTER {
 		type = type.of;
 	}
