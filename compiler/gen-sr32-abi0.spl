@@ -85,11 +85,14 @@ fn emit_li(t i32, v i32) {
 fn gen_expr(node Ast) i32;
 fn gen_block(node Ast);
 
-fn gen_relop(node Ast, op str) i32 {
+fn gen_relop(node Ast, op str, opu str) i32 {
 	var ttrue i32 = make_label();
 	var tdone i32 = make_label();
 	var a i32 = gen_expr(node.left);
 	var b i32 = gen_expr(node.right);
+	if !(node.left.type.kind & TYPE_IS_SIGNED) {
+		op = opu;
+	}
 	emit_branch(op, a, b, ttrue);
 	emit_li(a, 0);
 	emit_jump(tdone);
@@ -368,12 +371,12 @@ fn gen_expr(node Ast) i32 {
 	if kind == AST_SYMBOL {
 		return gen_load(node);
 	}
-	if kind == AST_EQ  { return gen_relop(node, "eq"); }
-	if kind == AST_NE  { return gen_relop(node, "ne"); }
-	if kind == AST_LT  { return gen_relop(node, "lt"); }
-	if kind == AST_LE  { return gen_relop(node, "le"); }
-	if kind == AST_GT  { return gen_relop(node, "gt"); }
-	if kind == AST_GE  { return gen_relop(node, "ge"); }
+	if kind == AST_EQ  { return gen_relop(node, "eq", "eq"); }
+	if kind == AST_NE  { return gen_relop(node, "ne", "ne"); }
+	if kind == AST_LT  { return gen_relop(node, "lt", "ltu"); }
+	if kind == AST_LE  { return gen_relop(node, "le", "leu"); }
+	if kind == AST_GT  { return gen_relop(node, "gt", "gtu"); }
+	if kind == AST_GE  { return gen_relop(node, "ge", "geu"); }
 	if kind == AST_ADD { return gen_binop(node, "add"); }
 	if kind == AST_SUB { return gen_binop(node, "sub"); }
 	if kind == AST_OR  { return gen_binop(node, "or"); }
