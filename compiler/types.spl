@@ -142,6 +142,7 @@ enum AstKind {
 	AST_ADDROF,   // l=EXPR type: lvalue
 	AST_CALL,     // l=SYMBOL r=EXPR*
 	AST_ASSIGN,   // l=lhsEXPR r=rhsEXPR
+	AST_CAST,     // l=EXPR type: cast-to
 	AST_ARRAY,    // l=EXPR* type: array-of-...
 	AST_NEW,      // l=EXPR(arraycount or extraalloc) type: type
 // binary expressions
@@ -161,7 +162,8 @@ var ast_kind []str = {
 	"BLOCK", "WHILE", "BREAK", "CONTINUE",
 	"RETURN", "IF", "CASE", "ELSE",
 	"SYMBOL", "CONST", "STRING",
-	"DEREF", "INDEX", "FIELD", "ADDROF", "CALL", "ASSIGN", "ARRAY", "NEW",
+	"DEREF", "INDEX", "FIELD", "ADDROF",
+	"CALL", "ASSIGN", "CAST", "ARRAY", "NEW",
 	"EQ", "NE", "LT", "LE", "GT", "GE",
 	"ADD", "SUB", "OR", "XOR",
 	"MUL", "DIV", "MOD", "LSL", "LSR", "AND", "CLR",
