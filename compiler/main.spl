@@ -11,18 +11,22 @@ fn print_indent(fd i32) {
 	}
 }
 
+fn print_type(fd i32, type Type);
+
 fn print_fn_type(fd i32, type Type) {
 	writes(fd, "(");
 	var param Symbol = type.list;
 	while param != nil {
 		writes(fd, param.name.text);
+		writes(fd, " ");
+		print_type(fd, param.type);
 		if param.next != nil {
 			writes(fd, ", ");
 		}
 		param = param.next;
 	}
 	writes(fd, ") ");
-	writes(fd, type.of.name.text);
+	print_type(fd, type.of);
 }
 
 fn print_type(fd i32, type Type) {
