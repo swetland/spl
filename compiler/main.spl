@@ -1,10 +1,8 @@
 // Copyright 2023, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-var indent u32 = 0;
-
-fn print_indent(fd i32) {
-	var n u32 = 0;
+fn print_indent(fd i32, indent i32) {
+	var n i32 = 0;
 	while n < indent {
 		writes(fd, "   ");
 		n++;
@@ -56,12 +54,18 @@ fn print_type(fd i32, type Type) {
 	writes(fd, type.name.text);
 }
 
-fn dump_ast_node(fd i32, node Ast);
+fn dump_ast_node(fd i32, node Ast, indent i32);
 
-fn _dump_ast_node(fd i32, node Ast) {
+fn _dump_ast_node(fd i32, node Ast, indent i32) {
 	var kind AstKind = node.kind;
 
-	print_indent(fd);
+	if kind == AST_FUNC {
+		//writes(fd, "\n// ");
+		//print_srcloc(fd, node.srcloc);
+		writes(fd, "\n");
+	}
+
+	print_indent(fd, indent);
 	writes(fd, ast_kind[kind]);
 	writes(fd, " ");
 	indent++;
@@ -93,25 +97,17 @@ fn _dump_ast_node(fd i32, node Ast) {
 		print_type(fd, node.type);
 		writes(fd, "]");
 	}
-	//writes(fd, " #");
-	//writei(fd, node.srcloc & 0x000FFFFF);
-
 	writes(fd, "\n");
 
-	dump_ast_node(fd, node.left);
-	dump_ast_node(fd, node.right);
-	indent = indent - 1;
+	dump_ast_node(fd, node.left, indent);
+	dump_ast_node(fd, node.right, indent);
+	indent--;
 }
 
-fn dump_ast_node(fd i32, node Ast) {
-	if node != nil {
-		while true {
-			_dump_ast_node(fd, node);
-			node = node.next;
-			if node == nil {
-				break;
-			}
-		}
+fn dump_ast_node(fd i32, node Ast, indent i32) {
+	while node != nil {
+		_dump_ast_node(fd, node, indent);
+		node = node.next;
 	}
 }
 
@@ -197,7 +193,8 @@ fn start() i32 {
 	}
 
 	if astfd != -1 {
-		dump_ast_node(astfd, ctx.program);
+		dump_ast_node(astfd, ctx.program.left, -1);
+		writes(astfd, "\n");
 		dump_types(astfd);
 	}
 	if outfd != -1 {
