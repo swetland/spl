@@ -313,9 +313,9 @@ fn printstr(fd i32, s str) {
 }
 
 fn print_srcloc(fd i32, loc u32) {
-	writes(2, ctx_find_source_file(loc >> 20));
-	writes(2, ": ");
-	writei(2, loc & 0x000FFFFF);
+	writes(fd, ctx_find_source_file(loc >> 20));
+	writes(fd, ": ");
+	writei(fd, loc & 0x000FFFFF);
 }
 
 fn srcloc_line(loc u32) u32 {
