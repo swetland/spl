@@ -340,15 +340,7 @@ fn parse_struct_type(name String) Type {
 		var ftype Type = parse_type(false);
 		if (ftype.kind == TYPE_ARRAY) && (ftype.count == 0) { ptr = true; }
 		if ptr {
-			if (ftype.kind == TYPE_STRUCT) || (ftype.kind == TYPE_UNDEFINED) {
-				// use the pointer-to-struct
-				ftype = ftype.of;
-			} else if ftype.kind == TYPE_ARRAY {
-				// TODO: can we cache these somewhere?
-				ftype = type_make_ptr(ftype);
-			} else {
-				Error("pointer to '@' not allowed").s(ftype.name.text);
-			}
+			ftype = type_make_ptr(ftype);
 		}
 		symbol_make(fname, ftype, kind, off);
 		if ctx.tok != tCBRACE {
@@ -627,10 +619,9 @@ fn parse_var(kind SymbolKind) Ast {
 	var posn u32 = ctx.srcloc;
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false);
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
-		type = type.of; // use the pointer-to-struct
-	}
-	if (type.kind == TYPE_ARRAY) {
+	if (type.kind == TYPE_STRUCT) ||
+		(type.kind == TYPE_UNDEFINED) ||
+		(type.kind == TYPE_ARRAY) {
 		type = type_make_ptr(type);
 	}
 	var sym Symbol = symbol_make(name, type, SYMBOL_VAR | kind, 0);
@@ -816,10 +807,9 @@ fn parse_param(ival i32, require_name bool) Symbol {
 			kind |= SYMBOL_ANON;
 		}
 	}
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
-		type = type.of; // use the pointer-to-struct
-	}
-	if type.kind == TYPE_ARRAY {
+	if (type.kind == TYPE_STRUCT) ||
+		(type.kind == TYPE_UNDEFINED) ||
+		(type.kind == TYPE_ARRAY) {
 		type = type_make_ptr(type);
 	}
 	if require_name {

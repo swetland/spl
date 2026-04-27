@@ -4,7 +4,89 @@
 fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
-fn validate_call(node Ast) {
+//TODO: should bool convert to 0/1 value?
+fn is_assignable(src Type, dst Type, fcall bool) bool {
+	if types_match(src, dst, fcall) { return true; }
+	var dk TypeKind = dst.kind;
+	var sk TypeKind = src.kind;
+	if dk == TYPE_U32 {
+		if sk == TYPE_U8   { return true; }
+		if sk == TYPE_I32  { return true; }
+		if sk == TYPE_ENUM { return true; }
+		if sk == TYPE_BOOL { return true; }
+	}
+	if dk == TYPE_I32 {
+		if sk == TYPE_U8   { return true; }
+		if sk == TYPE_U32  { return true; }
+		if sk == TYPE_ENUM { return true; }
+		if sk == TYPE_BOOL { return true; }
+	}
+	if dk == TYPE_U8 {
+		if sk == TYPE_I32  { return true; }
+		if sk == TYPE_U32  { return true; }
+		if sk == TYPE_ENUM { return true; }
+	}
+	if dk == TYPE_ENUM {
+		if sk == TYPE_I32 { return true; }
+		if sk == TYPE_U32 { return true; }
+		if sk == TYPE_U8  { return true; }
+	}
+	if dk == TYPE_BOOL {
+		if sk == TYPE_I32 { return true; }
+		if sk == TYPE_U32 { return true; }
+		if sk == TYPE_U8  { return true; }
+	}
+	if dk == TYPE_POINTER {
+		if src == ctx.type_nil { return true; }
+	}
+	if dst == ctx.type_str {
+		// str and various []u8 types are compatible
+		if (sk == TYPE_ARRAY) && (src.of == ctx.type_u8) { return true; }
+	}
+	if (sk == TYPE_POINTER) && (dk == TYPE_POINTER) {
+		// arrays of differing (or 0) sizes are compatible (for now)
+		src = src.of;
+		dst = dst.of;
+		if (src.kind != TYPE_ARRAY) || (dst.kind != TYPE_ARRAY) {
+			return false;
+		}
+		if types_match(src.of, dst.of, fcall) {
+			return true;
+		}
+	}
+	return false;
+}
+
+fn fn_check_args(node Ast, type Type, arg Ast) {
+	var n i32 = 0;
+	var param Symbol = type.list;
+	ctx.anonmap = nil;
+	while arg != nil {
+		if param == nil {
+			ErrorAt(node, "too many arguments in fncall (@/@)")
+				.n(n + 1).n(type.count);
+		}
+		if !is_assignable(arg.type, param.type, true) {
+			ErrorAtSrcLoc(arg.srcloc, "arg @: cannot assign @ to @")
+				.n(n).t(arg.type).t(param.type);
+		}
+		arg = arg.next;
+		param = param.next;
+		n++;
+	}
+	if param != nil {
+		ErrorAt(node, "not enough arguments in fncall (@/@)")
+			.n(n).n(type.count);
+	}
+}
+
+
+fn validate_call(fcall Ast) {
+	var type Type = fcall.left.type;
+	if type.kind != TYPE_FN {
+		ErrorAt(fcall, "calling a non-function");
+	}
+	fn_check_args(fcall, type, fcall.right);
 }
 
 fn validate_lhs(node Ast) {
@@ -28,8 +110,19 @@ fn validate_lhs(node Ast) {
 }
 
 fn validate_assign(node Ast) {
-	validate_lhs(node.left);
-	validate_expr(node.right);
+	var left Ast = node.left;
+	var right Ast = node.right;
+	if !is_assignable(right.type, left.type, false) {
+		if (right.type.kind == TYPE_ARRAY)
+			&& (left.type.kind == TYPE_POINTER)
+			&& is_assignable(right.type, left.type.of, false) {
+			// can assign arrays to array pointers, they convert
+		} else {
+			ErrorAt(node, "cannot assign @ to @").t(right.type).t(left.type);
+		}
+	}
+	validate_lhs(left);
+	validate_expr(right);
 }
 
 fn validate_field_load(node Ast) {
@@ -42,29 +135,30 @@ fn validate_load(node Ast) {
 }
 
 fn validate_new(node Ast) {
+	// node type must be a pointer
+	var type Type = node.type;
+	if type.kind != TYPE_POINTER {
+		ErrorAt(node, "new must return a pointer type, not @").t(type);
+	}
+	// which we then dereference
+	type = type.of;
+
 	var szarg Ast;
-	if node.type.kind == TYPE_ARRAY {
+	if type.kind == TYPE_ARRAY {
 		szarg = ast_make_lr(AST_MUL, node.left, ast_make_const(
-				type_size(node.type.of), ctx.type_u32));
-	} else {
-		szarg = ast_make_const(type_size(node.type), ctx.type_u32);
+				type_size(type.of), ctx.type_u32));
+	} else if type.kind == TYPE_STRUCT {
+		szarg = ast_make_const(type_size(type), ctx.type_u32);
 		if node.left != nil {
 			szarg = ast_make_lr(AST_ADD, szarg, node.left);
 		}
-	}
-	// convert to __new(size) fncall
-	node.kind = AST_CALL;
-	node.left = ast_make_symbol(symbol_find(ctx.str_new_fn));
-	node.right = szarg;
-	// adjust return type to be an appropriate pointer type
-	var type Type = node.type;
-	if type.kind == TYPE_STRUCT {
-		node.type = type.of;
-	} else if type.kind == TYPE_ARRAY {
-		node.type = type_make_ptr(type);
 	} else {
 		ErrorAt(node, "cannot allocate '@' with new").t(type);
 	}
+	// and convert to __new(size) fncall
+	node.kind = AST_CALL;
+	node.left = ast_make_symbol(symbol_find(ctx.str_new_fn));
+	node.right = szarg;
 	// validate the transformed node as a fn call
 	return validate_call(node);
 }
