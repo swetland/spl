@@ -1,5 +1,5 @@
 
-fn print(n i32) {
+fn print(n u32) {
 	_hexout_(n);
 }
 

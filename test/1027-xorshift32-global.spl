@@ -1,9 +1,9 @@
 
 // todo: u32 and LSR support
 
-var state i32 = 0xd3f56332;
+var state u32 = 0xd3f56332;
 
-fn xorshift32() i32 {
+fn xorshift32() u32 {
 	state = state ^ (state << 13);
 	state = state ^ ((state >> 17) & 0x7FFF);
 	state = state ^ (state << 5);
