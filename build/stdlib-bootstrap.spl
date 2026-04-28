@@ -1,2 +1,2 @@
 
-fn _hexout_(n i32);
+fn _hexout_(n u32);
