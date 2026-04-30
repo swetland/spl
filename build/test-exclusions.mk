@@ -13,6 +13,10 @@ SKIP0 += test/1049-arrays-and-structs.spl
 SKIP0 += test/3100-sequentialize.spl
 SKIP0 += test/2050-err-return-from-void.spl
 SKIP0 += test/2051-err-return-void.spl
+SKIP0 += test/2080-err-need-cast-i32-arg.spl
+SKIP0 += test/2081-err-need-cast-u32-arg.spl
+SKIP0 += test/2082-err-need-cast-i32-var.spl
+SKIP0 += test/2083-err-need-cast-u32-var.spl
 
 # stage1 compiler
 SKIP1 := $(SKIPALL)
