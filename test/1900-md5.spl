@@ -124,7 +124,7 @@ fn md5_fini(m MD5) {
 	if m.icount < 56 {
 		md5_sum(m, md5_pad, 56 - m.icount);
 	} else {
-		md5_sum(m, md5_pad, (64 + 56) - m.icount);
+		md5_sum(m, md5_pad, (64u + 56u) - m.icount);
 	}
 
 	// conclude padding with the count

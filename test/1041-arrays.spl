@@ -13,8 +13,8 @@ fn dump(x [8]u8) {
 }
 
 fn start() i32 {
-	var n i32 = 0;
-	var m i32 = 0;
+	var n u32 = 0;
+	var m u32 = 0;
 	while (n < 8) {
 		_hexout_(numbers[n]);
 		m = m + numbers[n];
