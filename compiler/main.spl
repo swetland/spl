@@ -192,7 +192,6 @@ fn start() i32 {
 		ctx.fd_in = -1;
 	}
 
-	ctx_set_source_file("END-OF-LINE");
 	if astfd != -1 {
 		dump_ast_node(astfd, ctx.program.left, -1);
 		writes(astfd, "\n");
