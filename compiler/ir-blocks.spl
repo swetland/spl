@@ -7,11 +7,11 @@ struct RegInfo {
 };
 
 var reg_info []RegInfo;
-var reg_next i32 = 0;
+var reg_next u32 = 0;
 
 // obtain a fresh virtual register
 fn ir_reg_get() i32 {
-	var r i32 = reg_next;
+	var r u32 = reg_next;
 	reg_next++;
 	reg_info[r].used = 0;
 	reg_info[r].inst = nil;
@@ -21,7 +21,7 @@ fn ir_reg_get() i32 {
 // allow a virtual register to be discarded if
 // not needed, provided there aren't any newer
 // ones in use
-fn ir_reg_put(r i32) {
+fn ir_reg_put(r u32) {
 	if r == (reg_next - 1) {
 		reg_next--;
 	}
@@ -31,11 +31,11 @@ struct Phi {
 	next *Phi,
 	sym *Symbol,
 	// initial vid
-	vini i32,
+	vini u32,
 	// most recent vid
-	vcur i32,
+	vcur u32,
 	// vids from predecessor blocks
-	args []i32,
+	args []u32,
 	// -1: variable tracking only, 0: placeholder, >0: full phi node
 	count i32,
 };
@@ -113,16 +113,16 @@ var bb_order BlockVec;
 // target for new instructions
 var bb_active BasicBlock = nil;
 
-fn (bb BasicBlock) add_set(shadow i32, reg i32);
-fn (bb BasicBlock) add_get(reg i32, shadow i32);
+fn (bb BasicBlock) add_set(shadow u32, reg u32);
+fn (bb BasicBlock) add_get(reg u32, shadow u32);
 
-fn phi_lookup(bb BasicBlock, sym Symbol) i32;
+fn phi_lookup(bb BasicBlock, sym Symbol) u32;
 
 fn (phi Phi) is_trivial() bool {
-	var v i32 = -1;
+	var v u32 = 0xffffffff;
 	var n i32 = 0;
 	while n < phi.count {
-		if v == -1 {
+		if v == 0xffffffff {
 			v = phi.args[n];
 		} else if v != phi.args[n] {
 			return false;
@@ -161,14 +161,14 @@ fn phis_to_insts(blist []*BasicBlock, bcount i32) {
 fn phi_resolve(bb BasicBlock, phi Phi) {
 	//Warn("phi_resolve(bb.@,@)").n(bb.id).s(phi.sym.name.text);
 	if bb.count == 0 {
-		Error("phi_resolve(bb.@) no predecessors?!").n(bb.id);
+		Error("phi_resolve(bb.@) no predecessors?!").u(bb.id);
 	}
 
 	var n i32 = 0;
-	var args []i32 = new([bb.count]i32);
+	var args []u32 = new([bb.count]u32);
 	var bl BlockList = bb.prev;
 	while bl != nil {
-		var val i32 = phi_lookup(bl.bb, phi.sym);
+		var val u32 = phi_lookup(bl.bb, phi.sym);
 		if false {
 			// does not occur across all test cases, investigate later
 			if val == VF_UNDEF {
@@ -187,7 +187,7 @@ fn phi_resolve(bb BasicBlock, phi Phi) {
 	// simplify node if trivial
 }
 
-fn phi_write(bb BasicBlock, sym Symbol, val i32) {
+fn phi_write(bb BasicBlock, sym Symbol, val u32) {
 	// first check for an existing phi node
 	var phi Phi = bb.phi;
 	while phi != nil {
@@ -212,7 +212,7 @@ fn phi_write(bb BasicBlock, sym Symbol, val i32) {
 
 // search any block for a phi node for a symbol,
 // creating one if necessary, and recursing if sealed
-fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
+fn phi_lookup(bb BasicBlock, sym Symbol) u32 {
 	// first check for an existing phi node
 	var phi Phi = bb.phi;
 	while phi != nil {
@@ -271,14 +271,14 @@ fn phi_lookup(bb BasicBlock, sym Symbol) i32 {
 	return phi.vcur;
 }
 
-fn sym_to_vid_load(sym Symbol) i32 {
+fn sym_to_vid_load(sym Symbol) u32 {
 	//Warn("sym_load(@)").s(sym.name.text);
-	var val i32 = phi_lookup(bb_active, sym);
+	var val u32 = phi_lookup(bb_active, sym);
 	//Warn("sym_load(@) @").s(sym.name.text).reg(val);
 	return val;
 }
 
-fn sym_to_vid_store(sym Symbol, vr i32) i32 {
+fn sym_to_vid_store(sym Symbol, vr u32) u32 {
 	//Warn("sym_store(@) @").s(sym.name.text).reg(vr);
 	phi_write(bb_active, sym, vr);
 	return vr;
@@ -287,7 +287,7 @@ fn sym_to_vid_store(sym Symbol, vr i32) i32 {
 // reset all global state
 // used at the start of a new function
 fn bb_reset() {
-	var n i32 = 0;
+	var n u32 = 0;
 	while n < reg_next {
 		n++;
 	}
@@ -331,7 +331,7 @@ fn bb_make(tag str) BasicBlock {
 	return bb;
 }
 
-fn (bb BasicBlock) add_set(shadow i32, reg i32) {
+fn (bb BasicBlock) add_set(shadow u32, reg u32) {
 	var inst Inst = _inst_make(INS_SET, shadow, 0, reg);
 	inst.prev = bb.last.prev;
 	inst.next = bb.last;
@@ -340,7 +340,7 @@ fn (bb BasicBlock) add_set(shadow i32, reg i32) {
 	inst_track(inst);
 }
 
-fn (bb BasicBlock) add_get(reg i32, shadow i32) {
+fn (bb BasicBlock) add_get(reg u32, shadow u32) {
 	var inst Inst = _inst_make(INS_GET, reg, 0, shadow);
 	inst.prev = bb.first;
 	inst.next = bb.first.next;
@@ -355,7 +355,7 @@ fn (bb BasicBlock) add_get(reg i32, shadow i32) {
 
 fn (bb BasicBlock) place() {
 	if bb.flags & BB_PLACED {
-		Error("bb.@ placed twice").n(bb.id);
+		Error("bb.@ placed twice").u(bb.id);
 	}
 	bb.flags |= BB_PLACED;
 	bb_order.append(bb);
@@ -363,7 +363,7 @@ fn (bb BasicBlock) place() {
 
 fn (bb BasicBlock) link_to(target BasicBlock) {
 	if target.flags & BB_SEALED {
-		Warn("cannot link bb.@ to sealed bb.@").n(bb.id).n(target.id);
+		Warn("cannot link bb.@ to sealed bb.@").u(bb.id).u(target.id);
 	}
 	if bb.next0 == nil {
 		bb.next0 = target;
@@ -406,19 +406,20 @@ fn (bb BasicBlock) append(ins Inst) {
 
 fn (bb BasicBlock) seal() {
 	if bb.flags & BB_SEALED {
-		Error("bb.@ sealed twice").n(bb.id);
+		Error("bb.@ sealed twice").u(bb.id);
 	}
 	bb.flags |= BB_SEALED;
 	if bb.prev == nil {
 		if !(bb.flags & BB_ENTRY) {
 			bb.flags |= BB_DEAD;
-			Warn("bb.@ is dead").n(bb.id);
+			Warn("bb.@ is dead").u(bb.id);
 		}
 	}
 	var bl BlockList = bb.prev;
 	while bl != nil {
 		if !(bl.bb.flags & BB_FILLED) {
-			Error("bb.@ sealed, but pred bb.@ is not filled").n(bb.id).n(bl.bb.id);
+			Error("bb.@ sealed, but pred bb.@ is not filled")
+				.u(bb.id).u(bl.bb.id);
 		}
 		bl = bl.next;
 	}
@@ -428,7 +429,8 @@ fn (bb BasicBlock) seal() {
 			//Warn("phi_resolve(bb.@) post-seal").n(bb.id);
 			phi_resolve(bb, phi);
 			if phi.is_trivial() {
-				Warn("need-simplify-def: bb.@ @ x@").n(bb.id).s(phi.sym.name.text).n(phi.count);
+				Warn("need-simplify-def: bb.@ @ x@")
+				.u(bb.id).s(phi.sym.name.text).n(phi.count);
 			}
 		}
 		phi = phi.next;
@@ -467,7 +469,7 @@ fn (bb BasicBlock) set_name(name String) {
 	bb.first.b = ir_string_get(name);
 }
 
-fn inst_make_mov(i Inst, val i32) {
+fn inst_make_mov(i Inst, val u32) {
 	//Warn("simplify @ @").s(iop_name[i.op & INS_OP_MASK]).n(val);
 	i.op = INS_MOV | INF_C_IMM | iop_props[INS_MOV];
 	i.op &^= INF_USE_C;
@@ -475,7 +477,7 @@ fn inst_make_mov(i Inst, val i32) {
 	i.c = val;
 }
 
-fn inst_make_imm(i Inst, val i32) {
+fn inst_make_imm(i Inst, val u32) {
 	i.op |= INF_C_IMM;
 	i.op &^= INF_USE_C;
 	i.c = val;
@@ -640,7 +642,7 @@ fn inst_simplify2(i Inst) {
 	if x == nil { return; }
 	if !((x.op & INS_OP_MASK) == INS_MOV) { return; }
 	if !(x.op & INF_C_IMM) { return; }
-	var valb i32 = x.c;
+	var valb u32 = x.c;
 
 	op &= INS_OP_MASK;
 
@@ -659,7 +661,7 @@ fn inst_simplify2(i Inst) {
 }
 
 // allocate an instruction and add it to the graph
-fn inst_make(op u32, a i32, b i32, c i32) i32 {
+fn inst_make(op u32, a u32, b u32, c u32) u32 {
 	var ins Inst = _inst_make(op, a, b, c);
 
 	while inst_simplify(ins) { }
@@ -670,12 +672,12 @@ fn inst_make(op u32, a i32, b i32, c i32) i32 {
 	return a;
 }
 
-var global_next i32 = 0;
+var global_next u32 = 0;
 var global_names []*String;
 
 // obtain a string identifier for call instruction use
-fn ir_string_get(name String) i32 {
-	var n i32 = 0;
+fn ir_string_get(name String) u32 {
+	var n u32 = 0;
 	while n < global_next {
 		if global_names[n] == name {
 			return n;
@@ -687,14 +689,14 @@ fn ir_string_get(name String) i32 {
 	return n;
 }
 
-fn ir_string(id i32) str {
+fn ir_string(id u32) str {
 	if id >= global_next {
 		Error("invalid string id");
 	}
 	return global_names[id].text;
 }
 
-fn ir_strlen(id i32) u32 {
+fn ir_strlen(id u32) u32 {
 	if id >= global_next {
 		Error("invalid string id");
 	}
@@ -721,7 +723,7 @@ fn (bb BasicBlock) replace_prev(oldp BasicBlock, newp BasicBlock) {
 		}
 		bl = bl.next;
 	}
-	Error("bb.@ does not have bb.@ as a prev").n(bb.id).n(oldp.id);
+	Error("bb.@ does not have bb.@ as a prev").u(bb.id).u(oldp.id);
 }
 
 // merge blocks if possible
@@ -740,7 +742,7 @@ fn cleanup_blocks(bl BlockVec) {
 			var bb2 BasicBlock = bb.next0;
 			// This block jumps to another block that has
 			// no other predecessors.  Absorb it.
-			Warn("merging bb.@ with bb.@").n(bb.id).n(bb.next0.id);
+			Warn("merging bb.@ with bb.@").u(bb.id).u(bb.next0.id);
 
 			// we've acquired bb2's branch, so update next ptr(s)
 			bb.next0 = bb2.next0;
@@ -830,7 +832,7 @@ fn split_critical_edges(bl BlockList) {
 			while pl != nil {
 				if pl.bb.next0 && pl.bb.next1 {
 					Warn("critical edge from bb.@ to bb.@ (@ phis)")
-						.n(pl.bb.id).n(bb.id).n(n);
+						.u(pl.bb.id).u(bb.id).n(n);
 				}
 				pl = pl.next;
 			}
@@ -878,12 +880,12 @@ fn dump_live_set(tag str, live BitSet) {
 }
 
 // prereq: instructions must be numbered
-fn compute_live_ranges(blist []*BasicBlock, bcount i32, nr i32) {
+fn compute_live_ranges(blist []*BasicBlock, bcount i32, nr u32) {
 	while bcount > 0 {
 		bcount--;
 		var bb BasicBlock = blist[bcount];
 		Warn("compute-live-range bb.@ @:@")
-			.n(bb.id).n(bb.first.i).n(bb.last.i);
+			.u(bb.id).n(bb.first.i).n(bb.last.i);
 
 		var live BitSet = BitSet_make(nr);
 		if bb.next0 && bb.next0.live_in {
@@ -904,11 +906,11 @@ fn compute_live_ranges(blist []*BasicBlock, bcount i32, nr i32) {
 		dump_live_set("live-in", live);
 		bb.live_in = live;
 	}
-	var n i32 = 0;
+	var n u32 = 0;
 	while n < reg_next {
 		var i Inst = reg_info[n].inst;
 		if i && (i.x >= 0) {
-			Warn("live range %@ @:@").n(n).n(i.i).n(i.x);
+			Warn("live range %@ @:@").u(n).n(i.i).n(i.x);
 		}
 		n++;
 	}
@@ -933,7 +935,7 @@ fn finalize_fn(bl BlockVec) {
 
 	// remove any instructions with unused results
 	var count i32 = 0;
-	var n i32 = 0;
+	var n u32 = 0;
 	while n < reg_next {
 		if reg_info[n].used == 0 {
 			if reg_info[n].inst {
@@ -1059,20 +1061,20 @@ fn dump_phis(os OutStream, bb BasicBlock) {
 
 fn dump_bb(os OutStream, bb BasicBlock) {
 	if !(bb.flags & BB_FILLED) {
-		Warn("bb.@ is not filled").n(bb.id);
+		Warn("bb.@ is not filled").u(bb.id);
 	}
 	if !(bb.flags & BB_SEALED) {
-		Warn("bb.@ is not sealed").n(bb.id);
+		Warn("bb.@ is not sealed").u(bb.id);
 	}
 	if bb.flags & BB_DEAD {
 		return;
 	}
-	os.fmt("bb.@: // @").n(bb.id).s(bb.tag);
+	os.fmt("bb.@: // @").u(bb.id).s(bb.tag);
 	if bb.prev != nil {
 		os.fmt(" << ");
 		var bl BlockList = bb.prev;
 		while bl != nil {
-			os.fmt("bb.@").n(bl.bb.id);
+			os.fmt("bb.@").u(bl.bb.id);
 			bl = bl.next;
 			if bl != nil {
 				os.fmt(", ");
@@ -1173,7 +1175,7 @@ fn serialize_cdata(fd i32) {
 }
 
 fn serialize_globals(fd i32) {
-	var i i32 = 0;
+	var i u32 = 0;
 	writeu32(fd, TAG_IR_GLBL);
 	writeu32(fd, global_next);
 	while i < global_next {

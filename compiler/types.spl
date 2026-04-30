@@ -40,7 +40,7 @@ struct Symbol {
 	// fn: srcloc of decl or defn
 	ival u32,
 	// used by IR generation
-	vid i32,
+	vid u32,
 };
 
 enum ScopeKind {

@@ -198,10 +198,10 @@ struct BasicBlock {
 fn ir_reg_get() i32;
 
 // trade strings for global IDs and IDs for strings
-fn ir_string_get(name String) i32;
-fn ir_string(id i32) str;
+fn ir_string_get(name String) u32;
+fn ir_string(id u32) str;
 
-fn _inst_make(op u32, a i32, b i32, c i32) Inst {
+fn _inst_make(op u32, a u32, b u32, c u32) Inst {
 	// add opcode-specific property bitflags to allow
 	// for quick property testing
 	op |= iop_props[op & INS_OP_MASK];
@@ -225,9 +225,9 @@ fn _inst_make(op u32, a i32, b i32, c i32) Inst {
 
 // allocate an instruction and add it to the active bb
 // implemented in ir-blocks.spl
-fn inst_make(op u32, a i32, b i32, c i32) i32;
+fn inst_make(op u32, a u32, b u32, c u32) u32;
 
-fn inst_target_bb(bb BasicBlock) i32 {
+fn inst_target_bb(bb BasicBlock) u32 {
 	// do other housekeeping
 	return bb.id;
 }
@@ -237,11 +237,11 @@ fn inst_target_bb(bb BasicBlock) i32 {
 // and returns that register.
 // X variant is passed the target register and uses that.
 // I variant treats second argument as an immediate
-fn inst_alu(op u32, b i32, c i32) i32 {
+fn inst_alu(op u32, b u32, c u32) u32 {
 	if op >= INS_MOV { Error("inst_alu invalid alu op"); }
 	return inst_make(op, ir_reg_get(), b, c);
 }
-fn inst_alui(op u32, b i32, imm i32) i32 {
+fn inst_alui(op u32, b u32, imm u32) u32 {
 	if op >= INS_MOV { Error("inst_alui invalid alu op"); }
 
 	if (op == INS_ADD) && (imm == 0) {
@@ -249,90 +249,90 @@ fn inst_alui(op u32, b i32, imm i32) i32 {
 	}
 	return inst_make(op | INF_C_IMM, ir_reg_get(), b, imm);
 }
-fn inst_aluix(op u32, a i32, b i32, imm i32) {
+fn inst_aluix(op u32, a u32, b u32, imm u32) {
 	if op >= INS_MOV { Error("inst_alui invalid alu op"); }
 	inst_make(op | INF_C_IMM, a, b, imm);
 }
-fn inst_movi(imm i32) i32 {
+fn inst_movi(imm u32) u32 {
 	return inst_make(INS_MOV | INF_C_IMM, ir_reg_get(), 0, imm);
 }
-fn inst_mov(c i32) i32 {
+fn inst_mov(c u32) u32 {
 	return inst_make(INS_MOV, ir_reg_get(), 0, c);
 }
-fn inst_movx(a i32, c i32) i32 {
+fn inst_movx(a u32, c u32) u32 {
 	return inst_make(INS_MOV, a, 0, c);
 }
-fn inst_movix(a i32, imm i32) i32 {
+fn inst_movix(a u32, imm u32) u32 {
 	return inst_make(INS_MOV | INF_C_IMM, a, 0, imm);
 }
 
 // load/store instructions
 // Load instructions allocate and return a target register.
-fn inst_ldb(b i32, c i32) i32 {
+fn inst_ldb(b u32, c u32) u32 {
 	return inst_make(INS_LOAD | INF_SZ_U8, ir_reg_get(), b, c);
 }
-fn inst_ldw(b i32, c i32) i32 {
+fn inst_ldw(b u32, c u32) u32 {
 	return inst_make(INS_LOAD | INF_SZ_U32, ir_reg_get(), b, c);
 }
-fn inst_ldbi(b i32, imm i32) i32 {
+fn inst_ldbi(b u32, imm u32) u32 {
 	return inst_make(INS_LOAD | INF_SZ_U8 | INF_C_IMM, ir_reg_get(), b, imm);
 }
-fn inst_ldwi(b i32, imm i32) i32 {
+fn inst_ldwi(b u32, imm u32) u32 {
 	return inst_make(INS_LOAD | INF_SZ_U32 | INF_C_IMM, ir_reg_get(), b, imm);
 }
-fn inst_ldwix(a i32, b i32, imm i32) {
+fn inst_ldwix(a u32, b u32, imm u32) {
 	inst_make(INS_LOAD | INF_SZ_U32 | INF_C_IMM, a, b, imm);
 }
-fn inst_stb(a i32, b i32, c i32) {
+fn inst_stb(a u32, b u32, c u32) {
 	inst_make(INS_STORE | INF_SZ_U8, a, b, c);
 }
-fn inst_stw(a i32, b i32, c i32) {
+fn inst_stw(a u32, b u32, c u32) {
 	inst_make(INS_STORE | INF_SZ_U32, a, b, c);
 }
-fn inst_stbi(a i32, b i32, imm i32) {
+fn inst_stbi(a u32, b u32, imm u32) {
 	inst_make(INS_STORE | INF_SZ_U8 | INF_C_IMM, a, b, imm);
 }
-fn inst_stwi(a i32, b i32, imm i32) {
+fn inst_stwi(a u32, b u32, imm u32) {
 	inst_make(INS_STORE | INF_SZ_U32 | INF_C_IMM, a, b, imm);
 }
 
-fn ins_size_flag(sz i32) u32 {
+fn ins_size_flag(sz u32) u32 {
 	if sz == 1 { return INF_SZ_U8; }
 	if sz == 2 { return INF_SZ_U16; }
 	if sz == 4 { return INF_SZ_U32; }
-	Error("invalid load/store size: @").n(sz);
+	Error("invalid load/store size: @").u(sz);
 	return 0;
 }
-fn inst_loadi(sz i32, b i32, c i32) i32 {
+fn inst_loadi(sz u32, b u32, c u32) u32 {
 	return inst_make(INS_LOAD | INF_C_IMM | ins_size_flag(sz), ir_reg_get(), b, c);
 }
-fn inst_storei(sz i32, a i32, b i32, c i32) {
+fn inst_storei(sz u32, a u32, b u32, c u32) {
 	inst_make(INS_STORE | INF_C_IMM | ins_size_flag(sz), a, b, c);
 }
 
-fn inst_cdata_str(s String) i32 {
-	return inst_make(INS_CDATA, ir_reg_get(), -1, make_cdata_str(s));
+fn inst_cdata_str(s String) u32 {
+	return inst_make(INS_CDATA, ir_reg_get(), 0xffffffff, make_cdata_str(s));
 }
 
 // flow control
 fn inst_jump(bb BasicBlock) {
 	inst_make(INS_JUMP, inst_target_bb(bb), 0, 0);
 }
-fn inst_branch(cond i32, ttrue BasicBlock, tfalse BasicBlock) {
+fn inst_branch(cond u32, ttrue BasicBlock, tfalse BasicBlock) {
 	inst_make(INS_BRANCH, cond, inst_target_bb(ttrue), inst_target_bb(tfalse));
 }
 fn inst_call(name String) {
 	inst_make(INS_CALL, ir_string_get(name), 0, 0);
 }
-fn inst_ret(a i32) {
+fn inst_ret(a u32) {
 	inst_make(INS_RET, a, 0, 0);
 }
 
 // upsilon/phi
-fn inst_set(a i32, c i32) {
+fn inst_set(a u32, c u32) {
 	inst_make(INS_SET, a, 0, c);
 }
-fn inst_get(a i32) i32 {
+fn inst_get(a u32) u32 {
 	return inst_make(INS_GET, a, 0, a);
 }
 
@@ -376,9 +376,9 @@ fn (os OutStream) reg(id u32) OutStream {
 	return os;
 }
 
-fn (os OutStream) arg(n i32, op u32) OutStream {
+fn (os OutStream) arg(n u32, op u32) OutStream {
 	if op & INF_C_IMM {
-		writei(os.fd, n);
+		writex(os.fd, n);
 	} else {
 		return os.reg(n);
 	}
@@ -386,7 +386,7 @@ fn (os OutStream) arg(n i32, op u32) OutStream {
 	return os;
 }
 
-fn (os OutStream) label(n i32) OutStream {
+fn (os OutStream) label(n u32) OutStream {
 	writes(os.fd, "bb.");
 	writei(os.fd, n);
 	os_advance(os);
@@ -413,9 +413,9 @@ fn inst_disasm(os OutStream, ins Inst) {
 		os.fmt("@@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_LABEL {
 		if ins.b != 0 {
-			os.fmt("label bb.@, \"@\"\n").n(ins.a).s(ir_string(ins.b));
+			os.fmt("label bb.@, \"@\"\n").u(ins.a).s(ir_string(ins.b));
 		} else {
-			os.fmt("label bb.@\n").n(ins.a);
+			os.fmt("label bb.@\n").u(ins.a);
 		}
 	} else if op == INS_JUMP {
 		os.fmt("jump @\n").label(ins.a);
@@ -426,9 +426,9 @@ fn inst_disasm(os OutStream, ins Inst) {
 	} else if op == INS_RET {
 		os.fmt("ret @\n").reg(ins.a);
 	} else if op == INS_SET {
-		os.fmt("set '@, @\n").n(ins.a).reg(ins.c);
+		os.fmt("set '@, @\n").u(ins.a).reg(ins.c);
 	} else if op == INS_GET {
-		os.fmt("get @, '@\n").reg(ins.a).n(ins.c);
+		os.fmt("get @, '@\n").reg(ins.a).u(ins.c);
 	} else {
 		os.fmt("inval 0x@\n").x(ins.op);
 	}
