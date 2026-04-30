@@ -55,7 +55,7 @@ fn write_data_chunk(dc DataChunk, idx u32, val u32, is_ptr bool) {
 	} else {
 		dc.data[idx] = val;
 		if is_ptr {
-			dc.pmap[idx >> 5] |= 1 << (idx & 31);
+			dc.pmap[idx >> 5] |= 1u << (idx & 31);
 		}
 	}
 }

@@ -66,6 +66,7 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 			ErrorAt(node, "too many arguments in fncall (@/@)")
 				.n(n + 1).n(type.count);
 		}
+		validate_expr(arg);
 		if !is_assignable(arg.type, param.type, true) {
 			ErrorAtSrcLoc(arg.srcloc, "arg @: cannot assign @ to @")
 				.n(n).t(arg.type).t(param.type);
@@ -75,7 +76,7 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 		n++;
 	}
 	if param != nil {
-		ErrorAt(node, "not enough arguments in fncall (@/@)")
+		ErrorAt(node, "too few arguments in fncall (@/@)")
 			.n(n).n(type.count);
 	}
 }
@@ -112,6 +113,8 @@ fn validate_lhs(node Ast) {
 fn validate_assign(node Ast) {
 	var left Ast = node.left;
 	var right Ast = node.right;
+	validate_lhs(left);
+	validate_expr(right);
 	if !is_assignable(right.type, left.type, false) {
 		if (right.type.kind == TYPE_ARRAY)
 			&& (left.type.kind == TYPE_POINTER)
@@ -121,8 +124,6 @@ fn validate_assign(node Ast) {
 			ErrorAt(node, "cannot assign @ to @").t(right.type).t(left.type);
 		}
 	}
-	validate_lhs(left);
-	validate_expr(right);
 }
 
 fn validate_field_load(node Ast) {
@@ -163,14 +164,73 @@ fn validate_new(node Ast) {
 	return validate_call(node);
 }
 
+fn flip_signedness(node Ast) bool {
+	if (node.type == ctx.type_u32) && (node.ival < 0x80000001u) {
+		node.type = ctx.type_i32;
+		return true;
+	}
+	if (node.type == ctx.type_i32) && (node.ival < 0x80000000u) {
+		node.type = ctx.type_u32;
+		return true;
+	}
+	return false;
+}
+
+fn validate_intop(node Ast) {
+	var ltype Type = node.left.type;
+	var rtype Type = node.right.type;
+	if !(ltype.kind & TYPE_IS_INTEGER) {
+		WarnAt(node, "@ on non-integer").s(ast_kind[node.kind]);
+	}
+	if !(rtype.kind & TYPE_IS_INTEGER) {
+		WarnAt(node, "@ on non-integer").s(ast_kind[node.kind]);
+	}
+	if (ltype.kind & TYPE_IS_SIGNED) == (rtype.kind & TYPE_IS_SIGNED) {
+		return;
+	}
+	if (node.left.kind == AST_CONST) && flip_signedness(node.left) {
+		node.type = node.left.type;
+		return;
+	}
+	if (node.right.kind == AST_CONST) && flip_signedness(node.right) {
+		node.type = node.right.type;
+		return;
+	}
+	WarnAt(node, "@ on differing signedness").s(ast_kind[node.kind]);
+	//TODO: differing size ints
+}
+
 fn validate_relop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
+	if (node.left.type.kind & TYPE_POINTER) && (node.right.type.kind & TYPE_POINTER) {
+		if (node.kind == AST_EQ) || (node.kind == AST_NE) {
+			// equality tests between pointers are valid
+			return;
+		}
+	}
+	if (node.kind == AST_EQ) || (node.kind == AST_NE) {
+		//TODO: revisit when pointer types are fully sorted
+		return;
+	}
+	validate_intop(node);
 }
 
 fn validate_binop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
+	validate_intop(node);
+}
+
+fn validate_shiftop(node Ast) {
+	validate_expr(node.left);
+	validate_expr(node.right);
+	if !(node.left.type.kind & TYPE_IS_INTEGER) {
+		WarnAt(node, "@ on non-integer").s(ast_kind[node.kind]);
+	}
+	if !(node.right.type.kind & TYPE_IS_INTEGER) {
+		WarnAt(node, "@ by non-integer").s(ast_kind[node.kind]);
+	}
 }
 
 fn validate_unop(node Ast) {
@@ -178,16 +238,18 @@ fn validate_unop(node Ast) {
 }
 
 fn validate_bool_binop(node Ast) {
+	//TODO: ensure bool-ish?
 	validate_expr(node.left);
 	validate_expr(node.right);
 }
 
 fn validate_bool_unop(node Ast) {
+	//TODO: ensure bool-ish?
 	validate_expr(node.left);
 }
 
 fn validate_expr(node Ast) {
-	var kind i32 = node.kind;
+	var kind AstKind = node.kind;
 	if kind == AST_CONST    { return; }
 	if kind == AST_SYMBOL   { return; }
 	if kind == AST_EQ       { return validate_relop(node); }
@@ -205,8 +267,8 @@ fn validate_expr(node Ast) {
 	if kind == AST_MOD      { return validate_binop(node); }
 	if kind == AST_AND      { return validate_binop(node); }
 	if kind == AST_CLR      { return validate_binop(node); }
-	if kind == AST_LSL      { return validate_binop(node); }
-	if kind == AST_LSR      { return validate_binop(node); }
+	if kind == AST_LSL      { return validate_shiftop(node); }
+	if kind == AST_LSR      { return validate_shiftop(node); }
 	if kind == AST_NOT      { return validate_unop(node); }
 	if kind == AST_NEG      { return validate_unop(node); }
 	if kind == AST_BOOL_NOT { return validate_bool_unop(node); }

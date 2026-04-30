@@ -4,7 +4,7 @@
 fn eval_const_expr(node Ast) i32;
 
 fn eval_const_binop(node Ast) i32 {
-	var kind i32 = node.kind;
+	var kind AstKind = node.kind;
 	var a i32 = eval_const_expr(node.left);
 	var b i32 = eval_const_expr(node.right);
 

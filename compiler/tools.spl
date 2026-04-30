@@ -267,7 +267,7 @@ struct AnonTypeUse {
 };
 
 fn types_match(a Type, b Type, fcall bool) bool;
-fn type_size(t Type) i32;
+fn type_size(t Type) u32;
 
 fn anon_type_match(a Type, b Type) bool {
 	var atu AnonTypeUse = ctx.anonmap;
@@ -419,7 +419,7 @@ fn ctx_set_source_file(name str) {
 	ctx.filelist = sf;
 	ctx.fileid++;
 
-	ctx.linenumber = (sf.id << 20) | 1;
+	ctx.linenumber = (sf.id << 20) | 1u;
 }
 
 fn ctx_find_source_file(id i32) str {
@@ -450,8 +450,8 @@ fn ctx_make_outfile(enable bool, name str, ext str) OutStream {
 	}
 }
 
-fn type_size(type Type) i32 {
-	var kind i32 = type.kind;
+fn type_size(type Type) u32 {
+	var kind TypeKind = type.kind;
 	if kind == TYPE_U8 { return 1; }
 	if kind == TYPE_U32 { return 4; }
 	if kind == TYPE_I32 { return 4; }

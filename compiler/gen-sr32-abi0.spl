@@ -26,13 +26,13 @@ fn emit(msg str) OutStream {
 	return os;
 }
 
-var local_max i32 = 0;
-var tmp_mask i32 = 0;
+var local_max u32 = 0;
+var tmp_mask u32 = 0;
 
-fn find_bit(set i32) i32 {
-	var n i32 = 0;
+fn find_bit(set u32) u32 {
+	var n u32 = 0;
 	while n < 32 {
-		if (set & (1 << n)) == 0 {
+		if (set & (1u << n)) == 0 {
 			break;
 		}
 		n++;
@@ -40,16 +40,16 @@ fn find_bit(set i32) i32 {
 	return n;
 }
 
-fn get_reg() i32 {
-	var n i32 = find_bit(tmp_mask);
+fn get_reg() u32 {
+	var n u32 = find_bit(tmp_mask);
 	if n > MaxTmpRegs {
 		Error("out of temporary registers");
 	}
-	tmp_mask |= (1 << n);
+	tmp_mask |= (1u << n);
 	return n + FirstTmpReg;
 }
 
-fn put_reg(n i32) {
+fn put_reg(n u32) {
 	if n != 0 {
 		n = 1 << (n - FirstTmpReg);
 		if (tmp_mask & n) == 0 {
@@ -127,18 +127,18 @@ fn gen_unop(node Ast, op str) i32 {
 }
 
 fn emit_load_tmp() {
-	var n i32 = 0;
+	var n u32 = 0;
 	while n < MaxTmpRegs {
-		if tmp_mask & (1 << n) {
+		if tmp_mask & (1u << n) {
 			emit("    ldw x@, -@(fp) //RT\n").n(FirstTmpReg + n).n(local_max + 4*n);
 		}
 		n++;
 	}
 }
 fn emit_save_tmp() {
-	var n i32 = 0;
+	var n u32 = 0;
 	while n < MaxTmpRegs {
-		if tmp_mask & (1 << n) {
+		if tmp_mask & (1u << n) {
 			emit("    stw x@, -@(fp) //ST\n").n(FirstTmpReg + n).n(local_max + 4*n);
 		}
 		n++;
@@ -267,7 +267,7 @@ fn gen_array_store(node Ast, vr i32) i32 {
 }
 
 fn gen_addr(node Ast) i32 {
-	var kind i32 = node.kind;
+	var kind AstKind = node.kind;
 
 	if kind == AST_SYMBOL {
 		var t i32 = get_reg();
@@ -361,7 +361,7 @@ fn gen_bool_or(node Ast) i32 {
 }
 
 fn gen_expr(node Ast) i32 {
-	var kind i32 = node.kind;
+	var kind AstKind = node.kind;
 
 	if kind == AST_CONST {
 		var t i32 = get_reg();
@@ -473,7 +473,7 @@ fn gen_return(node Ast) {
 fn gen_block(node Ast) {
 	node = node.left;
 	while node != nil {
-		var kind i32 = node.kind;
+		var kind AstKind = node.kind;
 		if kind == AST_WHILE {
 			gen_while(node);
 		} else if kind == AST_BREAK {
@@ -495,7 +495,7 @@ fn gen_block(node Ast) {
 	}
 }
 
-fn setup_locals(node Ast, n i32) {
+fn setup_locals(node Ast, n u32) {
 	if node.kind == AST_BLOCK {
 		var sym Symbol = node.sym;
 		while sym != nil {
