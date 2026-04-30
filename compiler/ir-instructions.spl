@@ -166,9 +166,9 @@ struct Inst {
 	next *Inst,
 	prev *Inst,
 	op u32,
-	a i32,
-	b i32,
-	c i32,
+	a u32,
+	b u32,
+	c u32,
 	i i32, // instruction number / live range start
 	x i32, // retire number / live range end
 };
@@ -354,8 +354,8 @@ fn inst_is_return(ins Inst) bool {
 }
 
 // helpers for printing instructions
-fn (os OutStream) reg(id i32) OutStream {
-	var n i32 = id & VF_MASK;
+fn (os OutStream) reg(id u32) OutStream {
+	var n u32 = id & VF_MASK;
 	if id & VF_PHYS {
 		if n >= REG_COUNT {
 			writes(os.fd, "$bad");
@@ -376,7 +376,7 @@ fn (os OutStream) reg(id i32) OutStream {
 	return os;
 }
 
-fn (os OutStream) arg(n i32, op i32) OutStream {
+fn (os OutStream) arg(n i32, op u32) OutStream {
 	if op & INF_C_IMM {
 		writei(os.fd, n);
 	} else {

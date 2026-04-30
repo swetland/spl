@@ -32,15 +32,15 @@ fn BitSet_make(size_in_bits u32) BitSet {
 }
 
 fn (bs BitSet) set(n u32) {
-	bs.data[n >> 5] |= (1 << (n & 31));
+	bs.data[n >> 5] |= (1u << (n & 31));
 }
 
 fn (bs BitSet) clear(n u32) {
-	bs.data[n >> 5] &^= (1 << (n & 31));
+	bs.data[n >> 5] &^= (1u << (n & 31));
 }
 
 fn (bs BitSet) isset(n u32) u32 {
-	return bs.data[n >> 5] & (1 << (n & 31));
+	return bs.data[n >> 5] & (1u << (n & 31));
 }
 
 fn (bs BitSet) set2(n u32) u32 {

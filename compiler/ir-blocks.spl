@@ -297,18 +297,18 @@ fn bb_reset() {
 	bb_order = BlockVec_make();
 }
 
-fn inst_track_use(i Inst, r i32) {
+fn inst_track_use(i Inst, r u32) {
 	if r & VF_SPECIAL { return; }
 	reg_info[r].used++;
 }
 
-fn inst_track_set(i Inst, r i32) {
+fn inst_track_set(i Inst, r u32) {
 	if r & VF_SPECIAL { return; }
 	reg_info[r].inst = i;
 }
 
 fn inst_track(i Inst) {
-	var op i32 = i.op;
+	var op u32 = i.op;
 	if (op & INF_USE_C) && (op & INF_C_IMM) {
 		Error("invalid instruction USE_C + C_IMM");
 	}
@@ -491,8 +491,8 @@ fn b2i32(cond bool) i32 {
 // and so on.
 // NOTE: does not adjust used count, unsafe for placed instructions.
 fn inst_simplify(i Inst) bool {
-	var op i32 = i.op;
-	var valc i32;
+	var op u32 = i.op;
+	var valc u32;
 	var x Inst;
 
 	if false { // TODO: fix resulting issues
@@ -596,7 +596,7 @@ fn inst_simplify(i Inst) bool {
 	if x == nil { return false; }
 	if !((x.op & INS_OP_MASK) == INS_MOV) { return false; }
 	if !(x.op & INF_C_IMM) { return false; }
-	var valb i32 = x.c;
+	var valb u32 = x.c;
 
 	op &= INS_OP_MASK;
 
@@ -620,7 +620,7 @@ fn inst_simplify(i Inst) bool {
 	return false;
 }
 
-fn inst_flip_alu(i Inst, op i32, newc i32) {
+fn inst_flip_alu(i Inst, op u32, newc u32) {
 	// transform alu %a0, %b0, %c0 -> alui %a0, %c0, newc
 	i.op = (i.op &^ (INS_OP_MASK|INF_USE_C)) | op | INF_C_IMM;
 	i.b = i.c;
@@ -631,7 +631,7 @@ fn inst_simplify2(i Inst) {
 	// movi %a0, c0
 	// alu  %a1, %a0, %c1  -> alu %a1, %c1, c0  (if reversible)
 
-	var op i32 = i.op;
+	var op u32 = i.op;
 	if !(op & INF_IS_ALU) { return; }
 	if op & INF_C_IMM { return; }
 	if i.c & VF_SPECIAL { return; }
@@ -790,7 +790,7 @@ fn cleanup_blocks(bl BlockVec) {
 
 fn inst_remove(i Inst);
 
-fn reg_disuse(r i32) {
+fn reg_disuse(r u32) {
 	if r & VF_SPECIAL { return; }
 	if reg_info[r].used == 0 {
 		Error("reg refcount underflow");
@@ -854,7 +854,7 @@ fn number_instructions(blist []*BasicBlock, bcount i32) i32 {
 	return n;
 }
 
-fn reg_use(live BitSet, vr i32, i Inst) {
+fn reg_use(live BitSet, vr u32, i Inst) {
 	if vr & VF_SPECIAL { return; }
 	live.set(vr);
 	if reg_info[vr].inst.x < 0 {
@@ -863,7 +863,7 @@ fn reg_use(live BitSet, vr i32, i Inst) {
 }
 
 fn reg_def(live BitSet, i Inst) {
-	var vr i32 = i.a;
+	var vr u32 = i.a;
 	if vr & VF_SPECIAL { return; }
 	live.clear(vr);
 }
