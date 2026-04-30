@@ -978,10 +978,10 @@ fn finalize_fn(bl BlockVec) {
 	}
 }
 
-fn fill(s str, c i32) {
+fn fill(s str, c u32) {
 	var i i32 = 0;
 	while s[i] {
-		if s[i] == ' ' { s[i] = c; }
+		if s[i] == ' ' { s[i] = u8(c); }
 		i++;
 	}
 }

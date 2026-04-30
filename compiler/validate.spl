@@ -20,6 +20,13 @@ fn make_i32(node Ast) bool {
 	node.type = ctx.type_i32;
 	return true;
 }
+fn make_u8(node Ast) bool {
+	// u32s with the high bit clear can become i32s safely:
+	if node.kind != AST_CONST { return false; }
+	if node.ival >= 0xFF { return false; }
+	node.type = ctx.type_i32;
+	return true;
+}
 
 //TODO: should bool convert to 0/1 value?
 fn is_assignable(src Type, dst Type, snode Ast, fcall bool) bool {
@@ -39,10 +46,8 @@ fn is_assignable(src Type, dst Type, snode Ast, fcall bool) bool {
 		if sk == TYPE_BOOL { return true; }
 	}
 	if dk == TYPE_U8 {
-		//if sk == TYPE_I32  { WarnAtLoc(wsl, "trunc i32 -> u8"); return true; }
-		//if sk == TYPE_U32  { WarnAtLoc(wsl, "trunc u32 -> u8"); return true; }
-		if sk == TYPE_I32  { return true; }
-		if sk == TYPE_U32  { return true; }
+		if sk == TYPE_I32  { if make_u8(snode) { return true; } }
+		if sk == TYPE_U32  { if make_u8(snode) { return true; } }
 		if sk == TYPE_ENUM { return true; }
 	}
 	if dk == TYPE_ENUM {

@@ -111,9 +111,9 @@ fn scan_string(cc u32, nc u32) Token {
 		} else if nc == 0 {
 			Error("unterminated string");
 		} else if nc == '\\' {
-			ctx.tmp[n] = unescape(scan());
+			ctx.tmp[n] = u8(unescape(scan()));
 		} else {
-			ctx.tmp[n] = nc;
+			ctx.tmp[n] = u8(nc);
 		}
 		nc = scan();
 		n++;
@@ -205,13 +205,13 @@ fn scan_number(cc u32, nc u32) Token {
 }
 
 fn scan_ident(cc u32, nc u32) Token {
-	ctx.tmp[0] = cc;
+	ctx.tmp[0] = u8(cc);
 	var n u32 = 1;
 
 	while true {
 		var tok Token = lextab[nc];
 		if (tok == tIDN) || (tok == tNUM) {
-			ctx.tmp[n] = nc;
+			ctx.tmp[n] = u8(nc);
 			n++;
 			if (n == 32) { Error("identifier too large"); }
 			nc = scan();
@@ -223,7 +223,7 @@ fn scan_ident(cc u32, nc u32) Token {
 }
 
 fn _next() Token {
-	var nc u8 = ctx.cc;
+	var nc u8 = u8(ctx.cc);
 	while true {
 		var cc u8 = nc;
 		nc = scan();
