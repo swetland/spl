@@ -7,9 +7,17 @@ fn validate_block(node Ast);
 var wsl u32;
 
 fn make_u32(node Ast) bool {
+	// positive i32s can become u32s safely:
 	if node.kind != AST_CONST { return false; }
 	if node.ival >= 0x80000000 { return false; }
 	node.type = ctx.type_u32;
+	return true;
+}
+fn make_i32(node Ast) bool {
+	// u32s with the high bit clear can become i32s safely:
+	if node.kind != AST_CONST { return false; }
+	if node.ival >= 0x80000000 { return false; }
+	node.type = ctx.type_i32;
 	return true;
 }
 
@@ -20,17 +28,13 @@ fn is_assignable(src Type, dst Type, snode Ast, fcall bool) bool {
 	var sk TypeKind = src.kind;
 	if dk == TYPE_U32 {
 		if sk == TYPE_U8   { return true; }
-		if sk == TYPE_I32  {
-			if make_u32(snode) { return true; }
-			WarnAtLoc(wsl, "unsafe i32 -> u32");
-			return true;
-		}
+		if sk == TYPE_I32  { if make_u32(snode) { return true; } }
 		if sk == TYPE_ENUM { return true; }
 		if sk == TYPE_BOOL { return true; }
 	}
 	if dk == TYPE_I32 {
 		if sk == TYPE_U8   { return true; }
-		if sk == TYPE_U32  { WarnAtLoc(wsl, "unsafe u32 -> i32"); return true; }
+		if sk == TYPE_U32  { if make_i32(snode) { return true; } }
 		if sk == TYPE_ENUM { return true; }
 		if sk == TYPE_BOOL { return true; }
 	}
@@ -269,6 +273,18 @@ fn validate_bool_unop(node Ast) {
 	validate_expr(node.left);
 }
 
+fn validate_cast(node Ast) {
+	var kind TypeKind = node.type.kind;
+
+	// TODO: more extensive rules
+	// TODO: sign extension, bool conversion, etc
+	if kind == TYPE_U32 { return; }
+	if kind == TYPE_I32 { return; }
+	if kind == TYPE_U8  { return; }
+
+	ErrorAt(node, "cannot cast @ to @").t(node.left.type).t(node.type);
+}
+
 fn validate_expr(node Ast) {
 	var kind AstKind = node.kind;
 	if kind == AST_CONST    { return; }
@@ -301,6 +317,7 @@ fn validate_expr(node Ast) {
 	if kind == AST_CALL     { return validate_call(node); }
 	if kind == AST_ASSIGN   { return validate_assign(node); }
 	if kind == AST_DEREF    { }
+	if kind == AST_CAST     { return validate_cast(node); }
 	if kind == AST_NEW      { return validate_new(node); }
 	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
 }

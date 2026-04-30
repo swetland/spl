@@ -165,7 +165,7 @@ fn phi_resolve(bb BasicBlock, phi Phi) {
 	}
 
 	var n i32 = 0;
-	var args []u32 = new([bb.count]u32);
+	var args []u32 = new([u32(bb.count)]u32);
 	var bl BlockList = bb.prev;
 	while bl != nil {
 		var val u32 = phi_lookup(bl.bb, phi.sym);
@@ -847,7 +847,7 @@ fn number_instructions(blist []*BasicBlock, bcount u32) u32 {
 	while bn < bcount {
 		var ins Inst = blist[bn].first;
 		while ins != nil {
-			ins.i = n;
+			ins.i = i32(n);
 			n++;
 			ins = ins.next;
 		}
@@ -934,7 +934,7 @@ fn finalize_fn(bl BlockVec) {
 	phis_to_insts(bl.data, bl.len);
 
 	// remove any instructions with unused results
-	var count i32 = 0;
+	var count u32 = 0;
 	var n u32 = 0;
 	while n < reg_next {
 		if reg_info[n].used == 0 {
@@ -946,7 +946,7 @@ fn finalize_fn(bl BlockVec) {
 		}
 		n++;
 	}
-	Warn("finalize: removed @ dead instructions").n(count);
+	Warn("finalize: removed @ dead instructions").u(count);
 
 	// at this point, count reginfo slots have a nil .inst
 

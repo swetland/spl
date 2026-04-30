@@ -399,6 +399,7 @@ fn gen_expr(node Ast) u32 {
 	if kind == AST_FIELD { return gen_field_load(node); }
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }
+	if kind == AST_CAST { return gen_expr(node.left); }
 	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
 	return 0;
 }

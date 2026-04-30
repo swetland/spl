@@ -44,7 +44,7 @@ fn (bs BitSet) isset(n u32) u32 {
 }
 
 fn (bs BitSet) set2(n u32) u32 {
-	var bit u32 = 1 << (n & 31);
+	var bit u32 = 1u << (n & 31);
 	n >>= 5;
 	var r u32 = bs.data[n] & bit;
 	bs.data[n] |= bit;

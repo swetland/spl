@@ -227,7 +227,21 @@ fn parse_unary_expr() Ast {
 		return parse_unary_expr();
 	} else if op == tMINUS {
 		next();
-		return ast_posn(ast_make_l(AST_NEG, parse_unary_expr()), posn);
+		var node Ast = parse_unary_expr();
+		if node.kind == AST_CONST {
+			if node.type == ctx.type_i32 {
+				node.ival = -node.ival;
+				return node;
+			} else if node.type == ctx.type_u32 {
+				if node.ival > 0x80000000u {
+					Error("impossible i32 value: -@").u(node.ival);
+				}
+				node.type = ctx.type_i32;
+				node.ival = -node.ival;
+				return node;
+			}
+		}
+		return ast_posn(ast_make_l(AST_NEG, node), posn);
 	} else if op == tBANG {
 		next();
 		return ast_posn(ast_make_l(AST_BOOL_NOT, parse_unary_expr()), posn);

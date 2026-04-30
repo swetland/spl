@@ -356,6 +356,7 @@ fn gen_expr(node Ast) u32 {
 	if kind == AST_FIELD { return gen_field_load(node); }
 	if kind == AST_CALL { return gen_call(node); }
 	if kind == AST_ASSIGN { return gen_assign(node); }
+	if kind == AST_CAST { return gen_expr(node.left); }
 	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
 	return 0;
 }
@@ -539,8 +540,8 @@ fn gen_fn(node Ast) {
 	setup_locals(node.left, 12);
 
 	// prologue
-	inst_stwi(REG_RA, REG_SP, -4);
-	inst_stwi(REG_FP, REG_SP, -8);
+	inst_stwi(REG_RA, REG_SP, u32(-4));
+	inst_stwi(REG_FP, REG_SP, u32(-8));
 	inst_movx(REG_FP, REG_SP);
 	inst_aluix(INS_SUB, REG_SP, REG_SP, 8);
 
@@ -558,8 +559,8 @@ fn gen_fn(node Ast) {
 	func_exit.place();
 	func_exit.activate_and_seal_prev();
 	func_exit.seal();
-	inst_ldwix(REG_RA, REG_FP, -4);
-	inst_ldwix(REG_FP, REG_FP, -8);
+	inst_ldwix(REG_RA, REG_FP, u32(-4));
+	inst_ldwix(REG_FP, REG_FP, u32(-8));
 	inst_aluix(INS_ADD, REG_SP, REG_SP, 8);
 	inst_ret(REG_RA);
 
