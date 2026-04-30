@@ -9,7 +9,7 @@ fn start() i32 {
 	}
 	n = 0;
 	while n < 8 {
-		_hexout_(data[n]);
+		_hexout_u(data[n]);
 		n++;
 	}
 	return n;

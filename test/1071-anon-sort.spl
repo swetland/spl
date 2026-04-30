@@ -27,7 +27,7 @@ fn cmpi32(a i32, b i32) i32 {
 fn print(A []i32, len i32) {
 	var n i32 = 0;
 	while n < len {
-		_hexout_(A[n]);
+		_hexout_i(A[n]);
 		n++;
 	}
 }

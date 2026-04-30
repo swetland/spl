@@ -270,7 +270,7 @@ var tnames []str = {
 struct SourceFile {
 	next *SourceFile,
 	name str,
-	id i32,
+	id u32,
 };
 
 // ================================================================
@@ -278,7 +278,7 @@ struct SourceFile {
 
 struct Context {
 	filelist *SourceFile,	// list of all source files
-	fileid i32,
+	fileid u32,
 
 	fd_in i32,		// current input file
 	linenumber u32,		// line number of most recent line

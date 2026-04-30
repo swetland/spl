@@ -34,7 +34,7 @@ struct RegCopy {
 	// result list of (nc) sequential copies to execute
 	copy []CopyPair,
 	nc i32,
-	max i32,
+	max u32,
 	tmp i32,
 };
 
@@ -49,7 +49,7 @@ fn (rc RegCopy) reset(tmp i32) {
 	rc.tmp = tmp;
 }
 
-fn RegCopy_make(max i32, tmp i32) RegCopy {
+fn RegCopy_make(max u32, tmp i32) RegCopy {
 	var rc RegCopy = new(RegCopy);
 	rc.todo = new([max]i32);
 	rc.avail = new([max]i32);
@@ -185,8 +185,8 @@ fn start() i32 {
 	rc.sequentialize();
 	var n i32 = 0;
 	while n < rc.nc {
-		_hexout_(rc.copy[n].src);
-		_hexout_(rc.copy[n].dst);
+		_hexout_i(rc.copy[n].src);
+		_hexout_i(rc.copy[n].dst);
 		n++;
 	}
 	return rc.nc;

@@ -379,7 +379,7 @@ fn parse_array_typeof() Type {
 
 fn parse_array_type() Type {
 	var type Type;
-	var nelem i32 = 0;
+	var nelem u32 = 0;
 	if ctx.tok == tCBRACK {
 		// TODO: slices
 		next();
@@ -387,7 +387,7 @@ fn parse_array_type() Type {
 	} else {
 		var node Ast = parse_expr();
 		nelem = eval_const_expr(node);
-		if nelem < 0 {
+		if nelem >= 0x80000000 {
 			Error("negative array size");
 		}
 		require(tCBRACK);
@@ -960,9 +960,20 @@ fn parse_fn() Ast {
 }
 
 fn parse_enum_def() {
+	var type Type = ctx.type_u32;
+
 	if ctx.tok == tIDN {
 		var name String = parse_name("enum name");
 		type_make(name, TYPE_ENUM, nil, nil, 0);
+
+		if ctx.tok == tIDN {
+			if ctx.ident == ctx.type_u32.name {
+				next();
+			} else if ctx.ident == ctx.type_i32.name {
+				type = ctx.type_i32;
+				next();
+			}
+		}
 	}
 
 	require(tOBRACE);
@@ -971,9 +982,9 @@ fn parse_enum_def() {
 		var name String = parse_name("enum tag name");
 		var sym Symbol = symbol_find(name);
 		if sym != nil {
-			Error("cannot redfine '@' as enum tag").s(name.text);
+			Error("cannot redefine '@' as enum tag").s(name.text);
 		}
-		sym = symbol_make_global(name, ctx.type_u32, SYMBOL_DEF, 0);
+		sym = symbol_make_global(name, type, SYMBOL_DEF, 0);
 		if ctx.tok == tASSIGN {
 			next();
 			sym.ival = eval_const_expr(parse_expr());

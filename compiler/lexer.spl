@@ -67,8 +67,8 @@ fn unhex(ch u32) u32 {
 
 fn scan() Token {
 	ctx.byteoffset++;
-	var ch i32 = readc(ctx.fd_in);
-	if ch < 0 {
+	var ch u32 = readc(ctx.fd_in);
+	if ch == 0xffffffff {
 		ctx.cc = 0;
 	} else {
 		ctx.cc = ch;
@@ -319,7 +319,7 @@ fn printstr(fd i32, s str) {
 fn print_srcloc(fd i32, loc u32) {
 	writes(fd, ctx_find_source_file(loc >> 20));
 	writes(fd, ": ");
-	writei(fd, loc & 0x000FFFFF);
+	writeu(fd, loc & 0x000FFFFF);
 }
 
 fn srcloc_line(loc u32) u32 {

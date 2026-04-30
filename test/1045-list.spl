@@ -6,7 +6,7 @@ struct Node {
 
 fn print(node Node) {
 	while node != nil {
-		_hexout_(node.value);
+		_hexout_i(node.value);
 		node = node.next;
 	}
 }

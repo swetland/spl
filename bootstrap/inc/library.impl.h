@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void fn__hexout_(t$i32 x);
+void fn__hexout_i(t$i32 x);
+void fn__hexout_u(t$u32 x);
 
 void fn_write(t$i32 fd, t$str, t$u32 off, t$u32 len);
 void fn_writes(t$i32 fd, t$str s);

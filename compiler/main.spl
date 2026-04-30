@@ -37,7 +37,7 @@ fn print_type(fd i32, type Type) {
 			type = type.of;
 		} else if type.kind == TYPE_ARRAY {
 			writes(fd, "[");
-			if type.count { writei(fd, type.count); }
+			if type.count { writeu(fd, type.count); }
 			writes(fd, "]");
 			type = type.of;
 		} else if type.kind == TYPE_FN {
@@ -202,7 +202,7 @@ fn start() i32 {
 	}
 
 	if stats {
-		var gsc i32 = 0;
+		var gsc u32 = 0;
 		var sym Symbol = ctx.global.first;
 		while sym != nil {
 			sym = sym.next;

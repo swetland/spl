@@ -10,7 +10,7 @@ var reg_info []RegInfo;
 var reg_next u32 = 0;
 
 // obtain a fresh virtual register
-fn ir_reg_get() i32 {
+fn ir_reg_get() u32 {
 	var r u32 = reg_next;
 	reg_next++;
 	reg_info[r].used = 0;
@@ -46,8 +46,8 @@ struct BlockList {
 };
 
 struct BlockVec {
-	len i32,
-	cap i32,
+	len u32,
+	cap u32,
 	data []*BasicBlock,
 };
 
@@ -105,7 +105,7 @@ enum BBFlags {
 };
 
 // TODO alloc at runtime, reduce program size, allow for growth
-var bb_next_id i32 = 0;
+var bb_next_id u32 = 0;
 var bb_idx []*BasicBlock;
 
 var bb_order BlockVec;
@@ -132,8 +132,8 @@ fn (phi Phi) is_trivial() bool {
 	return true;
 }
 
-fn phis_to_insts(blist []*BasicBlock, bcount i32) {
-	var bn i32 = 0;
+fn phis_to_insts(blist []*BasicBlock, bcount u32) {
+	var bn u32 = 0;
 	while bn < bcount {
 		var bb BasicBlock = blist[bn];
 		var phi Phi = bb.phi;
@@ -483,7 +483,7 @@ fn inst_make_imm(i Inst, val u32) {
 	i.c = val;
 }
 
-fn b2i32(cond bool) i32 {
+fn b2u32(cond bool) u32 {
 	if cond { return 1; }
 	return 0;
 }
@@ -613,12 +613,12 @@ fn inst_simplify(i Inst) bool {
 	if op == INS_OR  { inst_make_mov(i, valb | valc); return false; }
 	if op == INS_XOR { inst_make_mov(i, valb ^ valc); return false; }
 
-	if op == INS_CMP_EQ { inst_make_mov(i, b2i32(valb == valc)); return false; }
-	if op == INS_CMP_NE { inst_make_mov(i, b2i32(valb != valc)); return false; }
-	if op == INS_CMP_LT { inst_make_mov(i, b2i32(valb < valc)); return false; }
-	if op == INS_CMP_LE { inst_make_mov(i, b2i32(valb <= valc)); return false; }
-	if op == INS_CMP_GT { inst_make_mov(i, b2i32(valb > valc)); return false; }
-	if op == INS_CMP_GE { inst_make_mov(i, b2i32(valb >= valc)); return false; }
+	if op == INS_CMP_EQ { inst_make_mov(i, b2u32(valb == valc)); return false; }
+	if op == INS_CMP_NE { inst_make_mov(i, b2u32(valb != valc)); return false; }
+	if op == INS_CMP_LT { inst_make_mov(i, b2u32(valb < valc)); return false; }
+	if op == INS_CMP_LE { inst_make_mov(i, b2u32(valb <= valc)); return false; }
+	if op == INS_CMP_GT { inst_make_mov(i, b2u32(valb > valc)); return false; }
+	if op == INS_CMP_GE { inst_make_mov(i, b2u32(valb >= valc)); return false; }
 	return false;
 }
 
@@ -729,9 +729,9 @@ fn (bb BasicBlock) replace_prev(oldp BasicBlock, newp BasicBlock) {
 // merge blocks if possible
 fn cleanup_blocks(bl BlockVec) {
 	var blist []*BasicBlock = bl.data;
-	var bcount i32 = bl.len;
+	var bcount u32 = bl.len;
 
-	var bn i32 = 0;
+	var bn u32 = 0;
 	while bn < bcount {
 		var bb BasicBlock = blist[bn];
 		bn++;
@@ -778,7 +778,7 @@ fn cleanup_blocks(bl BlockVec) {
 
 	// remove any dead blocks from the list
 	bn = 0;
-	var n i32 = 0;
+	var n u32 = 0;
 	while bn < bcount {
 		if !(blist[bn].flags & BB_DEAD) {
 			blist[n] = blist[bn];
@@ -841,9 +841,9 @@ fn split_critical_edges(bl BlockList) {
 	}
 }
 
-fn number_instructions(blist []*BasicBlock, bcount i32) i32 {
-	var n i32 = 0;
-	var bn i32 = 0;
+fn number_instructions(blist []*BasicBlock, bcount u32) u32 {
+	var n u32 = 0;
+	var bn u32 = 0;
 	while bn < bcount {
 		var ins Inst = blist[bn].first;
 		while ins != nil {
@@ -880,7 +880,7 @@ fn dump_live_set(tag str, live BitSet) {
 }
 
 // prereq: instructions must be numbered
-fn compute_live_ranges(blist []*BasicBlock, bcount i32, nr u32) {
+fn compute_live_ranges(blist []*BasicBlock, bcount u32, nr u32) {
 	while bcount > 0 {
 		bcount--;
 		var bb BasicBlock = blist[bcount];
@@ -921,8 +921,8 @@ fn comparerange(a Inst, b Inst) i32 {
 }
 
 // TODO: make this nondestructive so we can do it
-fn dump_ir(os OutStream, blist []*BasicBlock, bcount i32,
-	ni i32, ranges []*Inst, nranges i32);
+fn dump_ir(os OutStream, blist []*BasicBlock, bcount u32,
+	ni u32, ranges []*Inst, nranges u32);
 
 fn finalize_fn(bl BlockVec) {
 	cleanup_blocks(bl);
@@ -950,7 +950,7 @@ fn finalize_fn(bl BlockVec) {
 
 	// at this point, count reginfo slots have a nil .inst
 
-	var ni i32 = number_instructions(bl.data, bl.len);
+	var ni u32 = number_instructions(bl.data, bl.len);
 
 	compute_live_ranges(bl.data, bl.len, reg_next);
 
@@ -986,16 +986,16 @@ fn fill(s str, c i32) {
 	}
 }
 
-fn dump_ir(os OutStream, blist []*BasicBlock, bcount i32,
-	ni i32, ranges []*Inst, nranges i32) {
+fn dump_ir(os OutStream, blist []*BasicBlock, bcount u32,
+	ni u32, ranges []*Inst, nranges u32) {
 	// start with a blank chart register count wide
 	// and instruction count tall
 	var art []str = new([ni]str);
 
-	var n i32 = 0;
+	var n u32 = 0;
 	while n < ni {
 		var s str = new([nranges + 1]u8);
-		var i i32 = 0;
+		var i u32 = 0;
 		while i < nranges {
 			s[i] = ' ';
 			i++;
@@ -1021,7 +1021,7 @@ fn dump_ir(os OutStream, blist []*BasicBlock, bcount i32,
 	// for each instruction, write
 	// lineno + chart line + disassembly
 	n = 0;
-	var bn i32 = 0;
+	var bn u32 = 0;
 	while bn < bcount {
 		var i Inst = blist[bn].first;
 		while i != nil {
@@ -1092,7 +1092,7 @@ fn dump_bb(os OutStream, bb BasicBlock) {
 }
 
 fn dump_bb_list(os OutStream, bl BlockVec) {
-	var bn i32 = 0;
+	var bn u32 = 0;
 	while bn < bl.len {
 		dump_bb(os, bl.data[bn]);
 		bn++;
@@ -1100,18 +1100,18 @@ fn dump_bb_list(os OutStream, bl BlockVec) {
 }
 
 // tools to serialize BasicBlocks and DataChunks
-var global_ic i32 = 0;
+var global_ic u32 = 0;
 
 // at multiple stages of optimization, etc
 fn serialize_fn(fd i32, bl BlockVec) {
 	var blist []*BasicBlock = bl.data;
-	var bcount i32 = bl.len;
-	var bn i32 = 0;
+	var bcount u32 = bl.len;
+	var bn u32 = 0;
 	// count the fn header as an instruction, since it'll be
 	// transformed into one on load, but don't include it
 	// in the count
 	global_ic++;
-	var n i32 = global_ic;
+	var n u32 = global_ic;
 	while bn < bcount {
 		var inst Inst = blist[bn].first;
 		// record the instruction number in each block's label
@@ -1161,7 +1161,7 @@ fn serialize_cdata(fd i32) {
 	var sz u32 = (sdata_size + 3) &^ 3;
 	writeu32(fd, TAG_IR_DATA);
 	writeu32(fd, sz >> 2);
-	writeu32(fd, -1);
+	writeu32(fd, 0xffffffff);
 	writeu32(fd, 0);
 	var sd StringData = sdata_first;
 	while sd != nil {

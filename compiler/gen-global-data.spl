@@ -83,7 +83,7 @@ fn emit_data_chunks() {
 }
 
 fn gen_global_addrs(node Ast) {
-	var n i32 = 0;
+	var n u32 = 0;
 	while node != nil {
 		if node.kind == AST_ASSIGN {
 			var sym Symbol = node.left.sym;
@@ -114,7 +114,7 @@ fn gen_global_array_init(node Ast) u32 {
 	}
 	var dc DataChunk = make_data_chunk(kind, sz);
 	node = node.left;
-	var n i32 = 0;
+	var n u32 = 0;
 	while node != nil {
 		//TODO: advance by stride
 		if kind == DATA_PTR {
@@ -130,7 +130,7 @@ fn gen_global_array_init(node Ast) u32 {
 
 fn gen_global_data(all Ast) {
 	var node Ast = all;
-	var n i32 = 0;
+	var n u32 = 0;
 	while node != nil {
 		if node.kind == AST_ASSIGN {
 			n++;
@@ -156,7 +156,7 @@ fn gen_global_data(all Ast) {
 			} else if node.right.kind == AST_ASSIGN {
 				ErrorAt(node, "global struct init unsupported");
 			} else {
-				var val i32 = eval_const_expr(node.right);
+				var val u32 = eval_const_expr(node.right);
 				write_data_chunk(dc, n, val, false);
 			}
 			n++;

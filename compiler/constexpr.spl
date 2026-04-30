@@ -1,12 +1,14 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-fn eval_const_expr(node Ast) i32;
+//TODO: ensure i32 types are processed correctly
 
-fn eval_const_binop(node Ast) i32 {
+fn eval_const_expr(node Ast) u32;
+
+fn eval_const_binop(node Ast) u32 {
 	var kind AstKind = node.kind;
-	var a i32 = eval_const_expr(node.left);
-	var b i32 = eval_const_expr(node.right);
+	var a u32 = eval_const_expr(node.left);
+	var b u32 = eval_const_expr(node.right);
 
 	if kind == AST_ADD { return a + b; }
 	if kind == AST_SUB { return a - b; }
@@ -29,8 +31,8 @@ fn eval_const_binop(node Ast) i32 {
 	return 0;
 }
 
-fn eval_const_expr(node Ast) i32 {
-	var kind i32 = node.kind;
+fn eval_const_expr(node Ast) u32 {
+	var kind AstKind = node.kind;
 	if kind == AST_CONST {
 		return node.ival;
 	}

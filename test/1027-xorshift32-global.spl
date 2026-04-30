@@ -13,7 +13,7 @@ fn xorshift32() u32 {
 fn start() i32 {
 	var n i32 = 0;
 	while (n < 64) {
-		_hexout_(xorshift32());
+		_hexout_u(xorshift32());
 		n++;
 	}
 	return 64;

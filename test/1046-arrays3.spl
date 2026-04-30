@@ -9,8 +9,8 @@ fn start() i32 {
 	d.x = 42;
 	d.n[0] = 1;
 	d.n[9] = 10;
-	_hexout_(d.n[0]);
-	_hexout_(d.n[1]);
-	_hexout_(d.n[9]);
+	_hexout_u(d.n[0]);
+	_hexout_u(d.n[1]);
+	_hexout_u(d.n[9]);
 	return 0;
 }

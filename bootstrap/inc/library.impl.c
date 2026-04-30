@@ -4,7 +4,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-void fn__hexout_(int x) {
+void fn__hexout_i(int x) {
+	printf("D %08x\n", x);
+}
+
+void fn__hexout_u(unsigned x) {
 	printf("D %08x\n", x);
 }
 

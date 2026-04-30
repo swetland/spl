@@ -15,8 +15,8 @@ fn add(a Point, b Point) {
 }
 
 fn print(p Point) {
-	_hexout_(p.x);
-	_hexout_(p.y);
+	_hexout_i(p.x);
+	_hexout_i(p.y);
 }
 
 var p0 Point = { x: 45, y: 17 };
@@ -30,12 +30,12 @@ var line Line = {
 // var p2 struct { x i32, y i32, } = { x: 7, y: 6 };
 
 fn start() i32 {
-	_hexout_(p0.x);
-	_hexout_(p0.y);
+	_hexout_i(p0.x);
+	_hexout_i(p0.y);
 	p0.x = 123;
 	p0.y = 456;
-	_hexout_(p0.x);
-	_hexout_(p0.y);
+	_hexout_i(p0.x);
+	_hexout_i(p0.y);
 	add(p1, p0);
 	print(p1);
 	add(p1, p0);
@@ -44,7 +44,7 @@ fn start() i32 {
 	z.x = 0x10203040;
 	z.y = 0x50607080;
 	print(z);
-	_hexout_(z.x);
-	_hexout_(z.y);
+	_hexout_i(z.x);
+	_hexout_i(z.y);
 	return 0;
 }

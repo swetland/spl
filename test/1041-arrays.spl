@@ -7,7 +7,7 @@ var data [8]u8 = { 0x10, 0x20, 0x30, 0x40,
 fn dump(x [8]u8) {
 	var n i32 = 0;
 	while (n < 8) {
-		_hexout_(x[n]);
+		_hexout_u(x[n]);
 		n++;
 	}
 }
@@ -16,11 +16,11 @@ fn start() i32 {
 	var n u32 = 0;
 	var m u32 = 0;
 	while (n < 8) {
-		_hexout_(numbers[n]);
+		_hexout_u(numbers[n]);
 		m = m + numbers[n];
 		n++;
 	}
-	_hexout_(m);
+	_hexout_u(m);
 	dump(data);
 	return n;
 }

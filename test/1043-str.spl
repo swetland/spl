@@ -12,7 +12,7 @@ fn strlen(x str) i32 {
 fn dump(x str, xlen i32) {
 	var n i32 = 0;
 	while n < xlen {
-		_hexout_(x[n]);
+		_hexout_u(x[n]);
 		n++;
 	}
 }

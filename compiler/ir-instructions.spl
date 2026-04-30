@@ -195,7 +195,7 @@ struct BasicBlock {
 };
 
 // obtain a fresh virtual register
-fn ir_reg_get() i32;
+fn ir_reg_get() u32;
 
 // trade strings for global IDs and IDs for strings
 fn ir_string_get(name String) u32;
@@ -370,7 +370,7 @@ fn (os OutStream) reg(id u32) OutStream {
 	} else {
 		// virtual register
 		writec(os.fd, '%');
-		writei(os.fd, n);
+		writeu(os.fd, n);
 	}
 	os_advance(os);
 	return os;
@@ -388,7 +388,7 @@ fn (os OutStream) arg(n u32, op u32) OutStream {
 
 fn (os OutStream) label(n u32) OutStream {
 	writes(os.fd, "bb.");
-	writei(os.fd, n);
+	writeu(os.fd, n);
 	os_advance(os);
 	return os;
 }

@@ -51,7 +51,7 @@ fn get_reg() u32 {
 
 fn put_reg(n u32) {
 	if n != 0 {
-		n = 1 << (n - FirstTmpReg);
+		n = 1u << (n - FirstTmpReg);
 		if (tmp_mask & n) == 0 {
 			Error("freeing unallocated temporary register @").u(n);
 		}
@@ -600,8 +600,8 @@ fn gen_global_inits(node Ast) {
 			} else if node.right.kind == AST_ASSIGN {
 				ErrorAt(node, "global struct init unsupported");
 			} else {
-				var val i32 = eval_const_expr(node.right);
-				emit("    .word @ // @\n").n(val).s(sym.name.text);
+				var val u32 = eval_const_expr(node.right);
+				emit("    .word @ // @\n").u(val).s(sym.name.text);
 			}
 		}
 		node = node.next;

@@ -151,10 +151,10 @@ fn md5_pattern(m MD5, i u32) {
 	}
 	md5_sum(m, ptn, i);
 	md5_fini(m);
-	_hexout_(m.hash[0]);
-	_hexout_(m.hash[1]);
-	_hexout_(m.hash[2]);
-	_hexout_(m.hash[3]);
+	_hexout_u(m.hash[0]);
+	_hexout_u(m.hash[1]);
+	_hexout_u(m.hash[2]);
+	_hexout_u(m.hash[3]);
 }
 
 fn start() i32 {
@@ -163,10 +163,10 @@ fn start() i32 {
 	md5_init(m);
 	md5_sum(m, "The quick brown fox jumps over the lazy dog", 43);
 	md5_fini(m);
-	_hexout_(m.hash[0]);
-	_hexout_(m.hash[1]);
-	_hexout_(m.hash[2]);
-	_hexout_(m.hash[3]);
+	_hexout_u(m.hash[0]);
+	_hexout_u(m.hash[1]);
+	_hexout_u(m.hash[2]);
+	_hexout_u(m.hash[3]);
 
 	md5_pattern(m, 64);
 	md5_pattern(m, 128);

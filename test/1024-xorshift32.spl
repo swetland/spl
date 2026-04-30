@@ -13,7 +13,7 @@ fn start() i32 {
 	var n i32 = 0;
 	while (n < 64) {
 		state = xorshift32(state);
-		_hexout_(state);
+		_hexout_u(state);
 		n++;
 	}
 	return 64;

@@ -1,37 +1,37 @@
 
 fn is_three(n i32) i32 {
-	_hexout_(0x333);
+	_hexout_i(0x333);
 	return n == 3;
 }
 fn is_six(n i32) i32 {
-	_hexout_(0x666);
+	_hexout_i(0x666);
 	return n == 6;
 }
 fn is_nine(n i32) i32 {
-	_hexout_(0x999);
+	_hexout_i(0x999);
 	return n == 9;
 }
 
 fn or_test2(n i32) {
 	if (is_three(n) || is_six(n) || is_nine(n)) {
-		_hexout_(n | 0x1100);
+		_hexout_i(n | 0x1100);
 	} else {
-		_hexout_(n | 0x2200);
+		_hexout_i(n | 0x2200);
 	}
 }
 
 fn or_test(n i32) {
 	if (n == 3 || n == 6 || n == 9) {
-		_hexout_(n | 0x100);
+		_hexout_i(n | 0x100);
 	} else {
-		_hexout_(n | 0x200);
+		_hexout_i(n | 0x200);
 	}
 }
 fn and_test(n i32) {
 	if ((n & 1 == 1) && (n & 2 == 2) && (n < 8)) {
-		_hexout_(n | 0x300);
+		_hexout_i(n | 0x300);
 	} else {
-		_hexout_(n | 0x400);
+		_hexout_i(n | 0x400);
 	}
 }
 
@@ -51,9 +51,9 @@ fn start() i32 {
 		and_test(n);
 		n = n + 1;
 	}
-	_hexout_(!true);
-	_hexout_(!false);
-	_hexout_(!42);
+	_hexout_i(!true);
+	_hexout_i(!false);
+	_hexout_i(!42);
 	return 0x42;
 }
 

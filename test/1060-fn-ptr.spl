@@ -19,16 +19,16 @@ fn nth(a []i32, n i32) i32 {
 fn start() i32 {
 	var z fn([]i32, i32) i32 = nth;
 
-	_hexout_(add(1, 2));
+	_hexout_i(add(1, 2));
 
 	var f fn(a i32, b i32) i32 = add;
-	_hexout_(f(77, 33));
+	_hexout_i(f(77, 33));
 
 	var foo Foo = new(Foo);
 	foo.i = 123;
 	foo.f = add;
-	_hexout_(foo.f(17, 23));
+	_hexout_i(foo.f(17, 23));
 
-	_hexout_(call(add, 123, 456));
+	_hexout_i(call(add, 123, 456));
 	return 1;
 }

@@ -1,6 +1,6 @@
 fn start() i32 {
-	_hexout_(0x10203040);
-	_hexout_(0xcafef00d);
-	_hexout_(-1);
+	_hexout_u(0x10203040);
+	_hexout_u(0xcafef00d);
+	_hexout_i(-1);
 	return 0;
 }

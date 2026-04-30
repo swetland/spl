@@ -415,7 +415,8 @@ int32_t load(State *s, const char *fn) {
 	for (n = 0; n < s->gmax; n++) {
 		if (!strcmp(s->gname[n],"start")) start = gentry[n];
 		if (gentry[n] < 0) {
-			if (!strcmp(s->gname[n],"_hexout_")) gentry[n] = MAGIC_HEXOUT;
+			if (!strcmp(s->gname[n],"_hexout_i")) gentry[n] = MAGIC_HEXOUT;
+			if (!strcmp(s->gname[n],"_hexout_u")) gentry[n] = MAGIC_HEXOUT;
 			if (!strcmp(s->gname[n],"__new")) gentry[n] = MAGIC_ALLOC;
 		}
 	}

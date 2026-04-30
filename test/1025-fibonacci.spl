@@ -10,7 +10,7 @@ fn fib(n i32) i32 {
 fn start() i32 {
 	var n i32 = 0;
 	while n < 24 {
-		_hexout_(fib(n));
+		_hexout_i(fib(n));
 		n++;
 	}
 	return 7;

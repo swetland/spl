@@ -5,14 +5,14 @@ fn start() i32 {
 		var i i32 = 0;
 		while i < 3 {
 			var t i32 = n * i;
-			_hexout_(t);
+			_hexout_i(t);
 			i++;
 		}
 		if n == 7 {
 			var j i32 = n << 4;
-			_hexout_(j);
+			_hexout_i(j);
 		}
-		_hexout_(n);
+		_hexout_i(n);
 		n++;
 	}
 	return 5;

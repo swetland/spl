@@ -4,7 +4,7 @@ var msg str = "1044-str-consts.spl";
 fn dump(x str, len i32) {
 	var n i32 = 0;
 	while n < len {
-		_hexout_(x[n]);
+		_hexout_u(x[n]);
 		n++;
 	}
 }

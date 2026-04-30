@@ -1,2 +1,3 @@
 
-fn _hexout_(n u32);
+fn _hexout_i(n i32);
+fn _hexout_u(n u32);

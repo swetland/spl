@@ -1,5 +1,5 @@
 fn hex(n i32) {
-	_hexout_(n);
+	_hexout_i(n);
 }
 
 fn count(n i32) {
@@ -18,7 +18,7 @@ fn count_even(n i32) {
 		if ((n & 1) == 1) {
 			continue;
 		}
-		_hexout_(n);
+		_hexout_i(n);
 	}
 }
 

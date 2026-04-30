@@ -3,8 +3,8 @@ fn start() i32 {
 	var a [10]u32 = new([10]u32);
 	a[0] = 1;
 	a[9] = 10;
-	_hexout_(a[0]);
-	_hexout_(a[1]);
-	_hexout_(a[9]);
+	_hexout_u(a[0]);
+	_hexout_u(a[1]);
+	_hexout_u(a[9]);
 	return 0;
 }
