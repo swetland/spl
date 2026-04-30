@@ -155,6 +155,16 @@ int sys_fd_writei(uint32_t _fd, int32_t n) {
 	}
 }
 
+int sys_fd_writeu(uint32_t _fd, uint32_t n) {
+	char tmp[64];
+	int len = sprintf(tmp, "%u", n);
+	if (write(map_fd(_fd), tmp, len) == len) {
+		return 0;
+	} else {
+		return -1;
+	}
+}
+
 int sys_fd_writex(uint32_t _fd, uint32_t n) {
 	char tmp[64];
 	int len = sprintf(tmp, "0x%x", n);
@@ -215,6 +225,7 @@ static inline uint32_t _do_syscall(uint32_t sp, uint32_t n) {
 	case 0x207: return sys_fd_writex(ARG(0), ARG(1));
 	case 0x208: return sys_fd_write(ARG(0), ARG(1), ARG(2), ARG(3));
 	case 0x209: return sys_fd_writeu32(ARG(0), ARG(1));
+	case 0x20a: return sys_fd_writeu(ARG(0), ARG(1));
 	case 0x300: return sys_alloc(ARG(0));
 	case 0x301: return heap_alloc_count;
 	case 0x302: return heap_alloc_bytes;
