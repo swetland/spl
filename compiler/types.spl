@@ -242,7 +242,7 @@ enum Token {
 	tBREAK, tCONTINUE, tRETURN,
 	tFOR, tSWITCH, tCASE,
 	tTRUE, tFALSE, tNIL,
-	tIDN, tNUM, tSTR,
+	tIDN, tNUM, tUNUM, tSTR,
 	// used internal to the lexer but never returned
 	tSPC, tINV, tQUOTE, tTICK,
 };
@@ -262,7 +262,7 @@ var tnames []str = {
 	"break", "continue", "return",
 	"for", "switch", "case",
 	"true", "false", "nil",
-	"<ID>", "<NUM>", "<STR>",
+	"<ID>", "<NUM>", "<UNUM>", "<STR>",
 	"<SPC>", "<INV>", "<DQT>", "<SQT>", "<MSC>",
 };
 

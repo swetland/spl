@@ -52,7 +52,7 @@ var lextab [256]u8 = {
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 };
 
-fn unhex(ch u32) i32 {
+fn unhex(ch u32) u32 {
 	if (ch >= '0') && (ch <= '9') {
 		return ch - '0';
 	}
@@ -62,7 +62,7 @@ fn unhex(ch u32) i32 {
 	if (ch >= 'A') && (ch <= 'F') {
 		return ch - 'A' + 10;
 	}
-	return -1;
+	return 255;
 }
 
 fn scan() Token {
@@ -92,7 +92,7 @@ fn unescape(n u32) u32 {
 	} else if n == 'x' {
 		var x0 u32 = unhex(scan());
 		var x1 u32 = unhex(scan());
-		if (x0 < 0) || (x1 < 0) {
+		if (x0 == 255) || (x1 == 255) {
 			Error("invalid hex escape");
 		}
 		return (x0 << 4) | x1;
@@ -174,8 +174,8 @@ fn scan_number(cc u32, nc u32) Token {
 	} else if (cc == '0') && (nc == 'x') { // hex
 		nc = scan();
 		while true {
-			var tmp i32 = unhex(nc);
-			if tmp == -1 {
+			var tmp u32 = unhex(nc);
+			if tmp == 255 {
 				break;
 			}
 			val = (val << 4) | tmp;
@@ -197,6 +197,10 @@ fn scan_number(cc u32, nc u32) Token {
 		}
 	}
 	ctx.num = val;
+	if (nc == 'u') || (nc == 'U') {
+		nc = scan();
+		return tUNUM;
+	}
 	return tNUM;
 }
 

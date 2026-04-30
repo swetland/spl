@@ -183,6 +183,12 @@ fn parse_primary_expr() Ast {
 	var node Ast;
 	if ctx.tok == tNUM {
 		node = ast_make_const(ctx.num, ctx.type_i32);
+		if ctx.num & 0x80000000 {
+			node.type = ctx.type_u32;
+		}
+		next();
+	} else if ctx.tok == tUNUM {
+		node = ast_make_const(ctx.num, ctx.type_u32);
 		next();
 	} else if ctx.tok == tSTR {
 		node = ast_make_simple(AST_STRING, 0);
@@ -278,6 +284,7 @@ fn parse_and_expr() Ast {
 		while ctx.tok == tAND {
 			next();
 			node = ast_posn(ast_make_lr(AST_BOOL_AND, node, parse_rel_expr()), posn);
+			node.type = ctx.type_bool;
 		}
 	}
 	return node;
@@ -290,6 +297,7 @@ fn parse_expr() Ast {
 		while ctx.tok == tOR {
 			next();
 			node = ast_posn(ast_make_lr(AST_BOOL_OR, node, parse_and_expr()), posn);
+			node.type = ctx.type_bool;
 		}
 	}
 	return node;
@@ -320,7 +328,7 @@ fn parse_struct_type(name String) Type {
 			Error("cannot redefine struct '@'").s(name.text);
 		}
 	};
-	var off i32 = 0;
+	var off u32 = 0;
 	var ptr bool = false;
 	scope_push(SCOPE_STRUCT);
 	require(tOBRACE);
