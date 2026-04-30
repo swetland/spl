@@ -113,11 +113,11 @@ fn dump_ast_node(fd i32, node Ast, indent i32) {
 
 fn dump_type(os OutStream, type Type) {
 	if type.kind == TYPE_FN { return; }
-	FmtLn(os,"@: sz=@").t(type).n(type_size(type));
+	FmtLn(os,"@: sz=@").t(type).u(type_size(type));
 	if type.kind == TYPE_STRUCT {
 		var sym Symbol = type.list;
 		while sym != nil {
-			FmtLn(os, "    @: @ off=@").s(sym.name.text).t(sym.type).n(sym.ival);
+			FmtLn(os, "    @: @ off=@").s(sym.name.text).t(sym.type).u(sym.ival);
 			sym = sym.next;
 		}
 	}
@@ -192,6 +192,7 @@ fn start() i32 {
 		ctx.fd_in = -1;
 	}
 
+	ctx_set_source_file("END-OF-LINE");
 	if astfd != -1 {
 		dump_ast_node(astfd, ctx.program.left, -1);
 		writes(astfd, "\n");
@@ -208,17 +209,17 @@ fn start() i32 {
 			sym = sym.next;
 			gsc++;
 		}
-		FmtLn(err, "alloc count:  @").n(sys_get_alloc_count());
-		FmtLn(err, "alloc bytes:  @").n(sys_get_alloc_bytes());
-		FmtLn(err, "alloc string: @").n(__alloc_string);
-		FmtLn(err, "alloc scope:  @").n(__alloc_scope);
-		FmtLn(err, "alloc symbol: @").n(__alloc_symbol);
-		FmtLn(err, "alloc type:   @").n(__alloc_type);
-		FmtLn(err, "alloc node:   @").n(__alloc_node);
-		FmtLn(err, "find string:  @").n(__lookup_string);
-		FmtLn(err, "find symbol:  @").n(__lookup_symbol);
-		FmtLn(err, "find global:  @").n(__lookup_global);
-		FmtLn(err, "global syms:  @").n(gsc);
+		FmtLn(err, "alloc count:  @").u(sys_get_alloc_count());
+		FmtLn(err, "alloc bytes:  @").u(sys_get_alloc_bytes());
+		FmtLn(err, "alloc string: @").u(__alloc_string);
+		FmtLn(err, "alloc scope:  @").u(__alloc_scope);
+		FmtLn(err, "alloc symbol: @").u(__alloc_symbol);
+		FmtLn(err, "alloc type:   @").u(__alloc_type);
+		FmtLn(err, "alloc node:   @").u(__alloc_node);
+		FmtLn(err, "find string:  @").u(__lookup_string);
+		FmtLn(err, "find symbol:  @").u(__lookup_symbol);
+		FmtLn(err, "find global:  @").u(__lookup_global);
+		FmtLn(err, "global syms:  @").u(gsc);
 	}
 	return 0;
 }

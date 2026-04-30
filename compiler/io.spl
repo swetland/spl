@@ -60,6 +60,12 @@ fn (os OutStream) n(n i32) OutStream {
 	return os;
 }
 
+fn (os OutStream) u(n u32) OutStream {
+	writeu(os.fd, n);
+	os_advance(os);
+	return os;
+}
+
 fn (os OutStream) x(n u32) OutStream {
 	writex(os.fd, n);
 	os_advance(os);

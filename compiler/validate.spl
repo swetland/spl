@@ -4,6 +4,8 @@
 fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
+var wsl u32;
+
 //TODO: should bool convert to 0/1 value?
 fn is_assignable(src Type, dst Type, fcall bool) bool {
 	if types_match(src, dst, fcall) { return true; }
@@ -17,11 +19,13 @@ fn is_assignable(src Type, dst Type, fcall bool) bool {
 	}
 	if dk == TYPE_I32 {
 		if sk == TYPE_U8   { return true; }
-		if sk == TYPE_U32  { return true; }
+		if sk == TYPE_U32  { WarnAtLoc(wsl, "unsafe u32 -> i32"); return true; }
 		if sk == TYPE_ENUM { return true; }
 		if sk == TYPE_BOOL { return true; }
 	}
 	if dk == TYPE_U8 {
+		//if sk == TYPE_I32  { WarnAtLoc(wsl, "trunc i32 -> u8"); return true; }
+		//if sk == TYPE_U32  { WarnAtLoc(wsl, "trunc u32 -> u8"); return true; }
 		if sk == TYPE_I32  { return true; }
 		if sk == TYPE_U32  { return true; }
 		if sk == TYPE_ENUM { return true; }
@@ -58,18 +62,19 @@ fn is_assignable(src Type, dst Type, fcall bool) bool {
 }
 
 fn fn_check_args(node Ast, type Type, arg Ast) {
-	var n i32 = 0;
+	var n u32 = 0;
 	var param Symbol = type.list;
 	ctx.anonmap = nil;
 	while arg != nil {
 		if param == nil {
 			ErrorAt(node, "too many arguments in fncall (@/@)")
-				.n(n + 1).n(type.count);
+				.u(n + 1).u(type.count);
 		}
 		validate_expr(arg);
+		wsl = arg.srcloc;
 		if !is_assignable(arg.type, param.type, true) {
-			ErrorAtSrcLoc(arg.srcloc, "arg @: cannot assign @ to @")
-				.n(n).t(arg.type).t(param.type);
+			ErrorAtLoc(arg.srcloc, "arg @: cannot assign @ to @")
+				.u(n).t(arg.type).t(param.type);
 		}
 		arg = arg.next;
 		param = param.next;
@@ -77,7 +82,7 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 	}
 	if param != nil {
 		ErrorAt(node, "too few arguments in fncall (@/@)")
-			.n(n).n(type.count);
+			.u(n).u(type.count);
 	}
 }
 
@@ -115,6 +120,7 @@ fn validate_assign(node Ast) {
 	var right Ast = node.right;
 	validate_lhs(left);
 	validate_expr(right);
+	wsl = node.srcloc;
 	if !is_assignable(right.type, left.type, false) {
 		if (right.type.kind == TYPE_ARRAY)
 			&& (left.type.kind == TYPE_POINTER)
@@ -160,6 +166,9 @@ fn validate_new(node Ast) {
 	node.kind = AST_CALL;
 	node.left = ast_make_symbol(symbol_find(ctx.str_new_fn));
 	node.right = szarg;
+	// patch a reasonable source location into the new nodes
+	szarg.srcloc = node.srcloc;
+	node.left.srcloc = node.srcloc;
 	// validate the transformed node as a fn call
 	return validate_call(node);
 }

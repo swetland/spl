@@ -61,10 +61,10 @@ fn write_data_chunk(dc DataChunk, idx u32, val u32, is_ptr bool) {
 }
 
 fn make_string_chunk(s str) u32 {
-	var len i32 = strlen(s);
+	var len u32 = strlen(s);
 	// include terminator \0
 	var dc DataChunk = make_data_chunk(DATA_U8, len + 1);
-	var n i32 = 0;
+	var n u32 = 0;
 	while n < len {
 		write_data_chunk(dc, n, s[n], false);
 		n++;
@@ -95,13 +95,13 @@ fn gen_global_addrs(node Ast) {
 }
 
 fn gen_global_array_init(node Ast) u32 {
-	var kind i32 = DATA_U32;
+	var kind DataChunkKind = DATA_U32;
 	if node.kind == AST_STRING {
 		return make_string_chunk(node.sval.text);
 	}
-	var sz i32 = node.ival;
+	var sz u32 = node.ival;
 	if node.kind == AST_ARRAY {
-		var tsz i32 = type_size(node.type);
+		var tsz u32 = type_size(node.type);
 		if node.type.kind == TYPE_POINTER {
 			kind = DATA_PTR;
 		} else if type_size(node.type) == 1 {

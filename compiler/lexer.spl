@@ -97,7 +97,7 @@ fn unescape(n u32) u32 {
 		}
 		return (x0 << 4) | x1;
 	} else {
-		Error("invalid escape ").n(n);
+		Error("invalid escape ").u(n);
 		return 0;
 	}
 }

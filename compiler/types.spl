@@ -38,7 +38,7 @@ struct Symbol {
 	// var: offset from param/frame/global base
 	// fld: offset from struct base
 	// fn: srcloc of decl or defn
-	ival i32,
+	ival u32,
 	// used by IR generation
 	vid i32,
 };

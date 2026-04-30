@@ -588,10 +588,10 @@ fn parse_struct_init(sym Symbol) Ast {
 	return list;
 }
 
-fn parse_array_init(typeof Type, size i32) Ast {
+fn parse_array_init(typeof Type, size u32) Ast {
 	var list Ast = ast_make_simple(AST_ARRAY, size);
 	var last Ast = nil;
-	var count i32 = 0;
+	var count u32 = 0;
 	while true {
 		if ctx.tok == tCBRACE {
 			next();
@@ -614,7 +614,7 @@ fn parse_array_init(typeof Type, size i32) Ast {
 			// unspecied in type, inherit from initializer
 			list.ival = count;
 		} else {
-			Error("array initializer too large: @ > @").n(count).n(size);
+			Error("array initializer too large: @ > @").u(count).u(size);
 		}
 	}
 	list.type = typeof;
@@ -787,7 +787,7 @@ fn parse_block() Ast {
 	return block;
 }
 
-fn parse_param(ival i32, require_name bool) Symbol {
+fn parse_param(ival u32, require_name bool) Symbol {
 	var kind SymbolKind = SYMBOL_VAR | SYMBOL_PARAM;
 	var name String;
 	var type Type;
@@ -842,7 +842,7 @@ fn parse_fn_body(sym Symbol) Ast {
 
 // shared between parse_fn() for top-level function declarations
 // and definitions and parse_fn_type() for function types
-fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
+fn parse_fn_core(fname String, method_of Type, node Ast, n u32) Type {
 	var posn u32 = ctx.srcloc;
 	var require_name bool = (node != nil);
 
@@ -915,7 +915,7 @@ fn parse_fn_core(fname String, method_of Type, node Ast, n i32) Type {
 		// signature must not change
 		if types_match(prev.type, sym.type, false) == false {
 			Error("fn @ differs from previous definition at @:@")
-			.s(sym.name.text).s(srcloc_file(prev.ival)).n(srcloc_line(prev.ival));
+			.s(sym.name.text).s(srcloc_file(prev.ival)).u(srcloc_line(prev.ival));
 		}
 		// if this is a definition flag that we've been defined
 		// in the symbol that's in the global symbol table

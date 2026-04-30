@@ -11,7 +11,7 @@ fn (os OutStream) t(type Type) OutStream {
 	return os;
 }
 
-fn ErrorAtSrcLoc(srcloc u32, msg str) OutStream {
+fn ErrorAtLoc(srcloc u32, msg str) OutStream {
 	var os OutStream = new(OutStream);
 	os.fd = 2;
 	os.flags = OS_FATAL | OS_NEWLINE;
@@ -27,16 +27,16 @@ fn ErrorAtSrcLoc(srcloc u32, msg str) OutStream {
 }
 
 fn ErrorAt(node Ast, msg str) OutStream {
-	return ErrorAtSrcLoc(node.srcloc, msg);
+	return ErrorAtLoc(node.srcloc, msg);
 }
 
 fn Error(msg str) OutStream {
-	return ErrorAtSrcLoc(ctx.linenumber, msg);
+	return ErrorAtLoc(ctx.linenumber, msg);
 }
 
 var warn_os OutStream;
 
-fn WarnAtSrcLoc(srcloc u32, msg str) OutStream {
+fn WarnAtLoc(srcloc u32, msg str) OutStream {
 	if warn_os == nil {
 		warn_os = new(OutStream);
 		warn_os.fd = 2;
@@ -51,11 +51,11 @@ fn WarnAtSrcLoc(srcloc u32, msg str) OutStream {
 }
 
 fn WarnAt(node Ast, msg str) OutStream {
-	return WarnAtSrcLoc(node.srcloc, msg);
+	return WarnAtLoc(node.srcloc, msg);
 }
 
 fn Warn(msg str) OutStream {
-	return WarnAtSrcLoc(ctx.linenumber, msg);
+	return WarnAtLoc(ctx.linenumber, msg);
 }
 
 // tools for strings, symbols, and ASTs
@@ -157,7 +157,7 @@ fn scope_add(scope Scope, sym Symbol) {
 	scope.last = sym;
 }
 
-fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival i32, scope Scope) Symbol {
+fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival u32, scope Scope) Symbol {
 	var sym Symbol = new(Symbol);
 	sym.name = name;
 	sym.type = type;
@@ -174,11 +174,11 @@ fn symbol_make_in_scope(name String, type Type, kind SymbolKind, ival i32, scope
 	return sym;
 }
 
-fn symbol_make_global(name String, type Type, kind SymbolKind, ival i32) Symbol {
+fn symbol_make_global(name String, type Type, kind SymbolKind, ival u32) Symbol {
 	return symbol_make_in_scope(name, type, kind, ival, ctx.global);
 }
 
-fn symbol_make(name String, type Type, kind SymbolKind, ival i32) Symbol {
+fn symbol_make(name String, type Type, kind SymbolKind, ival u32) Symbol {
 	return symbol_make_in_scope(name, type, kind, ival, ctx.scope);
 }
 
@@ -420,9 +420,10 @@ fn ctx_set_source_file(name str) {
 	ctx.fileid++;
 
 	ctx.linenumber = (sf.id << 20) | 1u;
+	ctx.srcloc = ctx.linenumber;
 }
 
-fn ctx_find_source_file(id i32) str {
+fn ctx_find_source_file(id u32) str {
 	var sf SourceFile = ctx.filelist;
 	while sf != nil {
 		if sf.id == id {
@@ -469,11 +470,11 @@ fn type_size(type Type) u32 {
 }
 
 fn _mangle(a str, b str) String {
-	var alen i32 = strlen(a);
-	var blen i32 = strlen(b);
+	var alen u32 = strlen(a);
+	var blen u32 = strlen(b);
 	var s []u8 = new([alen + blen + 2]u8); // TODO: use static buffer
-	var n i32 = 0;
-	var i i32 = 0;
+	var n u32 = 0;
+	var i u32 = 0;
 	while i < alen {
 		s[n] = a[i];
 		n++;
