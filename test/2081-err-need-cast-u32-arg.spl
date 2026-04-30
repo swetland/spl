@@ -1,0 +1,8 @@
+
+fn foo(n i32) { }
+
+fn start() i32 {
+	var x u32 = 0;
+	foo(x);
+	return 0;
+}
