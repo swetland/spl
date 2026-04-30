@@ -25,6 +25,11 @@ void fn_writei(int fd, int n) {
 	sprintf(tmp, "%d", n);
 	write(fd, tmp, strlen(tmp));
 }
+void fn_writeu(int fd, unsigned n) {
+	char tmp[64];
+	sprintf(tmp, "%u", n);
+	write(fd, tmp, strlen(tmp));
+}
 void fn_writec(int fd, int n) {
 	t$u8 x = n;
 	if (write(fd, &x, 1) != 1) {}

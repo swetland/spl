@@ -7,6 +7,7 @@ void fn_write(t$i32 fd, t$str, t$u32 off, t$u32 len);
 void fn_writes(t$i32 fd, t$str s);
 void fn_writex(t$i32 fd, t$i32 n);
 void fn_writei(t$i32 fd, t$i32 n);
+void fn_writeu(t$i32 fd, t$u32 n);
 void fn_writec(t$i32 fd, t$i32 c);
 t$i32 fn_readc(t$i32 fd);
 
