@@ -128,10 +128,10 @@ fn md5_fini(m MD5) {
 	}
 
 	// conclude padding with the count
-	m.tmp[0] = bits;
-	m.tmp[1] = bits >> 8;
-	m.tmp[2] = bits >> 16;
-	m.tmp[3] = bits >> 24;
+	m.tmp[0] = u8(bits);
+	m.tmp[1] = u8(bits >> 8);
+	m.tmp[2] = u8(bits >> 16);
+	m.tmp[3] = u8(bits >> 24);
 	m.tmp[4] = 0;
 	m.tmp[5] = 0;
 	m.tmp[6] = 0;

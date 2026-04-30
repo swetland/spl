@@ -4,7 +4,7 @@ var data [8]u8;
 fn start() i32 {
 	var n i32 = 0;
 	while n < 8 {
-		data[n] = n << 4;
+		data[n] = u8(n << 4);
 		n++;
 	}
 	n = 0;
