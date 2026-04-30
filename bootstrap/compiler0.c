@@ -1604,6 +1604,11 @@ void parse_enum_def(void) {
 		emit_type("typedef t$u32 t$%s; // enum\n", name->text);
 	}
 
+	// full compiler allows enums to have a numeric type
+	if (ctx.tok == tIDN) {
+		next();
+	}
+
 	require(tOBRACE);
 	u32 val = 0;
 	while (ctx.tok != tCBRACE) {
