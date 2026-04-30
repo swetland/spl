@@ -8,7 +8,8 @@ fn fd_close(fd i32);
 
 fn readc(fd i32) i32;
 fn writes(fd i32, s str);
-fn writei(fd i32, n u32);
+fn writei(fd i32, i u32);
+fn writeu(fd i32, n u32);
 fn writex(fd i32, n u32);
 fn writeu32(fd i32, n u32);
 fn write(fd i32, s str, off u32, len u32);

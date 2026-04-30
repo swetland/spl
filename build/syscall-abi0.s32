@@ -30,6 +30,9 @@ writes:
 writei:
 	syscall 0x206
 	ret
+writeu:
+	syscall 0x20a
+	ret
 writex:
 	syscall 0x207
 	ret
