@@ -3,6 +3,6 @@ fn sys_alloc(sz u32) u32;
 fn sys_get_alloc_count() u32;
 fn sys_get_alloc_bytes() u32;
 
-fn __new(n i32) u32 {
+fn __new(n u32) u32 {
 	return sys_alloc(n);
 }
