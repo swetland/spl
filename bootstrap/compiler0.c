@@ -971,7 +971,16 @@ void parse_ident(void) {
 	next();
 
 	if (sym == nil) {
-		error("undefined identifier '%s'", name->text);
+		Type *type = type_find(name);
+		if (type == nil) {
+			error("undefined identifier '%s'", name->text);
+		}
+		require(tOPAREN);
+		emit_impl("((t$%s%s)", type->name->text, type->kind == TYPE_STRUCT ? "*" : "");
+		parse_expr();
+		emit_impl(")");
+		require(tCPAREN);
+		return;
 	}
 	if (sym->kind == SYMBOL_DEF) {
 		emit_impl("c$%s", sym->name->text);
