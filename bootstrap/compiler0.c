@@ -514,7 +514,7 @@ enum {
 	tBREAK, tCONTINUE, tRETURN,
 	tFOR, tSWITCH, tCASE,
 	tTRUE, tFALSE, tNIL,
-	tIDN, tNUM, tSTR,
+	tIDN, tNUM, tUNUM, tSTR,
 	// used internal to the lexer but never returned
 	tSPC, tINV, tDQT, tSQT, tMSC,
 };
@@ -534,7 +534,7 @@ const char *tnames[] = {
 	"break", "continue", "return",
 	"for", "switch", "case",
 	"true", "false", "nil",
-	"<ID>", "<NUM>", "<STR>",
+	"<ID>", "<NUM>", "<UNUM>", "<STR>",
 	"<SPC>", "<INV>", "<DQT>", "<SQT>", "<MSC>",
 };
 
@@ -727,6 +727,10 @@ token_t scan_number(u32 cc, u32 nc) {
 		}
 	}
 	ctx.num = val;
+	if ((nc == 'u') || (nc == 'U')) {
+		nc = scan();
+		return tUNUM;
+	}
 	return tNUM;
 }
 
@@ -1005,6 +1009,8 @@ void parse_ident(void) {
 void parse_primary_expr(void) {
 	if (ctx.tok == tNUM) {
 		emit_impl("0x%x", ctx.num);
+	} else if (ctx.tok == tUNUM) {
+		emit_impl("0x%xU", ctx.num);
 	} else if (ctx.tok == tSTR) {
 		emit_impl_str();
 	} else if (ctx.tok == tTRUE) {
