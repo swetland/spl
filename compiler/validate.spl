@@ -1,6 +1,8 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
+fn dump_ast_node(fd i32, node Ast, indent i32);
+
 fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
@@ -36,29 +38,17 @@ fn is_assignable(src Type, dst Type, snode Ast, fcall bool) bool {
 	if dk == TYPE_U32 {
 		if sk == TYPE_U8   { return true; }
 		if sk == TYPE_I32  { if make_u32(snode) { return true; } }
-		if sk == TYPE_ENUM { return true; }
-		if sk == TYPE_BOOL { return true; }
 	}
 	if dk == TYPE_I32 {
 		if sk == TYPE_U8   { return true; }
 		if sk == TYPE_U32  { if make_i32(snode) { return true; } }
-		if sk == TYPE_ENUM { return true; }
-		if sk == TYPE_BOOL { return true; }
 	}
 	if dk == TYPE_U8 {
 		if sk == TYPE_I32  { if make_u8(snode) { return true; } }
 		if sk == TYPE_U32  { if make_u8(snode) { return true; } }
-		if sk == TYPE_ENUM { return true; }
-	}
-	if dk == TYPE_ENUM {
-		if sk == TYPE_I32 { return true; }
-		if sk == TYPE_U32 { return true; }
-		if sk == TYPE_U8  { return true; }
 	}
 	if dk == TYPE_BOOL {
-		if sk == TYPE_I32 { return true; }
-		if sk == TYPE_U32 { return true; }
-		if sk == TYPE_U8  { return true; }
+		if sk & TYPE_IS_INTEGER { return true; }
 	}
 	if dk == TYPE_POINTER {
 		if src == ctx.type_nil { return true; }
@@ -148,7 +138,8 @@ fn validate_assign(node Ast) {
 			&& is_assignable(right.type, left.type.of, right, false) {
 			// can assign arrays to array pointers, they convert
 		} else {
-			ErrorAt(node, "cannot assign @ to @").t(right.type).t(left.type);
+			dump_ast_node(2, node, 1);
+			ErrorAt(node, "cannot assign @ @ to @").t(right.type).x(right.type.kind).t(left.type);
 		}
 	}
 }
@@ -207,15 +198,15 @@ fn flip_signedness(node Ast) bool {
 }
 
 fn validate_intop(node Ast) {
-	var ltype Type = node.left.type;
-	var rtype Type = node.right.type;
-	if !(ltype.kind & TYPE_IS_INTEGER) {
-		WarnAt(node, "@ on non-integer").s(ast_kind[node.kind]);
+	var lkind TypeKind = node.left.type.kind;
+	var rkind TypeKind = node.right.type.kind;
+	if !(lkind & TYPE_IS_INTEGER) {
+		ErrorAt(node, "@ on non-integer").s(ast_kind[node.kind]);
 	}
-	if !(rtype.kind & TYPE_IS_INTEGER) {
-		WarnAt(node, "@ on non-integer").s(ast_kind[node.kind]);
+	if !(rkind & TYPE_IS_INTEGER) {
+		ErrorAt(node, "@ on non-integer").s(ast_kind[node.kind]);
 	}
-	if (ltype.kind & TYPE_IS_SIGNED) == (rtype.kind & TYPE_IS_SIGNED) {
+	if (lkind & TYPE_IS_SIGNED) == (rkind & TYPE_IS_SIGNED) {
 		return;
 	}
 	if (node.left.kind == AST_CONST) && flip_signedness(node.left) {
@@ -226,7 +217,7 @@ fn validate_intop(node Ast) {
 		node.type = node.right.type;
 		return;
 	}
-	WarnAt(node, "@ on differing signedness").s(ast_kind[node.kind]);
+	ErrorAt(node, "@ on differing signedness").s(ast_kind[node.kind]);
 	//TODO: differing size ints
 }
 
@@ -256,10 +247,10 @@ fn validate_shiftop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
 	if !(node.left.type.kind & TYPE_IS_INTEGER) {
-		WarnAt(node, "@ on non-integer").s(ast_kind[node.kind]);
+		ErrorAt(node, "@ on non-integer").s(ast_kind[node.kind]);
 	}
 	if !(node.right.type.kind & TYPE_IS_INTEGER) {
-		WarnAt(node, "@ by non-integer").s(ast_kind[node.kind]);
+		ErrorAt(node, "@ by non-integer").s(ast_kind[node.kind]);
 	}
 }
 
@@ -364,7 +355,7 @@ fn validate_return(node Ast) {
 fn validate_block(node Ast) {
 	node = node.left;
 	while node != nil {
-		var kind i32 = node.kind;
+		var kind AstKind = node.kind;
 		if kind == AST_WHILE {
 			validate_while(node);
 		} else if kind == AST_BREAK {

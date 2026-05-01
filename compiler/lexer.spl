@@ -223,9 +223,9 @@ fn scan_ident(cc u32, nc u32) Token {
 }
 
 fn _next() Token {
-	var nc u8 = u8(ctx.cc);
+	var nc Token = u32(ctx.cc);
 	while true {
-		var cc u8 = nc;
+		var cc Token = nc;
 		nc = scan();
 		var tok Token = lextab[cc];
 		if tok == tNUM { // 0..9
@@ -282,7 +282,7 @@ fn _next() Token {
 		} else if tok == tSPC {
 			continue;
 		} else if tok == tINV {
-			Error("unknown character @").n(cc);
+			Error("unknown character @").u(cc);
 		}
 
 		// if we're an AddOp or MulOp, followed by an '='

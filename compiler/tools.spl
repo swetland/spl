@@ -453,19 +453,14 @@ fn ctx_make_outfile(enable bool, name str, ext str) OutStream {
 
 fn type_size(type Type) u32 {
 	var kind TypeKind = type.kind;
-	if kind == TYPE_U8 { return 1; }
-	if kind == TYPE_U32 { return 4; }
-	if kind == TYPE_I32 { return 4; }
-	if kind == TYPE_ENUM { return 4; }
-	if kind == TYPE_NIL { return 4; }
-	if kind == TYPE_BOOL { return 4; }
-	if kind == TYPE_POINTER { return 4; }
-	if kind == TYPE_ANON { return type.count; }
-	//if kind == TYPE_SLICE { return 24; }
-	if kind == TYPE_ARRAY { return type_size(type.of) * type.count; }
-	if kind == TYPE_STRUCT { return type.count; }
-	if kind == TYPE_STR { return type.count; }
-	// VOID, ENUM, FN, UNDEFINED, etc
+	if kind & TYPE_IS_INTEGER { return kind & TYPE_MASK_SIZE; }
+	if kind == TYPE_BOOL      { return 1; }
+	if kind & TYPE_IS_POINTER { return 4; }
+	if kind == TYPE_ANON      { return type.count; }
+	//if kind == TYPE_SLICE   { return 24; }
+	if kind == TYPE_ARRAY     { return type_size(type.of) * type.count; }
+	if kind == TYPE_STRUCT    { return type.count; }
+	if kind == TYPE_STR       { return type.count; }
 	return 0;
 }
 

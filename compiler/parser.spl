@@ -978,15 +978,14 @@ fn parse_enum_def() {
 
 	if ctx.tok == tIDN {
 		var name String = parse_name("enum name");
-		type_make(name, TYPE_ENUM, nil, nil, 0);
+		type = type_make(name, TYPE_U32, nil, nil, 0);
 
 		if ctx.tok == tIDN {
-			if ctx.ident == ctx.type_u32.name {
-				next();
-			} else if ctx.ident == ctx.type_i32.name {
-				type = ctx.type_i32;
-				next();
+			var itype Type = parse_type(false);
+			if !(type.kind & TYPE_IS_INTEGER) {
+				Error("enum numeric type must be integer, not @").t(type);
 			}
+			type.kind = itype.kind;
 		}
 	}
 

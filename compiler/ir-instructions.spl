@@ -408,7 +408,7 @@ fn inst_disasm(os OutStream, ins Inst) {
 		os.fmt("@@ @, @, @\n").s(iop_name[op]).s(imm).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_MOV {
 		os.fmt("mov@ @, @\n").s(imm).reg(ins.a).arg(ins.c,ins.op);
-	} else if (op == INS_LOAD) | (op == INS_STORE) {
+	} else if (op == INS_LOAD) || (op == INS_STORE) {
 		var sz str = isz_name[(ins.op & INF_SZ_MASK) >> INF_SZ_SHIFT];
 		os.fmt("@@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
 	} else if op == INS_LABEL {
