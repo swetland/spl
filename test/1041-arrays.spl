@@ -17,7 +17,7 @@ fn start() i32 {
 	var m u32 = 0;
 	while (n < 8) {
 		_hexout_u(numbers[n]);
-		m = m + numbers[n];
+		m = m + u32(numbers[n]);
 		n++;
 	}
 	_hexout_u(m);

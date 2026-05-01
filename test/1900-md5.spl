@@ -66,7 +66,7 @@ fn md5_step(m MD5) {
 		A = D;
 		D = C;
 		C = B;
-		B = B + ((F << s[i]) | (F >> (32 - s[i]))); // B + LeftRotate(F, s[i]);
+		B = B + ((F << u32(s[i])) | (F >> (32 - u32(s[i])))); // B + LeftRotate(F, s[i]);
 		i++;
 	}
 	m.hash[0] += A;
