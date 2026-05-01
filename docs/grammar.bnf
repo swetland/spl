@@ -1,7 +1,7 @@
 
 program = ( enum-def | struct-def | fn-def | fn-decl | global )*
 
-enum-def = "enum" name "{" enum-value * "}" ";"
+enum-def = "enum" name [ integer-type ] "{" enum-value * "}" ";"
 
 enum-value = name [ "=" const-expr ] ","
 
