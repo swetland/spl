@@ -60,31 +60,31 @@ struct Scope {
 
 enum TypeKind {
 	TYPE_VOID       = 0x0000,
-	TYPE_BOOL       = 0x1000,
-	TYPE_U8         = 0x0011,
-	TYPE_I8         = 0x0031,
-	TYPE_U16        = 0x0012,
-	TYPE_I16        = 0x0032,
-	TYPE_U32        = 0x0014,
-	TYPE_I32        = 0x0034,
-	TYPE_NIL        = 0x0100, // first non-scalar type
-	TYPE_POINTER    = 0x0101,
-	TYPE_ARRAY      = 0x0200,
-	TYPE_STR        = 0x0201,
-	TYPE_STRUCT     = 0x0400,
-	TYPE_SLICE      = 0x0401,
-	TYPE_FN         = 0x1001,
-	TYPE_ANON       = 0x1002, // opaque/template type
+	TYPE_BOOL       = 0x0100,
+	TYPE_U8         = 0x0010,
+	TYPE_I8         = 0x0014,
+	TYPE_U16        = 0x0011,
+	TYPE_I16        = 0x0015,
+	TYPE_U32        = 0x0012,
+	TYPE_I32        = 0x0016,
+	TYPE_NIL        = 0x0200, // first non-scalar type
+	TYPE_POINTER    = 0x0201,
+	TYPE_ARRAY      = 0x0400,
+	TYPE_STR        = 0x0401,
+	TYPE_STRUCT     = 0x0800,
+	TYPE_SLICE      = 0x0801,
+	TYPE_FN         = 0x0101,
+	TYPE_ANON       = 0x0102, // opaque/template type
 	TYPE_UNDEFINED  = 0x8000, // fwd ref to a struct
 
+	TYPE_MASK_INT   = 0x0007,
+	TYPE_MASK_SIZE  = 0x0003,
+	TYPE_IS_SIGNED  = 0x0004,
 	TYPE_IS_INTEGER = 0x0010,
-	TYPE_IS_SIGNED  = 0x0020,
-	TYPE_IS_FLOAT   = 0x0040,
-	TYPE_IS_POINTER = 0x0100,
-	TYPE_IS_ARRAY   = 0x0200,
-	TYPE_IS_STRUCT  = 0x0400,
-	TYPE_MASK_INT   = 0x003F,
-	TYPE_MASK_SIZE  = 0x000F,
+	TYPE_IS_FLOAT   = 0x0020,
+	TYPE_IS_POINTER = 0x0200,
+	TYPE_IS_ARRAY   = 0x0400,
+	TYPE_IS_STRUCT  = 0x0800,
 };
 
 var type_kind []str = {
@@ -331,7 +331,10 @@ struct Context {
 	type_nil *Type,
 	type_u32 *Type,
 	type_i32 *Type,
+	type_u16 *Type,
+	type_i16 *Type,
 	type_u8 *Type,
+	type_i8 *Type,
 
 	str_new_fn *String,
 	str_underscore *String,

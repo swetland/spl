@@ -317,6 +317,14 @@ fn parse_expr() Ast {
 	return node;
 }
 
+fn align(off u32, size u32) u32 {
+	if size > 4 {
+		size = 4;
+	}
+	size -= 1;
+	return (off + size) &^ size;
+}
+
 fn parse_struct_type(name String) Type {
 	var type Type = type_find(name);
 
@@ -364,11 +372,13 @@ fn parse_struct_type(name String) Type {
 		if ptr {
 			ftype = type_make_ptr(ftype);
 		}
+		var size u32 = type_size(ftype);
+		off = align(off, size);
 		symbol_make(fname, ftype, kind, off);
 		if ctx.tok != tCBRACE {
 			require(tCOMMA);
 		}
-		off += type_size(ftype);
+		off += size;
 	}
 	type.list = scope_pop();
 	type.count = off;

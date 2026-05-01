@@ -1,51 +1,69 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-fn dump_ast_node(fd i32, node Ast, indent i32);
+enum ConvertFlags {
+	CV_CPY = 0x80, // copy
+	CV_TRN = 0x40, // truncate
+	CV_XTN = 0x20, // sign extension
+	CV_X08 = 0x38, // sign extend i8
+	CV_X16 = 0x30, // sign extend i16
+	CV_MSK = 0x1F, // shift mask
+};
+
+// truncation is lossless if src u32 form is <= cv_lo[dst] or > cv_hi[dst]
+var cv_lo [8]u32 = {
+0x000000FF, 0x0000FFFF, 0xFFFFFFFF, 0, 0x0000007F, 0x00007FFF, 0x7FFFFFFF, 0,
+};
+var cv_hi [8]u32 = {
+0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0, 0xFFFFFF7F, 0xFFFF7FFF, 0x7FFFFFFF, 0,
+};
+
+var cv_op [64]u8 = {
+	// Dst ->
+	// U8      U16     U32        I8      I16     I32
+	CV_CPY, CV_CPY, CV_CPY, 0, CV_TRN, CV_CPY, CV_CPY, 0, // U8   Src
+	CV_TRN, CV_CPY, CV_CPY, 0, CV_TRN, CV_TRN, CV_CPY, 0, // U16   |
+	CV_TRN, CV_TRN, CV_CPY, 0, CV_TRN, CV_TRN, CV_TRN, 0, // U32   v
+	0,      0,      0,      0, 0,      0,      0,      0,
+	CV_TRN, CV_TRN, CV_TRN, 0, CV_CPY, CV_X08, CV_X08, 0, // I8
+	CV_TRN, CV_TRN, CV_TRN, 0, CV_TRN, CV_CPY, CV_X16, 0, // I16
+	CV_TRN, CV_TRN, CV_TRN, 0, CV_TRN, CV_TRN, CV_CPY, 0, // I32
+	0,      0,      0,      0, 0,      0,      0,      0,
+};
 
 fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
 var wsl u32;
 
-fn make_u32(node Ast) bool {
-	// positive i32s can become u32s safely:
-	if node.kind != AST_CONST { return false; }
-	if node.ival >= 0x80000000 { return false; }
-	node.type = ctx.type_u32;
-	return true;
-}
-fn make_i32(node Ast) bool {
-	// u32s with the high bit clear can become i32s safely:
-	if node.kind != AST_CONST { return false; }
-	if node.ival >= 0x80000000 { return false; }
-	node.type = ctx.type_i32;
-	return true;
-}
-fn make_u8(node Ast) bool {
-	// u32s with the high bit clear can become i32s safely:
-	if node.kind != AST_CONST { return false; }
-	if node.ival >= 0xFF { return false; }
-	node.type = ctx.type_i32;
-	return true;
-}
-
 //TODO: should bool convert to 0/1 value?
 fn is_assignable(src Type, dst Type, snode Ast, fcall bool) bool {
 	if types_match(src, dst, fcall) { return true; }
 	var dk TypeKind = dst.kind;
 	var sk TypeKind = src.kind;
-	if dk == TYPE_U32 {
-		if sk == TYPE_U8   { return true; }
-		if sk == TYPE_I32  { if make_u32(snode) { return true; } }
-	}
-	if dk == TYPE_I32 {
-		if sk == TYPE_U8   { return true; }
-		if sk == TYPE_U32  { if make_i32(snode) { return true; } }
-	}
-	if dk == TYPE_U8 {
-		if sk == TYPE_I32  { if make_u8(snode) { return true; } }
-		if sk == TYPE_U32  { if make_u8(snode) { return true; } }
+	if (sk & TYPE_IS_INTEGER) && (dk & TYPE_IS_INTEGER) {
+		sk &= TYPE_MASK_INT;
+		dk &= TYPE_MASK_INT;
+		var op u32 = cv_op[(sk << 3) + dk];
+		if op & CV_CPY { return true; }
+		// in this context the value is in a register in
+		// the expected form (sign extended), so no action
+		// needed
+		if op & CV_XTN { return true; }
+		if snode.kind != AST_CONST { return false; }
+		if op & CV_TRN {
+			if snode.ival <= cv_lo[dk] { return true; }
+			if snode.ival > cv_hi[dk] { return true; }
+			if sk & TYPE_IS_SIGNED {
+				ErrorAt(snode, "constant @ out of range for @")
+					.n(i32(snode.ival)).t(dst);
+			} else {
+				ErrorAt(snode, "constant @ out of range for @")
+					.u(snode.ival).t(dst);
+			}
+			return false;
+		}
+		return false;
 	}
 	if dk == TYPE_BOOL {
 		if sk & TYPE_IS_INTEGER { return true; }
@@ -138,8 +156,8 @@ fn validate_assign(node Ast) {
 			&& is_assignable(right.type, left.type.of, right, false) {
 			// can assign arrays to array pointers, they convert
 		} else {
-			dump_ast_node(2, node, 1);
-			ErrorAt(node, "cannot assign @ @ to @").t(right.type).x(right.type.kind).t(left.type);
+			ErrorAt(node, "cannot assign @ to @")
+				.t(right.type).t(left.type);
 		}
 	}
 }
@@ -206,6 +224,10 @@ fn validate_intop(node Ast) {
 	if !(rkind & TYPE_IS_INTEGER) {
 		ErrorAt(node, "@ on non-integer").s(ast_kind[node.kind]);
 	}
+	if (lkind & TYPE_MASK_SIZE) != (rkind & TYPE_MASK_SIZE) {
+		ErrorAt(node, "@ on operands of differing sizes")
+			.s(ast_kind[node.kind]);
+	}
 	if (lkind & TYPE_IS_SIGNED) == (rkind & TYPE_IS_SIGNED) {
 		return;
 	}
@@ -218,7 +240,6 @@ fn validate_intop(node Ast) {
 		return;
 	}
 	ErrorAt(node, "@ on differing signedness").s(ast_kind[node.kind]);
-	//TODO: differing size ints
 }
 
 fn validate_relop(node Ast) {
@@ -276,6 +297,8 @@ fn validate_cast(node Ast) {
 	// TODO: sign extension, bool conversion, etc
 	if kind == TYPE_U32 { return; }
 	if kind == TYPE_I32 { return; }
+	if kind == TYPE_U16 { return; }
+	if kind == TYPE_I16 { return; }
 	if kind == TYPE_U8  { return; }
 
 	ErrorAt(node, "cannot cast @ to @").t(node.left.type).t(node.type);
