@@ -75,7 +75,11 @@ enum {
 	TYPE_VOID,
 	TYPE_BOOL,
 	TYPE_U8,
+	TYPE_I8,
+	TYPE_U16,
+	TYPE_I16,
 	TYPE_U32,
+	TYPE_I32,
 	TYPE_ARRAY,
 	TYPE_STR,
 	TYPE_STRUCT,
@@ -147,7 +151,10 @@ struct Ctx {
 	Type *type_str;
 	Type *type_u32;
 	Type *type_i32;
+	Type *type_u16;
+	Type *type_i16;
 	Type *type_u8;
+	Type *type_i8;
 
 	char *outptr;
 	char outbuf[4096];
@@ -333,8 +340,11 @@ void ctx_init() {
 	ctx.type_bool    = type_make(string_make("bool", 4), TYPE_BOOL, nil, nil, 0);
 	ctx.type_str     = type_make(string_make("str", 3), TYPE_STR, nil, nil, 0);
 	ctx.type_u32     = type_make(string_make("u32", 3), TYPE_U32, nil, nil, 0);
-	ctx.type_i32     = type_make(string_make("i32", 3), TYPE_U32, nil, nil, 0);
+	ctx.type_i32     = type_make(string_make("i32", 3), TYPE_I32, nil, nil, 0);
+	ctx.type_u16     = type_make(string_make("u16", 3), TYPE_U16, nil, nil, 0);
+	ctx.type_i16     = type_make(string_make("i16", 3), TYPE_I16, nil, nil, 0);
 	ctx.type_u8      = type_make(string_make("u8", 2), TYPE_U8, nil, nil, 0);
+	ctx.type_i8      = type_make(string_make("i8", 2), TYPE_I8, nil, nil, 0);
 
 	ctx.scope = &(ctx.global);
 
