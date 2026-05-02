@@ -309,7 +309,11 @@ fn types_match(a Type, b Type, fcall bool) bool {
 	// cannot match if counts differ
 	if a.count != b.count { return false; }
 	// cannot match if -of types differ
-	if !types_match(a.of, b.of, fcall) { return false; }
+	// but STRUCT/UNDEFINED use this as a cache which
+	// leads to infinite recursion, so be careful
+	if (a.kind != TYPE_STRUCT) && (a.kind != TYPE_UNDEFINED) {
+		if !types_match(a.of, b.of, fcall) { return false; }
+	}
 	// cannot match if field/param type lists differ
 	var aa Symbol = a.list;
 	var bb Symbol = b.list;
