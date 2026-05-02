@@ -9,7 +9,7 @@ fn test(v2 i32, v5 i32, v31 i32, v128000 i32) {
 	_hexout_u(0b10001000110100000101000010100001);
 	print(v2);
 	print(v128000 / 1000);
-	print(1 << v5);
+	print(1 << u32(v5));
 	print(^v31);
 	print(v31 % 17);
 	print(v128000 * v31);

@@ -9,7 +9,7 @@ fn start() i32 {
 			i++;
 		}
 		if n == 7 {
-			var j i32 = n << 4;
+			var j i32 = n << 4u;
 			_hexout_i(j);
 		}
 		_hexout_i(n);
