@@ -33,7 +33,7 @@ fn-params = "(" ( fn-param ( "," fn-param )* ) ")"
 
 fn-param = [ name ] type
 
-block = "{" ( statment )* "}"
+block = "{" ( statment | block )* "}"
 
 statement = return | break | continue | while | if | var | expr-statement | ";"
 
