@@ -28,6 +28,7 @@ typedef struct Symbol Symbol;
 struct Symbol {
 	Symbol *next;
 	uint32_t addr;
+	uint64_t perf;
 	char name[0];
 };
 
@@ -43,7 +44,40 @@ void add_symbol(uint32_t addr, const char *name) {
 	sym->name[len - 1] = 0;
 	sym->addr = addr;
 	sym->next = symlist;
+	sym->perf = 0;
 	symlist = sym;
+}
+
+static uint32_t program_start = 0xffffffff;
+static uint32_t program_end = 0x00000000;
+
+uint32_t get_exec_count(uint32_t addr);
+
+void dump_perf(const char* fn) {
+	uint64_t total = 0;
+	for (uint32_t pc = program_start; pc < program_end; pc += 4) {
+		Symbol *sym = symlist;
+		uint32_t count = get_exec_count(pc);
+		total += count;
+		while (sym && sym->next) {
+			if (sym->next->addr <= pc) {
+				sym->next->perf += count;
+				break;
+			}
+			sym = sym->next;
+		}
+	}
+	FILE *fp = fopen(fn, "w+");
+	if (fp != NULL) {
+		Symbol *sym = symlist;
+		while (sym && sym->next) {
+			fprintf(fp, "%10.3f %08x %s\n",
+				((double)sym->perf) / ((double)total) * 100.0,
+				sym->addr, sym->name);
+			sym = sym->next;
+		}
+		fclose(fp);
+	}
 }
 
 void backtrace(uint32_t pc, uint32_t fp) {
@@ -90,8 +124,9 @@ void *mem_dma(uint32_t addr, uint32_t len) {
 	return mem + addr;
 }
 
-int do_check_state = 0;
-int do_dump_state = 0;
+static int do_check_state = 0;
+static int do_dump_state = 0;
+static const char* dump_perf_fn = NULL;
 
 void check_state(void) {
 	int fail = 0;
@@ -117,6 +152,7 @@ void check_state(void) {
 void exit_emu(int status) {
 	if (do_check_state) check_state();
 	if (do_dump_state) dump_cpu_state();
+	if (dump_perf_fn) dump_perf(dump_perf_fn);
 	exit(status);
 }
 
@@ -149,7 +185,7 @@ void do_undef(CpuState *s, uint32_t ins) {
 	exit(1);
 }
 
-void load_hex_image(const char* fn) {
+uint32_t load_hex_image(const char* fn) {
 	char line[1024];
 	FILE *fp = fopen(fn, "r");
 	if (fp == NULL) {
@@ -168,9 +204,16 @@ void load_hex_image(const char* fn) {
 			if (x) {
 				add_symbol(addr, x + 1);
 			}
+			if (addr < program_start) {
+				program_start = addr;
+			}
+			if (addr > program_end) {
+				program_end = addr;
+			}
 		}
 	}
 	fclose(fp);
+	return program_start;
 }
 
 void usage(int status) {
@@ -184,6 +227,7 @@ void usage(int status) {
 		"         -tr               Trace Register Writes\n"
 		"         -tb               Trace Branches\n"
 		"         -ti               Trace IO Reads & Writes\n"
+		"         -perf <filename>  Write Perf Dump\n"
 		"         -q                Quiet\n");
 	exit(status);
 }
@@ -226,7 +270,6 @@ void sys_init(uint32_t argc, uint32_t argv, uint32_t heap_guard_pages);
 
 int main(int argc, char** argv) {
 	uint32_t guard_pages = 0;
-	uint32_t entry = 0x100000;
 	const char* fn = NULL;
 	int args = 0;
 	int timeout = 0;
@@ -256,6 +299,12 @@ int main(int argc, char** argv) {
 			do_check_state = 1;
 		} else if (!strcmp(argv[1], "-panic")) {
 			do_dump_state = 1;
+		} else if (!strcmp(argv[1], "-perf")) {
+			if (argc > 1) {
+				argc--;
+				argv++;
+				dump_perf_fn = argv[1];
+			}
 		} else if (!strcmp(argv[1], "-limit")) {
 			if (argc > 1) {
 				argc--;
@@ -281,7 +330,12 @@ int main(int argc, char** argv) {
 		usage(1);
 	}
 
-	load_hex_image(fn);
+	uint32_t entry = load_hex_image(fn);
+
+	if (entry == 0xffffffff) {
+		fprintf(stderr, "nothing to execute\n");
+		return -1;
+	}
 
 	uint32_t sp = entry - 16;
 	uint32_t lr = sp;

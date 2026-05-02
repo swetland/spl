@@ -8,6 +8,22 @@
 #include <emulator-sr32.h>
 
 #define WITH_TRACE 1
+#define WITH_EXEC_COUNT 1
+
+#define EXEC_COUNT_RANGE (1024*1024)
+#define EXEC_COUNT_MASK (EXEC_COUNT_RANGE - 1)
+
+#if WITH_EXEC_COUNT
+uint32_t exec_count[EXEC_COUNT_RANGE / 4];
+#endif
+
+uint32_t get_exec_count(uint32_t addr) {
+#if WITH_EXEC_COUNT
+	return exec_count[(addr & EXEC_COUNT_MASK) >> 2];
+#else
+	return 0;
+#endif
+}
 
 void sr32core(CpuState *s) {
 	void *mem = s->mem;
@@ -15,6 +31,9 @@ void sr32core(CpuState *s) {
 	uint32_t pc = s->pc;
 	for (;;) {
 	int32_t ins = mem_rd32(mem, pc);
+#if WITH_EXEC_COUNT
+	exec_count[(pc & EXEC_COUNT_MASK) >> 2]++;
+#endif
 #if WITH_TRACE
 	if (s->flags & F_TRACE_FETCH) {
 		fprintf(stderr,"%08x %08x\n", pc, ins);
