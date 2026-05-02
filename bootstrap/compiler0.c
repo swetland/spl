@@ -1506,6 +1506,11 @@ void parse_block(void) {
 		} else if (ctx.tok == tVAR) {
 			next();
 			parse_var();
+		} else if (ctx.tok == tOBRACE) {
+			next();
+			scope_push(SCOPE_BLOCK);
+			parse_block();
+			scope_pop();
 		} else if (ctx.tok == tSEMI) {
 			next();
 			// empty statement
