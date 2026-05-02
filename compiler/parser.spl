@@ -794,6 +794,11 @@ fn parse_block() Ast {
 			if node == nil {
 				continue;
 			}
+		} else if ctx.tok == tOBRACE {
+			next();
+			scope_push(SCOPE_BLOCK);
+			node = parse_block();
+			node.sym = scope_pop();
 		} else if ctx.tok == tSEMI {
 			next();
 			// empty statement
