@@ -798,8 +798,9 @@ fn reg_disuse(r u32) {
 		Error("reg refcount underflow");
 	}
 	reg_info[r].used--;
-	if reg_info[r] == 0 {
+	if reg_info[r].used == 0 {
 		inst_remove(reg_info[r].inst);
+		reg_info[r].inst = nil;
 	}
 }
 
