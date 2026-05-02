@@ -5,7 +5,7 @@
 // lexical scanner
 
 // currently unrecognized: \
-var lextab [256]u8 = {
+var lextab [256]Token = {
 	tEOF, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
 	tINV, tSPC, tEOL, tSPC, tINV, tSPC, tINV, tINV,
 	tINV, tINV, tINV, tINV, tINV, tINV, tINV, tINV,
@@ -186,7 +186,7 @@ fn scan_number(cc u32, nc u32) Token {
 			}
 		}
 	} else { // decimal
-		while lextab[nc] == u8(tNUM) {
+		while lextab[nc] == tNUM {
 			var tmp u32 = (val * 10) + (nc - '0');
 			if tmp <= val {
 				Error("decimal constant too large");
@@ -223,7 +223,7 @@ fn scan_ident(cc u32, nc u32) Token {
 }
 
 fn _next() Token {
-	var nc Token = u32(ctx.cc);
+	var nc Token = Token(ctx.cc);
 	while true {
 		var cc Token = nc;
 		nc = scan();

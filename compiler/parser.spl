@@ -220,7 +220,7 @@ fn parse_primary_expr() Ast {
 }
 
 fn parse_unary_expr() Ast {
-	var op u32 = ctx.tok;
+	var op Token = ctx.tok;
 	var posn u32 = ctx.srcloc;
 	if op == tPLUS {
 		next();
@@ -262,7 +262,7 @@ fn parse_mul_expr() Ast {
 	var posn u32 = ctx.srcloc;
 	var node Ast = parse_unary_expr();
 	while ctx.tok & tcMASK == tcMULOP {
-		var op u32 = (ctx.tok - tSTAR) + AST_MUL;
+		var op AstKind = u8(ctx.tok - tSTAR) + AST_MUL;
 		next();
 		node = ast_posn(ast_make_lr(op, node, parse_unary_expr()), posn);
 	}
@@ -272,7 +272,7 @@ fn parse_mul_expr() Ast {
 fn parse_add_expr() Ast {
 	var node Ast = parse_mul_expr();
 	while ctx.tok & tcMASK == tcADDOP {
-		var op u32 = (ctx.tok - tPLUS) + AST_ADD;
+		var op AstKind = u8(ctx.tok - tPLUS) + AST_ADD;
 		next();
 		node = ast_make_lr(op, node, parse_mul_expr());
 	}
@@ -283,7 +283,7 @@ fn parse_rel_expr() Ast {
 	var posn u32 = ctx.srcloc;
 	var node Ast = parse_add_expr();
 	if ctx.tok & tcMASK == tcRELOP {
-		var op u32 = (ctx.tok - tEQ) + AST_EQ;
+		var op AstKind = u8(ctx.tok - tEQ) + AST_EQ;
 		next();
 		node = ast_posn(ast_make_lr(op, node, parse_add_expr()), posn);
 		node.type = ctx.type_bool;
@@ -691,7 +691,7 @@ fn parse_var(kind SymbolKind) Ast {
 fn _parse_expr_statement() Ast {
 	var node Ast = parse_expr();
 	var expr Ast = nil;
-	var op u32;
+	var op AstKind;
 
 	if ctx.tok == tASSIGN {
 		// basic assignment
@@ -700,12 +700,12 @@ fn _parse_expr_statement() Ast {
 		return ast_posn(ast_make_lr(AST_ASSIGN, node, parse_expr()), posn);
 	} else if (ctx.tok & tcMASK) == tcAEQOP {
 		// +=, etc
-		op = (ctx.tok - tADDEQ) + AST_ADD;
+		op = u8(ctx.tok - tADDEQ) + AST_ADD;
 		next();
 		expr = parse_expr();
 	} else if (ctx.tok & tcMASK) == tcMEQOP {
 		// *=, etc
-		op = (ctx.tok - tMULEQ) + AST_MUL;
+		op = u8(ctx.tok - tMULEQ) + AST_MUL;
 		next();
 		expr = parse_expr();
 	} else if (ctx.tok == tINC) {

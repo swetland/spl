@@ -13,7 +13,7 @@ struct String {
 	text [1]u8,
 };
 
-enum SymbolKind {
+enum SymbolKind u16 {
 	SYMBOL_MASK      = 0x00F,
 	// basic types
 	SYMBOL_VAR       = 0x001, // variable
@@ -43,7 +43,7 @@ struct Symbol {
 	vid u32,
 };
 
-enum ScopeKind {
+enum ScopeKind u8 {
 	SCOPE_GLOBAL,
 	SCOPE_FUNC,
 	SCOPE_BLOCK,
@@ -58,7 +58,7 @@ struct Scope {
 	kind ScopeKind,
 };
 
-enum TypeKind {
+enum TypeKind u16 {
 	TYPE_VOID       = 0x0100,
 	TYPE_BOOL       = 0x0101,
 	TYPE_U8         = 0x0010,
@@ -88,10 +88,6 @@ enum TypeKind {
 	TYPE_IS_STRUCT  = 0x0800,
 };
 
-var type_kind []str = {
-	"void", "bool", "u8", "u32", "i32", "nil", "ptr", "array", "slice", "str", "struct", "fn", "enum", "undef",
-};
-
 struct Type {
 	next *Type,
 	name *String,
@@ -115,7 +111,7 @@ fn type_is_scalar(type Type) bool {
 // ================================================================
 // Abstract Syntax Tree
 
-enum AstKind {
+enum AstKind u8 {
 // top node
 	AST_PROGRAM,  // l=FUNC*
 // program components (chained into a list by next)
@@ -215,12 +211,12 @@ struct Ast {
 // lexical scanner tokens
 
 // token classes (tok & tcMASK)
-enum TokenClass{
+enum TokenClass u8 {
 	tcRELOP = 0x08, tcADDOP = 0x10, tcMULOP = 0x18,
 	tcAEQOP = 0x20, tcMEQOP = 0x28, tcMASK = 0xF8,
 };
 
-enum Token {
+enum Token u8 {
 	// EndMarks, Braces, Brackets Parens
 	tEOF, tEOL, tOBRACE, tCBRACE, tOBRACK, tCBRACK, tOPAREN, tCPAREN,
 	// RelOps (do not reorder)
@@ -284,7 +280,6 @@ struct Context {
 	linenumber u32,		// line number of most recent line
 	lineoffset u32,		// position of start of most recent line
 	byteoffset u32,		// position of the most recent character
-	flags u32,
 	cc u32,			// scanner: next character
 
 	curfn str,		// current function name during codegen
