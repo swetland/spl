@@ -186,7 +186,7 @@ fn scan_number(cc u32, nc u32) Token {
 			}
 		}
 	} else { // decimal
-		while lextab[nc] == tNUM {
+		while lextab[nc] == u8(tNUM) {
 			var tmp u32 = (val * 10) + (nc - '0');
 			if tmp <= val {
 				Error("decimal constant too large");

@@ -59,8 +59,8 @@ struct Scope {
 };
 
 enum TypeKind {
-	TYPE_VOID       = 0x0000,
-	TYPE_BOOL       = 0x0100,
+	TYPE_VOID       = 0x0100,
+	TYPE_BOOL       = 0x0101,
 	TYPE_U8         = 0x0010,
 	TYPE_I8         = 0x0014,
 	TYPE_U16        = 0x0011,
@@ -73,12 +73,13 @@ enum TypeKind {
 	TYPE_STR        = 0x0401,
 	TYPE_STRUCT     = 0x0800,
 	TYPE_SLICE      = 0x0801,
-	TYPE_FN         = 0x0101,
-	TYPE_ANON       = 0x0102, // opaque/template type
+	TYPE_FN         = 0x0102,
+	TYPE_ANON       = 0x0103, // opaque/template type
 	TYPE_UNDEFINED  = 0x8000, // fwd ref to a struct
 
 	TYPE_MASK_INT   = 0x0007,
 	TYPE_MASK_SIZE  = 0x0003,
+	TYPE_IS_NOT_INT = 0xFFE8, // non-int type if any match
 	TYPE_IS_SIGNED  = 0x0004,
 	TYPE_IS_INTEGER = 0x0010,
 	TYPE_IS_FLOAT   = 0x0020,

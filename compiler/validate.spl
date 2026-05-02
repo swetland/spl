@@ -31,6 +31,32 @@ var cv_op [64]u8 = {
 	0,      0,      0,      0, 0,      0,      0,      0,
 };
 
+// attempt to adapt an constant integer argument
+// to a desired integer type
+fn adapt_int_arg(node Ast, type Type) {
+	var why str = "incompatible with";
+	var dk TypeKind = node.type.kind & TYPE_MASK_INT;
+	var sk TypeKind = type.kind & TYPE_MASK_INT;
+	var op u32 = cv_op[(sk << 3) + dk];
+	if op & CV_CPY { return; }
+	// in this context the value is in a register in
+	// the expected form (sign extended), so no action
+	// needed
+	if op & CV_XTN { return; }
+	if op & CV_TRN {
+		if node.ival <= cv_lo[dk] { return; }
+		if node.ival > cv_hi[dk] { return; }
+		why = "out of range for";
+	}
+	if sk & TYPE_IS_SIGNED {
+		ErrorAt(node, "constant @ @ @")
+			.n(i32(node.ival)).s(why).t(type);
+	} else {
+		ErrorAt(node, "constant @ @ @")
+			.u(node.ival).s(why).t(type);
+	}
+}
+
 fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
@@ -180,10 +206,16 @@ fn validate_new(node Ast) {
 	// which we then dereference
 	type = type.of;
 
+	// arrange for the argument to go on the right side
+	// of any synthesized MUL or ADD nodes because the
+	// literal type adaption code favors that one for
+	// fixups and this avoids an i32 expression that will
+	// fail during argument type checking
 	var szarg Ast;
 	if type.kind == TYPE_ARRAY {
-		szarg = ast_make_lr(AST_MUL, node.left, ast_make_const(
-				type_size(type.of), ctx.type_u32));
+		szarg = ast_make_lr(AST_MUL,
+			ast_make_const(type_size(type.of), ctx.type_u32),
+			node.left);
 	} else if type.kind == TYPE_STRUCT {
 		szarg = ast_make_const(type_size(type), ctx.type_u32);
 		if node.left != nil {
@@ -203,76 +235,83 @@ fn validate_new(node Ast) {
 	return validate_call(node);
 }
 
-fn flip_signedness(node Ast) bool {
-	if (node.type == ctx.type_u32) && (node.ival < 0x80000001u) {
-		node.type = ctx.type_i32;
-		return true;
-	}
-	if (node.type == ctx.type_i32) && (node.ival < 0x80000000u) {
-		node.type = ctx.type_u32;
-		return true;
-	}
-	return false;
-}
-
+// require that the size and signedness of integer
+// operands match.  If one operand is a const, attempt
+// to adjust its type, if possible, to avoid error.
 fn validate_intop(node Ast) {
 	var lkind TypeKind = node.left.type.kind;
 	var rkind TypeKind = node.right.type.kind;
-	if !(lkind & TYPE_IS_INTEGER) {
-		ErrorAt(node, "@ on non-integer").s(ast_kind[node.kind]);
-	}
-	if !(rkind & TYPE_IS_INTEGER) {
-		ErrorAt(node, "@ on non-integer").s(ast_kind[node.kind]);
-	}
-	if (lkind & TYPE_MASK_SIZE) != (rkind & TYPE_MASK_SIZE) {
-		ErrorAt(node, "@ on operands of differing sizes")
+	if (lkind | rkind) & TYPE_IS_NOT_INT {
+		ErrorAt(node, "integer operands required for @")
 			.s(ast_kind[node.kind]);
 	}
-	if (lkind & TYPE_IS_SIGNED) == (rkind & TYPE_IS_SIGNED) {
+	if (lkind & TYPE_MASK_INT) == (rkind & TYPE_MASK_INT) {
 		return;
 	}
-	if (node.left.kind == AST_CONST) && flip_signedness(node.left) {
+	if node.right.kind == AST_CONST {
+		adapt_int_arg(node.right, node.left.type);
 		node.type = node.left.type;
+		node.right.type = node.left.type;
 		return;
 	}
-	if (node.right.kind == AST_CONST) && flip_signedness(node.right) {
+	if node.left.kind == AST_CONST {
+		adapt_int_arg(node.left, node.right.type);
 		node.type = node.right.type;
+		node.left.type = node.right.type;
 		return;
 	}
-	ErrorAt(node, "@ on differing signedness").s(ast_kind[node.kind]);
+	ErrorAt(node, "intop @ @").t(node.left.type).t(node.right.type);
+}
+
+// subset of above, left argument must be integer
+// but right argument must be unsigned integer
+fn validate_shiftop(node Ast) {
+	validate_expr(node.left);
+	validate_expr(node.right);
+	var lkind TypeKind = node.left.type.kind;
+	var rkind TypeKind = node.right.type.kind;
+	if (lkind | rkind) & TYPE_IS_NOT_INT {
+		ErrorAt(node, "integer operands required for @")
+			.s(ast_kind[node.kind]);
+	}
+	if rkind & TYPE_IS_SIGNED {
+		if node.right.kind == AST_CONST {
+			adapt_int_arg(node.right, node.left.type);
+			node.right.type = node.left.type;
+			return;
+		}
+		ErrorAt(node, "@ by signed type").s(ast_kind[node.kind]);
+	}
 }
 
 fn validate_relop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
-	if (node.left.type.kind & TYPE_POINTER) && (node.right.type.kind & TYPE_POINTER) {
-		if (node.kind == AST_EQ) || (node.kind == AST_NE) {
-			// equality tests between pointers are valid
-			return;
-		}
-	}
-	if (node.kind == AST_EQ) || (node.kind == AST_NE) {
-		//TODO: revisit when pointer types are fully sorted
-		return;
-	}
 	validate_intop(node);
+}
+
+fn validate_eqop(node Ast) {
+	validate_expr(node.left);
+	validate_expr(node.right);
+
+	if types_match(node.left.type, node.right.type, false) { return; }
+
+	var lkind TypeKind = node.left.type.kind;
+	var rkind TypeKind = node.right.type.kind;
+	if !((lkind | rkind) & TYPE_IS_NOT_INT) {
+		return validate_intop(node);
+	}
+
+	// valid to compare pointers with nil
+	if (lkind == TYPE_POINTER) && (rkind == TYPE_NIL) { return; }
+	if (lkind == TYPE_NIL) && (rkind == TYPE_POINTER) { return; }
+	ErrorAt(node, "cannot compare @ @ (a)").t(node.left.type).t(node.right.type);
 }
 
 fn validate_binop(node Ast) {
 	validate_expr(node.left);
 	validate_expr(node.right);
 	validate_intop(node);
-}
-
-fn validate_shiftop(node Ast) {
-	validate_expr(node.left);
-	validate_expr(node.right);
-	if !(node.left.type.kind & TYPE_IS_INTEGER) {
-		ErrorAt(node, "@ on non-integer").s(ast_kind[node.kind]);
-	}
-	if !(node.right.type.kind & TYPE_IS_INTEGER) {
-		ErrorAt(node, "@ by non-integer").s(ast_kind[node.kind]);
-	}
 }
 
 fn validate_unop(node Ast) {
@@ -308,8 +347,8 @@ fn validate_expr(node Ast) {
 	var kind AstKind = node.kind;
 	if kind == AST_CONST    { return; }
 	if kind == AST_SYMBOL   { return; }
-	if kind == AST_EQ       { return validate_relop(node); }
-	if kind == AST_NE       { return validate_relop(node); }
+	if kind == AST_EQ       { return validate_eqop(node); }
+	if kind == AST_NE       { return validate_eqop(node); }
 	if kind == AST_LT       { return validate_relop(node); }
 	if kind == AST_LE       { return validate_relop(node); }
 	if kind == AST_GT       { return validate_relop(node); }
