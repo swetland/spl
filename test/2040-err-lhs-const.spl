@@ -1,0 +1,9 @@
+
+enum Blargh {
+	BLARGH,
+};
+
+fn start() i32 {
+	BLARGH = 42;
+	return 0;
+}

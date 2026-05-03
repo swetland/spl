@@ -1,0 +1,12 @@
+
+struct Foo { x u32 };
+struct Bar { x i32 };
+
+fn compare(a Foo, b Bar) bool {
+	return a == b;
+}
+
+fn start() i32 {
+	return 0;
+}
+

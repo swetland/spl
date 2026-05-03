@@ -1,0 +1,6 @@
+
+fn start() i32 {
+	var a i32;
+	a[32] = 32;
+	return 0;
+}
