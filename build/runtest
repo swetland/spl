@@ -23,8 +23,13 @@ gold="${src%.spl}.log"
 RED='\033[0;7;31m'
 GRN='\033[0;32m'
 OFF='\033[0m'
+if [ -t 1 ] ; then
 PASS=${GRN}PASS${OFF}
 FAIL=${RED}FAIL${OFF}
+else
+PASS=PASS
+FAIL=FAIL
+fi
 
 #echo "TEST: $src: compiling..."
 if compile "$src" "$bin" 2> "$msg"; then
