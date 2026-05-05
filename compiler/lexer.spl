@@ -318,7 +318,7 @@ fn printstr(fd i32, s str) {
 
 fn print_srcloc(fd i32, loc u32) {
 	writes(fd, ctx_find_source_file(loc >> 20));
-	writes(fd, ": ");
+	writes(fd, ":");
 	writeu(fd, loc & 0x000FFFFF);
 }
 
