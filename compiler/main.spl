@@ -54,9 +54,9 @@ fn print_type(fd i32, type Type) {
 	writes(fd, type.name.text);
 }
 
-fn dump_ast_node(fd i32, node Ast, indent i32);
+fn dump_ast_nodes(fd i32, node Ast, indent i32);
 
-fn _dump_ast_node(fd i32, node Ast, indent i32) {
+fn dump_ast_node(fd i32, node Ast, indent i32) {
 	var kind AstKind = node.kind;
 
 	if kind == AST_FUNC {
@@ -99,14 +99,14 @@ fn _dump_ast_node(fd i32, node Ast, indent i32) {
 	}
 	writes(fd, "\n");
 
-	dump_ast_node(fd, node.left, indent);
-	dump_ast_node(fd, node.right, indent);
+	dump_ast_nodes(fd, node.left, indent);
+	dump_ast_nodes(fd, node.right, indent);
 	indent--;
 }
 
-fn dump_ast_node(fd i32, node Ast, indent i32) {
+fn dump_ast_nodes(fd i32, node Ast, indent i32) {
 	while node != nil {
-		_dump_ast_node(fd, node, indent);
+		dump_ast_node(fd, node, indent);
 		node = node.next;
 	}
 }
