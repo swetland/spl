@@ -197,6 +197,22 @@ fn start() i32 {
 		writes(astfd, "\n");
 		dump_types(astfd);
 	}
+
+	// gen() may want to generate debug files
+	// trim the extension from the output file base name
+	// so that these debug files have nicer looking names
+        if ctx.out_base != nil {
+                var s str = ctx.out_base;
+                var i u32 = 0;
+                var len u32 = strlen(s);
+                while i < len {
+                        if s[i] == '.' {
+                                s[i] = 0;
+                                break;
+                        }
+                        i++;
+                }
+        }
 	if outfd != -1 {
 		gen(outfd, ctx.program.left);
 	}

@@ -596,19 +596,6 @@ fn emit_data_chunk(dc DataChunk) {
 }
 
 fn gen(outfd i32, node Ast) {
-	if ctx.out_base != nil {
-		// trim extension from output base name
-		var s str = ctx.out_base;
-		var i u32 = 0;
-		var len u32 = strlen(s);
-		while i < len {
-			if s[i] == '.' {
-				s[i] = 0;
-				break;
-			}
-			i++;
-		}
-	}
 	ir_init();
 	os = OutFd(outfd);
 	gen_global_addrs(node);
