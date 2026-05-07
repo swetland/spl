@@ -67,15 +67,16 @@ fn dump_ast_node(fd i32, node Ast, indent i32) {
 
 	print_indent(fd, indent);
 	writes(fd, ast_kind[kind]);
-	writes(fd, " ");
 	indent++;
 	if kind == AST_CONST {
+		writes(fd, " ");
 		writex(fd, node.ival);
 	} else if kind == AST_FUNC {
+		writes(fd, " ");
 		writes(fd, node.sym.name.text);
 		print_fn_type(fd, node.sym.type);
 	} else if kind == AST_BLOCK {
-		writes(fd, "(");
+		writes(fd, " (");
 		var sym Symbol = node.sym;
 		while sym != nil {
 			writes(fd, sym.name.text);
@@ -84,18 +85,21 @@ fn dump_ast_node(fd i32, node Ast, indent i32) {
 			}
 			sym = sym.next;
 		}
-		writes(fd, ") ");
+		writes(fd, ")");
 	} else if kind == AST_STRING {
+		writes(fd, " ");
 		printstr(fd, node.sval.text);
-	} else if kind == AST_SYMBOL {
-		writes(fd, node.sym.name.text);
 	} else if kind == AST_NEW {
 		print_type(fd, node.type);
+	} else {
+		if node.sym {
+			writes(fd, " ");
+			writes(fd, node.sym.name.text);
+		}
 	}
-	if node.type != nil {
-		writes(fd, " [");
+	if (node.type != nil) && (kind != AST_FUNC) {
+		writes(fd, " ");
 		print_type(fd, node.type);
-		writes(fd, "]");
 	}
 	writes(fd, "\n");
 
