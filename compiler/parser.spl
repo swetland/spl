@@ -723,7 +723,7 @@ fn _parse_expr_statement() Ast {
 
 	// TODO duplicate node instead of sharing it
 	expr = ast_make_lr(op, node, expr);
-	return ast_make_lr(AST_ASSIGN, node, expr);
+	return ast_make_lr(AST_ASSIGN, ast_copy(node), expr);
 }
 
 fn parse_expr_statement() Ast {

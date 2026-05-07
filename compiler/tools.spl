@@ -366,6 +366,23 @@ fn ast_make_symbol(sym Symbol) Ast {
 	return ast_make(AST_SYMBOL, 0, nil, sym, sym.type);
 }
 
+fn ast_copy(src Ast) Ast {
+	if src == nil {
+		return nil;
+	}
+	var dst Ast = new(Ast);
+	dst.kind = src.kind;
+	dst.ival = src.ival;
+	dst.sval = src.sval;
+	dst.sym = src.sym;
+	dst.type = src.type;
+	dst.srcloc = src.srcloc;
+	dst.left = ast_copy(src.left);
+	dst.right = ast_copy(src.right);
+	if WITH_STATS { __alloc_node++; }
+	return dst;
+}
+
 fn ast_posn(node Ast, srcloc u32) Ast {
 	node.srcloc = srcloc;
 	return node;
