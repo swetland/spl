@@ -20,7 +20,7 @@ syntax keyword splStatement return break continue
 syntax keyword splCond if else
 syntax keyword splLoop while for
 syntax keyword splDef fn var struct enum
-syntax keyword splType u8 u32 i32 str bool
+syntax keyword splType u8 i8 u16 i16 u32 i32 str bool
 syntax keyword splConstant nil
 syntax keyword splBool true false
 
