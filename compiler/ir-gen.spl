@@ -517,7 +517,7 @@ fn setup_locals(node Ast, n u32) { //dup
 fn gen_fn(node Ast) {
 	if node.left == nil { return; }
 
-	validate_fn(node);
+	//validate_fn(node);
 
 	ctx.curfn = node.sym.name.text;
 

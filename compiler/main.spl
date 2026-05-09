@@ -140,6 +140,7 @@ fn dump_types(fd i32) {
 fn start() i32 {
 	ctx_init();
 	parse_init();
+	var ptfd i32 = -1;
 	var astfd i32 = -1;
 	var outfd i32 = 1;
 	var stats i32 = 0;
@@ -159,6 +160,16 @@ fn start() i32 {
 		}
 		if streq(arg, "-panic") {
 			ctx.options |= OPT_PANIC_ON_ERROR;
+			continue;
+		}
+		if streq(arg, "-pt") {
+			arg = os_arg(n);
+			n++;
+			ptfd = fd_create(arg);
+			if ptfd == -1 {
+				Error("cannot open parse tree list file '@'").s(arg);
+			}
+			ctx.out_base = arg;
 			continue;
 		}
 		if streq(arg, "-ast") {
@@ -197,12 +208,6 @@ fn start() i32 {
 		ctx.fd_in = -1;
 	}
 
-	if astfd != -1 {
-		dump_ast_nodes(astfd, ctx.program.left, -1);
-		writes(astfd, "\n");
-		dump_types(astfd);
-	}
-
 	// gen() may want to generate debug files
 	// trim the extension from the output file base name
 	// so that these debug files have nicer looking names
@@ -218,6 +223,20 @@ fn start() i32 {
                         i++;
                 }
         }
+
+	if ptfd != -1 {
+		dump_ast_nodes(ptfd, ctx.program.left, -1);
+		writes(ptfd, "\n");
+		dump_types(ptfd);
+	}
+	validate(ctx.program.left);
+
+	if astfd != -1 {
+		dump_ast_nodes(astfd, ctx.program.left, -1);
+		writes(astfd, "\n");
+		dump_types(astfd);
+	}
+
 	if outfd != -1 {
 		gen(outfd, ctx.program.left);
 	}

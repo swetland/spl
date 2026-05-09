@@ -582,9 +582,19 @@ fn validate_block(node Ast) {
 }
 
 fn validate_fn(node Ast) {
+	if node.left == nil {
+		return;
+	}
 	ctx.curfn = node.sym.name.text;
-
 	v_return_type = node.sym.type.of;
 	validate_block(node.left);
 }
 
+fn validate(node Ast) {
+	while node != nil {
+		if node.kind == AST_FUNC {
+			validate_fn(node);
+		}
+		node = node.next;
+	}
+}

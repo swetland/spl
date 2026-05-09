@@ -514,7 +514,6 @@ fn gen_fn(node Ast) {
 	if node.left == nil {
 		return;
 	}
-	validate_fn(node);
 	return_type = node.sym.type.of;
 	return_target = make_label();
 	ctx.curfn = node.sym.name.text;
