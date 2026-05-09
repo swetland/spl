@@ -159,9 +159,11 @@ fn gen_call(fcall Ast) u32 {
 	if type.kind == TYPE_POINTER {
 		type = type.of;
 	}
-	emit("    subi sp, sp, @\n").u(type.count * 4);
-	var node Ast = fcall.right;
+	if type.count > 0 {
+		emit("    subi sp, sp, @\n").u(type.count * 4);
+	}
 	var n u32 = 0;
+	var node Ast = fcall.right;
 	while node != nil {
 		var x u32 = gen_expr(node);
 		emit("    stw x@, @(sp)\n").u(x).u(n * 4);
@@ -181,7 +183,9 @@ fn gen_call(fcall Ast) u32 {
 		var fptr u32 = gen_expr(fcall.left);
 		emit("    jalr ra, x@\n").u(fptr);
 	}
-	emit("    addi sp, sp, @\n").u(type.count * 4);
+	if type.count > 0 {
+		emit("    addi sp, sp, @\n").u(type.count * 4);
+	}
 	emit_load_tmp();
 
 	if type.of == ctx.type_void {
