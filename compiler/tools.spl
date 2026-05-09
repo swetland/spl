@@ -206,13 +206,24 @@ fn type_make(name String, kind TypeKind, of Type, list Symbol, count u32) Type {
 	return type;
 }
 
+// for use by the parser
 fn type_make_ptr(type Type) Type {
 	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
 		// structs cache a pointer-to-type here
 		return type.of;
 	}
-	if type.kind != TYPE_ARRAY {
+	if !(type.kind & TYPE_NEED_PTR) {
 		Error("pointers to '@' are not allowed").t(type);
+	}
+	return type_make(nil, TYPE_POINTER, type, nil, 0);
+}
+
+// for use by the validator which may create
+// pointers to things the parser would not allow
+fn type_make_ptr_internal(type Type) Type {
+	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
+		// structs cache a pointer-to-type here
+		return type.of;
 	}
 	return type_make(nil, TYPE_POINTER, type, nil, 0);
 }
@@ -381,6 +392,19 @@ fn ast_copy(src Ast) Ast {
 	dst.right = ast_copy(src.right);
 	if WITH_STATS { __alloc_node++; }
 	return dst;
+}
+
+// transform a node into a new node wrapping (a copy of)
+// its old contents, inheriting its original type and posn
+fn ast_wrap(node Ast, kind AstKind) {
+	var child Ast = ast_copy(node);
+	node.kind = kind;
+	node.ival = 0;
+	node.sval = nil;
+	node.sym = nil;
+	// leave type and srcloc unchanged
+	node.left = child;
+	node.right = nil;
 }
 
 fn ast_posn(node Ast, srcloc u32) Ast {
