@@ -73,7 +73,7 @@ enum TypeKind u16 {
 	TYPE_STR        = 0x0401,
 	TYPE_STRUCT     = 0x0800,
 	TYPE_SLICE      = 0x0801,
-	TYPE_FN         = 0x0102,
+	TYPE_FN         = 0x1000,
 	TYPE_ANON       = 0x0103, // opaque/template type
 	TYPE_UNDEFINED  = 0x8000, // fwd ref to a struct
 
@@ -86,6 +86,8 @@ enum TypeKind u16 {
 	TYPE_IS_POINTER = 0x0200,
 	TYPE_IS_ARRAY   = 0x0400,
 	TYPE_IS_STRUCT  = 0x0800,
+	// array/struct/undef/fn are passed by reference:
+	TYPE_NEED_PTR   = 0x9C00,
 };
 
 struct Type {
@@ -149,6 +151,19 @@ enum AstKind u8 {
 	AST_MUL, AST_DIV, AST_MOD, AST_LSL, AST_LSR, AST_AND, AST_CLR,
 	// uncategorized ops
 	AST_NOT, AST_BOOL_AND, AST_BOOL_OR, AST_BOOL_NOT, AST_NEG,
+// nodes generated during validation pass
+	AST_FNADDR,         // s=sym
+	AST_FNNAME,         // s=sym
+	AST_LOAD_LOCAL,     // s=sym
+	AST_LOAD_PARAM,     // s=sym
+	AST_LOAD_GLOBAL,    // s=sym
+	AST_STORE_LOCAL,    // s=sym l=EXPR
+	AST_STORE_PARAM,    // s=sym l=EXPR
+	AST_STORE_GLOBAL,   // s=sym l=EXPR
+	AST_LOAD_PTR,       // l=ADDR
+	AST_STORE_PTR,      // l=ADDR r=EXPR
+	AST_ADDROF_FIELD,   // s=sym(field) l=ADDR(struct)
+	AST_ADDROF_ELEM,    // l=ADDR(array) r=EXPR(index)
 	AST_KIND_COUNT,
 };
 
@@ -163,6 +178,11 @@ var ast_kind []str = {
 	"ADD", "SUB", "OR", "XOR",
 	"MUL", "DIV", "MOD", "LSL", "LSR", "AND", "CLR",
 	"NOT", "BOOL AND", "BOOL OR", "BOOL NOT", "NEG",
+	"FNADDR", "FNNAME",
+	"LOAD-LOCAL", "LOAD-PARAM", "LOAD-GLOBAL",
+	"STORE-LOCAL", "STORE-PARAM", "STORE-GLOBAL",
+	"LOAD-PTR", "STORE-PTR",
+	"ADDROF-FIELD", "ADDROF-ELEM",
 };
 
 fn ast_is_relop(kind AstKind) bool {
