@@ -368,11 +368,15 @@ fn parse_struct_type(name String) Type {
 			ptr = false;
 		}
 		var ftype Type = parse_type(false);
+		if ftype.kind == TYPE_FN { ptr = true; }
 		if (ftype.kind == TYPE_ARRAY) && (ftype.count == 0) { ptr = true; }
 		if ptr {
 			ftype = type_make_ptr(ftype);
 		}
 		var size u32 = type_size(ftype);
+		if size == 0 {
+			Error("field @ @ has size 0").s(fname.text).t(ftype);
+		}
 		off = align(off, size);
 		symbol_make(fname, ftype, kind, off);
 		if ctx.tok != tCBRACE {
@@ -651,9 +655,7 @@ fn parse_var(kind SymbolKind) Ast {
 	var posn u32 = ctx.srcloc;
 	var name String = parse_name("variable name");
 	var type Type = parse_type(false);
-	if (type.kind == TYPE_STRUCT) ||
-		(type.kind == TYPE_UNDEFINED) ||
-		(type.kind == TYPE_ARRAY) {
+	if type.kind & TYPE_NEED_PTR {
 		type = type_make_ptr(type);
 	}
 	var sym Symbol = symbol_make(name, type, SYMBOL_VAR | kind, 0);
@@ -844,9 +846,7 @@ fn parse_param(ival u32, require_name bool) Symbol {
 			kind |= SYMBOL_ANON;
 		}
 	}
-	if (type.kind == TYPE_STRUCT) ||
-		(type.kind == TYPE_UNDEFINED) ||
-		(type.kind == TYPE_ARRAY) {
+	if type.kind & TYPE_NEED_PTR {
 		type = type_make_ptr(type);
 	}
 	if require_name {

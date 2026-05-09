@@ -127,7 +127,7 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 		validate_expr(arg);
 		wsl = arg.srcloc;
 		if !is_assignable(arg.type, param.type, arg, true) {
-			ErrorAtLoc(arg.srcloc, "arg @: cannot assign @ to @")
+			ErrorAt(arg, "arg @: cannot assign @ to @")
 				.u(n).t(arg.type).t(param.type);
 		}
 		arg = arg.next;
@@ -140,71 +140,188 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 	}
 }
 
+fn validate_lhs(node Ast);
 
 fn validate_call(fcall Ast) {
-	var type Type = fcall.left.type;
+	var type Type;
+	if (fcall.left.kind == AST_SYMBOL) &&
+		(fcall.left.sym.kind & SYMBOL_FN) {
+		// a direct call
+		fcall.left.kind = AST_FNNAME;
+		type = fcall.left.sym.type;
+	} else {
+		// an indirect call
+		validate_expr(fcall.left);
+		type = fcall.left.type;
+		if type.kind != TYPE_POINTER {
+			ErrorAt(fcall, "cannot call a @").t(type);
+		}
+		type = type.of;
+	}
 	if type.kind != TYPE_FN {
 		ErrorAt(fcall, "calling a non-function");
 	}
+	// the type of a CALL node is its function's return type
+	fcall.type = type.of;
 	fn_check_args(fcall, type, fcall.right);
 }
+
+// Sometimes when building up lhs expressions we'll
+// end up with a pointer-to-pointer-to-{array,struct}
+// where we just need to access the underlying
+// pointer-to-{array,struct}
+// these utilities insert LOAD_PTR operations as needed
+fn flatten_struct_ptr(node Ast) {
+	while node.type.kind == TYPE_POINTER {
+		if node.type.of.kind == TYPE_STRUCT {
+			return;
+		}
+		if node.type.of.kind != TYPE_POINTER {
+			ErrorAt(node, "cannot flatten @").t(node.type);
+		}
+		ast_wrap(node, AST_LOAD_PTR);
+		node.type = node.type.of;
+	}
+}
+
+fn flatten_array_ptr(node Ast) {
+	while node.type.kind == TYPE_POINTER {
+		if node.type.of.kind == TYPE_ARRAY {
+			return;
+		}
+		if node.type.of.kind != TYPE_POINTER {
+			ErrorAt(node, "cannot flatten @").t(node.type);
+		}
+		ast_wrap(node, AST_LOAD_PTR);
+		node.type = node.type.of;
+	}
+}
+
+fn validate_symbol(node Ast, lhs bool);
 
 fn validate_lhs(node Ast) {
 	var kind AstKind = node.kind;
 	if kind == AST_SYMBOL {
-		if !(node.sym.kind & SYMBOL_VAR) {
-			WarnAt(node, "invalid lhs symbol '@'").s(node.sym.name.text);
-		}
-		return;
+		return validate_symbol(node, true);
 	}
+	var left Ast = node.left;
+	var right Ast = node.right;
 	if kind == AST_FIELD {
-		validate_lhs(node.left);
+		node.kind = AST_ADDROF_FIELD;
+		validate_lhs(left);
+		flatten_struct_ptr(left);
+		if (left.type.kind != TYPE_POINTER) ||
+			(left.type.of.kind != TYPE_STRUCT) {
+			ErrorAt(left, "cannot load field from @").t(left.type);
+		}
+		if (right.kind != AST_SYMBOL) ||
+			(!(right.sym.kind & SYMBOL_FLD)) {
+			ErrorAt(right, "field load from non-field");
+		}
+		node.sym = right.sym;
+		node.right = nil;
+		//TODO: free(right)
+		node.type = type_make_ptr_internal(node.type);
 		return;
 	}
 	if kind == AST_INDEX {
-		validate_lhs(node.left);
-		validate_expr(node.right);
+		node.kind = AST_ADDROF_ELEM;
+		validate_lhs(left);
+		flatten_array_ptr(left);
+		validate_expr(right);
+		if (left.type.kind != TYPE_POINTER) ||
+			(left.type.of.kind != TYPE_ARRAY) {
+			ErrorAt(left, "cannot index non-array @").t(left.type);
+		}
+		node.type = type_make_ptr_internal(node.type);
 		return;
 	}
-	ErrorAt(node, "unknown lhs @").s(ast_kind[kind]);
+	if kind == AST_LOAD_PTR {
+		return;
+	}
+	ErrorAt(node, "illegal lhs @").s(ast_kind[kind]);
 }
 
 fn validate_assign(node Ast) {
 	var left Ast = node.left;
 	var right Ast = node.right;
-	validate_lhs(left);
+
 	validate_expr(right);
+	var ltype Type = left.type;
+	var rtype Type = right.type;
+
+	if left.kind == AST_SYMBOL {
+		var sym Symbol = left.sym;
+		var kind SymbolKind = sym.kind;
+		if kind & SYMBOL_DEF {
+			ErrorAt(left, "cannot store to constant");
+		} else if kind & SYMBOL_PARAM {
+			node.kind = AST_STORE_PARAM;
+		} else if kind & SYMBOL_LOCAL {
+			node.kind = AST_STORE_LOCAL;
+		} else if kind & SYMBOL_GLOBAL {
+			node.kind = AST_STORE_GLOBAL;
+		} else if kind & SYMBOL_FN {
+			ErrorAt(left, "cannot store to fnaddr");
+		} else {
+			ErrorAt(node, "unsupported symbol '@': @")
+				.s(sym.name.text).x(kind);
+		}
+		node.ival = sym.ival;
+		//TODO: free(left)
+		node.sym = left.sym;
+		node.left = right;
+		node.right = nil;
+	} else {
+		validate_lhs(left);
+		if left.kind == AST_ADDROF_FIELD {
+			node.kind = AST_STORE_PTR;
+		} else if left.kind == AST_ADDROF_ELEM {
+			node.kind = AST_STORE_PTR;
+		} else if left.kind == AST_LOAD_PTR {
+			node.kind = AST_STORE_PTR;
+		} else {
+			ErrorAt(node, "cannot store to @ XXX").s(ast_kind[left.kind]);
+		}
+	}
 
 	wsl = node.srcloc;
-	if !is_assignable(right.type, left.type, right, false) {
-		if (right.type.kind == TYPE_ARRAY)
-			&& (left.type.kind == TYPE_POINTER)
-			&& is_assignable(right.type, left.type.of, right, false) {
-			// can assign arrays to array pointers, they convert
-		} else {
-			ErrorAt(node, "cannot assign @ to @")
-				.t(right.type).t(left.type);
-		}
+	if !is_assignable(rtype, ltype, right, false) {
+		ErrorAt(node, "cannot assign @ to @").t(rtype).t(ltype);
 	}
 }
 
 fn validate_field_load(node Ast) {
+	validate_lhs(node);
+	if node.type.kind != TYPE_POINTER {
+		ErrorAt(node, "illegal pointer load from @").t(node.type);
+	}
+	if node.type.of.kind == TYPE_ARRAY {
+		// pointer-to-array (the result of getting the addr
+		// of an inline array) must not be dereferenced.
+		return;
+	}
+	ast_wrap(node, AST_LOAD_PTR);
+	node.type = node.left.type.of;
 }
 
 fn validate_array_load(node Ast) {
-}
-
-fn validate_load(node Ast) {
+	validate_lhs(node);
+	if node.type.kind != TYPE_POINTER {
+		ErrorAt(node, "illegal pointer load from @").t(node.type);
+	}
+	ast_wrap(node, AST_LOAD_PTR);
+	node.type = node.left.type.of;
 }
 
 fn validate_new(node Ast) {
 	// node type must be a pointer
-	var type Type = node.type;
-	if type.kind != TYPE_POINTER {
-		ErrorAt(node, "new must return a pointer type, not @").t(type);
+	var ptype Type = node.type;
+	if ptype.kind != TYPE_POINTER {
+		ErrorAt(node, "new must return a pointer type, not @").t(ptype);
 	}
 	// which we then dereference
-	type = type.of;
+	var type Type = ptype.of;
 
 	// arrange for the argument to go on the right side
 	// of any synthesized MUL or ADD nodes because the
@@ -232,7 +349,10 @@ fn validate_new(node Ast) {
 	szarg.srcloc = node.srcloc;
 	node.left.srcloc = node.srcloc;
 	// validate the transformed node as a fn call
-	return validate_call(node);
+	validate_call(node);
+	// and wrap it in a cast to the correct pointer type
+	ast_wrap(node, AST_CAST);
+	node.type = ptype;
 }
 
 // require that the size and signedness of integer
@@ -330,6 +450,7 @@ fn validate_bool_unop(node Ast) {
 }
 
 fn validate_cast(node Ast) {
+	validate_expr(node.left);
 	var kind TypeKind = node.type.kind;
 
 	// TODO: more extensive rules
@@ -343,10 +464,33 @@ fn validate_cast(node Ast) {
 	ErrorAt(node, "cannot cast @ to @").t(node.left.type).t(node.type);
 }
 
+fn validate_symbol(node Ast, lhs bool) {
+	var sym Symbol = node.sym;
+	var kind SymbolKind = sym.kind;
+	if kind & SYMBOL_DEF {
+		if lhs { ErrorAt(node, "illegal lhs constant"); }
+		node.kind = AST_CONST;
+	} else if kind & SYMBOL_PARAM {
+		node.kind = AST_LOAD_PARAM;
+	} else if kind & SYMBOL_LOCAL {
+		node.kind = AST_LOAD_LOCAL;
+	} else if kind & SYMBOL_GLOBAL {
+		node.kind = AST_LOAD_GLOBAL;
+	} else if kind & SYMBOL_FN {
+		node.kind = AST_FNADDR;
+		node.type = type_make_ptr(node.type);
+	} else {
+		ErrorAt(node, "unsupported symbol '@': @")
+			.s(sym.name.text).x(kind);
+	}
+	node.ival = sym.ival;
+}
+
 fn validate_expr(node Ast) {
 	var kind AstKind = node.kind;
 	if kind == AST_CONST    { return; }
-	if kind == AST_SYMBOL   { return; }
+	if kind == AST_STRING   { return; }
+	if kind == AST_SYMBOL   { return validate_symbol(node, false); }
 	if kind == AST_EQ       { return validate_eqop(node); }
 	if kind == AST_NE       { return validate_eqop(node); }
 	if kind == AST_LT       { return validate_relop(node); }
@@ -369,15 +513,13 @@ fn validate_expr(node Ast) {
 	if kind == AST_BOOL_NOT { return validate_bool_unop(node); }
 	if kind == AST_BOOL_AND { return validate_bool_binop(node); }
 	if kind == AST_BOOL_OR  { return validate_bool_binop(node); }
-	if kind == AST_STRING   { return; }
 	if kind == AST_INDEX    { return validate_array_load(node); }
 	if kind == AST_FIELD    { return validate_field_load(node); }
 	if kind == AST_CALL     { return validate_call(node); }
 	if kind == AST_ASSIGN   { return validate_assign(node); }
-	if kind == AST_DEREF    { }
 	if kind == AST_CAST     { return validate_cast(node); }
 	if kind == AST_NEW      { return validate_new(node); }
-	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
+	ErrorAt(node, "unsupported @ in expr x").s(ast_kind[kind]);
 }
 
 fn validate_if(node Ast) {
@@ -440,9 +582,9 @@ fn validate_block(node Ast) {
 }
 
 fn validate_fn(node Ast) {
+	ctx.curfn = node.sym.name.text;
+
 	v_return_type = node.sym.type.of;
-	//TODO: stash as context for errors
-	//Warn("validate_fn '@'").s(node.sym.name.text);
 	validate_block(node.left);
 }
 
