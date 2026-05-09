@@ -225,6 +225,15 @@ void emu(State *s, uint32_t pc) {
 			s->vrmax = n;
 			continue;
 		}
+		case INS_CALLPTR: {
+			n = s->vrmax;
+			s->vr += n;
+			emu(s, XA);
+			s->vr -= n;
+			s->vrmax = n;
+			continue;
+		}
+		case INS_FNPTR:  n = XA; break;
 		case INS_RET:    return;
 		case INS_SET:    srwr(s, i.a, regrd(s, i.c)); continue;
 		case INS_GET:    n = srrd(s, i.c); break;
@@ -432,6 +441,11 @@ int32_t load(State *s, const char *fn) {
 				i->op = INS_MAGIC;
 			}
 			i->a = gentry[i->a];
+		}
+		if (op == INS_FNPTR) {
+			if (i->b >= s->gmax) die("bad fnptr");
+			if (gentry[i->b] < 0) die("invalid fnptr %d %d", i->a, gentry[i->a]);
+			i->b = gentry[i->b];
 		}
 		// resolve cdata references to addresses
 		if (op == INS_CDATA) {
