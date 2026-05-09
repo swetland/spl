@@ -40,95 +40,27 @@ fn gen_bool_not(node Ast) u32 {
 	return inst_alui(INS_CMP_EQ, gen_expr(node.left), 0);
 }
 
-fn gen_load(node Ast) u32 {
-	var sym Symbol = node.sym;
-	if sym.kind & SYMBOL_DEF {
-		return inst_movi(sym.ival);
-	}
-	if sym.kind & SYMBOL_GLOBAL {
-		return inst_ldwi(REG_GP, sym.ival);
-	}
-	// param or local
-	return sym_to_vid_load(sym);
+fn gen_load_ptr(node Ast) u32 {
+	var sz u32 = type_size(node.type);
+	if sz > 4 { ErrorAt(node, "illegal sz @ load").u(sz); }
+	//TODO: signed/unsigned loads
+	//if node.type.kind & TYPE_IS_SIGNED {
+	return inst_loadi(sz, gen_expr(node.left), 0);
 }
 
-fn gen_store(sym Symbol, val u32) u32 {
-	if sym.kind & SYMBOL_GLOBAL {
-		return inst_stwi(val, REG_GP, sym.ival);
-	}
-	if sym.kind & SYMBOL_DEF {
-		Error("cannot store to constant '@'").s(sym.name.text);
-	}
-	// param or local
-	// inst_mov(val) instead of val avoids snarls at some cost
-	sym_to_vid_store(sym, val);
-	return val;
+fn gen_store_ptr(node Ast) u32 {
+	var sz u32 = type_size(node.type);
+	if sz > 4 { ErrorAt(node, "illegal sz @ store").u(sz); }
+	var ar u32 = gen_expr(node.left);
+	var vr u32 = gen_expr(node.right);
+	return inst_storei(sz, vr, ar, 0);
 }
 
-fn gen_addr(node Ast) u32;
-fn gen_index_addr(node Ast) u32;
-fn gen_field_addr(node Ast) u32;
-
-// obtain the target address of a pointer
-fn gen_ptr_addr(node Ast) u32 {
-	var kind AstKind = node.kind;
-
-	if kind == AST_SYMBOL {
-		var sym Symbol = node.sym;
-		if sym.kind & (SYMBOL_PARAM | SYMBOL_LOCAL) {
-			return sym_to_vid_load(sym);
-		} else if sym.kind & SYMBOL_GLOBAL {
-			// get address of global pointer
-			var gaddr u32 = inst_alui(INS_ADD, REG_GP, sym.ival);
-			// and dereference it
-			return inst_ldwi(gaddr, 0);
-		} else {
-			ErrorAt(node, "gen_ptr_addr cannot resolve '@' @")
-				.s(sym.name.text).x(sym.kind);
-		}
-	}
-	if kind == AST_INDEX {
-		return inst_ldwi(gen_index_addr(node), 0);
-	}
-	if kind == AST_FIELD {
-		return inst_ldwi(gen_field_addr(node), 0);
-	}
-	ErrorAt(node, "sorry... @ in ptr addr expr").s(ast_kind[kind]);
-	return 0;
-}
-
-fn gen_field_addr(node Ast) u32 {
-	var type Type = node.left.type;
-	var ptr bool = false;
-	var ar u32;
-	if type.kind == TYPE_POINTER {
-		type = type.of;
-		ar = gen_ptr_addr(node.left);
-	} else {
-		ar = gen_addr(node.left);
-	}
-	if type.kind != TYPE_STRUCT {
-		ErrorAt(node, "invalid FIELD reference");
-	}
-	return inst_alui(INS_ADD, ar, node.right.sym.ival);
-}
-
-fn gen_index_addr(node Ast) u32 {
-	var type Type = node.left.type;
-	var ar u32;
-	if type.kind == TYPE_POINTER {
-		// dereference
-		type = type.of;
-		ar = gen_ptr_addr(node.left);
-	} else {
-		//ErrorAt(node, "crap");
-		ar = gen_addr(node.left);
-	}
-	if type.kind != TYPE_ARRAY {
-		ErrorAt(node, "index of non-array type");
-	}
+fn gen_addrof_elem(node Ast) u32 {
+	var ar u32 = gen_expr(node.left);
 	var ir u32 = gen_expr(node.right);
-	var sz u32 = type_size(type.of);
+	// left must be a pointer-to-array
+	var sz u32 = type_size(node.left.type.of.of);
 	if sz == 2 {
 		ir = inst_alui(INS_LSL, ir, 1);
 	} else if sz == 4 {
@@ -139,77 +71,50 @@ fn gen_index_addr(node Ast) u32 {
 	return inst_alu(INS_ADD, ar, ir);
 }
 
-fn gen_call(node Ast) u32;
-
-fn gen_addr(node Ast) u32 {
-	var kind AstKind = node.kind;
-	if kind == AST_FIELD {
-		return gen_field_addr(node);
-	}
-	if kind == AST_INDEX {
-		return gen_index_addr(node);
-	}
-	if kind == AST_CALL {
-		// TODO more strict type matching
-		if node.type.kind != TYPE_POINTER {
-			ErrorAt(node, "fn @ does not return a pointer").s(node.left.sym.name.text);
-		}
-		return gen_call(node);
-	}
-	ErrorAt(node, "sorry... @ in addr expr").s(ast_kind[kind]);
+fn gen_addrof_field(node Ast) u32 {
+	return inst_alui(INS_ADD, gen_expr(node.left), node.sym.ival);
 }
 
-fn gen_array_load(node Ast) u32 {
-	return inst_loadi(type_size(node.type), gen_index_addr(node), 0);
+fn gen_load_fnaddr(node Ast) u32 {
+	return inst_fnptr(node.sym.type.name);
 }
 
-fn gen_array_store(node Ast, vr u32) u32 {
-	inst_storei(type_size(node.type), vr, gen_index_addr(node), 0);
-	return vr;
+fn gen_load_local(node Ast) u32 {
+	return sym_to_vid_load(node.sym);
 }
 
-fn gen_field_load(node Ast) u32 {
-	return inst_loadi(type_size(node.type), gen_field_addr(node), 0);
+fn gen_load_param(node Ast) u32 {
+	return sym_to_vid_load(node.sym);
 }
 
-fn gen_field_store(node Ast, vr u32) u32 {
-	inst_storei(type_size(node.type), vr, gen_field_addr(node), 0);
-	return vr;
+fn gen_load_global(node Ast) u32 {
+	var gaddr u32 = inst_alui(INS_ADD, REG_GP, node.sym.ival);
+	return inst_ldwi(gaddr, 0);
 }
 
-fn gen_assign(node Ast) u32 {
-	var kind AstKind = node.left.kind;
-	if kind == AST_SYMBOL {
-		if (node.left.type.kind == TYPE_POINTER) &&
-			(node.right.type.kind != TYPE_POINTER) {
-			if !types_match(node.left.type.of, node.right.type, false) {
-				ErrorAt(node, "cannot obtain @ from @").t(node.left.type).t(node.right.type);
-			}
-			return gen_store(node.left.sym, gen_addr(node.right));
-		} else {
-			return gen_store(node.left.sym, gen_expr(node.right));
-		}
-	}
-	if kind == AST_INDEX {
-		return gen_array_store(node.left, gen_expr(node.right));
-	}
-	if kind == AST_FIELD {
-		return gen_field_store(node.left, gen_expr(node.right));
-	}
-	var ar u32 = gen_addr(node.left);
-	var vr u32 = gen_expr(node.right);
-	return inst_stwi(vr, ar, 0);
+fn gen_store_local(node Ast) u32 {
+	var val u32 = gen_expr(node.left);
+	sym_to_vid_store(node.sym, val);
+	return val;
+}
+
+fn gen_store_param(node Ast) u32 {
+	var val u32 = gen_expr(node.left);
+	sym_to_vid_store(node.sym, val);
+	return val;
+}
+
+fn gen_store_global(node Ast) u32 {
+	return inst_stwi(gen_expr(node.left), REG_GP, node.sym.ival);
 }
 
 fn gen_call(fcall Ast) u32 {
-	var sym Symbol = fcall.left.sym;
-	if sym == nil {
-		// TODO: should be impossible
-		ErrorAt(fcall, "calling undefined function");
+	var type Type = fcall.left.type;
+	if type.kind == TYPE_POINTER {
+		type = type.of;
 	}
-
-	if sym.type.count > 0 {
-		inst_aluix(INS_SUB, REG_SP, REG_SP, sym.type.count * 4);
+	if type.count > 0 {
+		inst_aluix(INS_SUB, REG_SP, REG_SP, type.count * 4);
 	}
 	var n u32 = 0;
 	var node Ast = fcall.right;
@@ -218,20 +123,23 @@ fn gen_call(fcall Ast) u32 {
 		node = node.next;
 		n++;
 	}
-	if n != sym.type.count {
-		ErrorAt(fcall, "parameter count mismatch for '@': expected @, found @")
-			.s(sym.name.text).u(sym.type.count).u(n);
+
+	if fcall.left.kind == AST_FNNAME {
+		// TODO: possibly better way to get the (mangled) canonical
+		// function name from a method than indirecting through the type?
+		var sym Symbol = fcall.left.sym;
+		if sym == nil { ErrorAt(fcall, "calling undefined function"); }
+		inst_call(sym.type.name);
+	} else {
+		// fn pointer
+		inst_callptr(gen_expr(fcall.left));
 	}
 
-	// TODO: possibly better way to get the (mangled) canonical
-	// function name from a method than indirecting through the type?
-	inst_call(sym.type.name);
-
-	if sym.type.count > 0 {
-		inst_aluix(INS_ADD, REG_SP, REG_SP, sym.type.count * 4);
+	if type.count > 0 {
+		inst_aluix(INS_ADD, REG_SP, REG_SP, type.count * 4);
 	}
 
-	if sym.type.of == ctx.type_void {
+	if type.of == ctx.type_void {
 		return REG_ZERO;
 	} else {
 		return inst_mov(REG_RV);
@@ -239,7 +147,6 @@ fn gen_call(fcall Ast) u32 {
 
 	// TODO: terminate bb after call?
 }
-
 
 fn gen_bool_and(node Ast) u32 {
 	var _if BasicBlock = bb_make("bool-and-test0");
@@ -325,39 +232,44 @@ fn gen_bool_or(node Ast) u32 {
 
 fn gen_expr(node Ast) u32 {
 	var kind AstKind = node.kind;
-
-	if kind == AST_CONST { return inst_movi(node.ival); }
-	if kind == AST_SYMBOL { return gen_load(node); }
-	if kind == AST_EQ  { return gen_relop(node, INS_CMP_EQ); }
-	if kind == AST_NE  { return gen_relop(node, INS_CMP_NE); }
-	if kind == AST_LT  { return gen_relop(node, INS_CMP_LT); }
-	if kind == AST_LE  { return gen_relop(node, INS_CMP_LE); }
-	if kind == AST_GT  { return gen_relop(node, INS_CMP_GT); }
-	if kind == AST_GE  { return gen_relop(node, INS_CMP_GE); }
-	if kind == AST_ADD { return gen_binop(node, INS_ADD); }
-	if kind == AST_SUB { return gen_binop(node, INS_SUB); }
-	if kind == AST_OR  { return gen_binop(node, INS_OR); }
-	if kind == AST_XOR { return gen_binop(node, INS_XOR); }
-	if kind == AST_MUL { return gen_binop(node, INS_MUL); }
-	if kind == AST_DIV { return gen_binop(node, INS_SDIV); }
-	if kind == AST_MOD { return gen_binop(node, INS_SREM); }
-	if kind == AST_AND { return gen_binop(node, INS_AND); }
-	if kind == AST_LSL { return gen_binop(node, INS_LSL); }
-	if kind == AST_LSR { return gen_binop(node, INS_LSR); }
-	if kind == AST_NOT { return gen_unop(node, INS_NOT); }
-	if kind == AST_CLR { return gen_clrop(node); }
-	if kind == AST_NEG { return gen_unop(node, INS_NEG); }
+	if kind == AST_CONST    { return inst_movi(node.ival); }
+	if kind == AST_FNADDR   { return gen_load_fnaddr(node); }
+	if kind == AST_EQ       { return gen_relop(node, INS_CMP_EQ); }
+	if kind == AST_NE       { return gen_relop(node, INS_CMP_NE); }
+	if kind == AST_LT       { return gen_relop(node, INS_CMP_LT); }
+	if kind == AST_LE       { return gen_relop(node, INS_CMP_LE); }
+	if kind == AST_GT       { return gen_relop(node, INS_CMP_GT); }
+	if kind == AST_GE       { return gen_relop(node, INS_CMP_GE); }
+	if kind == AST_ADD      { return gen_binop(node, INS_ADD); }
+	if kind == AST_SUB      { return gen_binop(node, INS_SUB); }
+	if kind == AST_OR       { return gen_binop(node, INS_OR); }
+	if kind == AST_XOR      { return gen_binop(node, INS_XOR); }
+	if kind == AST_MUL      { return gen_binop(node, INS_MUL); }
+	if kind == AST_DIV      { return gen_binop(node, INS_SDIV); }
+	if kind == AST_MOD      { return gen_binop(node, INS_SREM); }
+	if kind == AST_AND      { return gen_binop(node, INS_AND); }
+	if kind == AST_LSL      { return gen_binop(node, INS_LSL); }
+	if kind == AST_LSR      { return gen_binop(node, INS_LSR); }
+	if kind == AST_NOT      { return gen_unop(node, INS_NOT); }
+	if kind == AST_CLR      { return gen_clrop(node); }
+	if kind == AST_NEG      { return gen_unop(node, INS_NEG); }
 	if kind == AST_BOOL_NOT { return gen_bool_not(node); }
 	if kind == AST_BOOL_AND { return gen_bool_and(node); }
-	if kind == AST_BOOL_OR { return gen_bool_or(node); }
-	if kind == AST_STRING { return inst_cdata_str(node.sval); }
-	//if kind == AST_DEREF { }
-	if kind == AST_INDEX { return gen_array_load(node); }
-	if kind == AST_FIELD { return gen_field_load(node); }
-	if kind == AST_CALL { return gen_call(node); }
-	if kind == AST_ASSIGN { return gen_assign(node); }
-	if kind == AST_CAST { return gen_expr(node.left); }
-	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
+	if kind == AST_BOOL_OR  { return gen_bool_or(node); }
+	if kind == AST_STRING   { return inst_cdata_str(node.sval); }
+	if kind == AST_CALL          { return gen_call(node); }
+	if kind == AST_LOAD_LOCAL    { return gen_load_local(node); }
+	if kind == AST_STORE_LOCAL   { return gen_store_local(node); }
+	if kind == AST_LOAD_PARAM    { return gen_load_param(node); }
+	if kind == AST_STORE_PARAM   { return gen_store_param(node); }
+	if kind == AST_LOAD_GLOBAL   { return gen_load_global(node); }
+	if kind == AST_STORE_GLOBAL  { return gen_store_global(node); }
+	if kind == AST_ADDROF_ELEM   { return gen_addrof_elem(node); }
+	if kind == AST_ADDROF_FIELD  { return gen_addrof_field(node); }
+	if kind == AST_LOAD_PTR      { return gen_load_ptr(node); }
+	if kind == AST_STORE_PTR     { return gen_store_ptr(node); }
+	if kind == AST_CAST          { return gen_expr(node.left); }
+	ErrorAt(node, "illegal @ in expr").s(ast_kind[kind]);
 	return 0;
 }
 
@@ -481,7 +393,7 @@ fn gen_block(node Ast) { //dup
 		} else if ast_is_expr(kind) {
 			gen_expr(node);
 		} else {
-			ErrorAt(node, "unsupported @ in block").s(ast_kind[kind]);
+			ErrorAt(node, "illegal @ in block").s(ast_kind[kind]);
 		}
 		node = node.next;
 	}
@@ -516,8 +428,6 @@ fn setup_locals(node Ast, n u32) { //dup
 
 fn gen_fn(node Ast) {
 	if node.left == nil { return; }
-
-	//validate_fn(node);
 
 	ctx.curfn = node.sym.name.text;
 
