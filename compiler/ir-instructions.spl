@@ -27,6 +27,7 @@ enum IRtag {
 // LABEL.c contains the instruction number for verification.
 //
 // CALL.a refers to the GLBL entry with the name of the target.
+// FNPTR.b also refers to such a GLBL entry
 //
 // CDATA.b refers to the ID of the DATA chunk referenced
 // CDATA.c refers to the offset within that DATA chunk
@@ -80,6 +81,8 @@ enum IRflag {
 	INX_JUMP  =    INF_IS_B_U,
 	INX_BRANCH =   INF_IS_B_C | INF_USE_A,
 	INX_CALL =     0,
+	INX_CALLPTR =  INF_USE_A,
+	INX_FNPTR =    INF_SET_A,
 	INX_RET =      INF_IS_RET | INF_USE_A,
 	INX_SET =      INF_USE_C,
 	INX_GET =      INF_SET_A,
@@ -124,6 +127,8 @@ enum IRop {
 	INS_BRANCH,  // BRANCH Ca, Lb, Lc    if Ca != 0 then ->Lb else ->Lc
 	INS_CALL,    // CALL La
 	INS_RET,     // RET Ra
+	INS_CALLPTR, // CALLPTR Ra
+	INS_FNPTR,   // FNPTR Ra, Lb         Ra = ADDR(Lb)
 
 	INS_SET,     // SET Sa, Rc  (aka upsilon)
 	INS_GET,     // GET Ra, Sc  (aka phi)
@@ -143,6 +148,7 @@ var iop_name [INS_COUNT]str = {
 	"not", "neg", "mv",
 	"ld", "st",
 	"label", "jump", "branch", "call", "ret",
+	"callptr", "fnptr",
 	"set", "get", "cdata",
 };
 
@@ -157,6 +163,7 @@ var iop_props [INS_COUNT]u32 = {
 	INX_UNOP, INX_UNOP, INX_UNOP,
 	INX_LOAD, INX_STORE,
 	INX_LABEL, INX_JUMP, INX_BRANCH, INX_CALL, INX_RET,
+	INX_CALLPTR, INX_FNPTR,
 	INX_SET, INX_GET, INX_CDATA,
 };
 
@@ -327,6 +334,12 @@ fn inst_call(name String) {
 fn inst_ret(a u32) {
 	inst_make(INS_RET, a, 0, 0);
 }
+fn inst_callptr(a u32) {
+	inst_make(INS_CALLPTR, a, 0, 0);
+}
+fn inst_fnptr(name String) u32 {
+	return inst_make(INS_FNPTR, ir_reg_get(), ir_string_get(name), 0);
+}
 
 // upsilon/phi
 fn inst_set(a u32, c u32) {
@@ -425,6 +438,10 @@ fn inst_disasm(os OutStream, ins Inst) {
 		os.fmt("call @\n").s(ir_string(ins.a));
 	} else if op == INS_RET {
 		os.fmt("ret @\n").reg(ins.a);
+	} else if op == INS_CALLPTR {
+		os.fmt("callptr @\n").reg(ins.a);
+	} else if op == INS_FNPTR {
+		os.fmt("fnptr @, @ #@\n").reg(ins.a).s(ir_string(ins.b)).u(ins.b);
 	} else if op == INS_SET {
 		os.fmt("set '@, @\n").u(ins.a).reg(ins.c);
 	} else if op == INS_GET {
