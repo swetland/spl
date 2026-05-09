@@ -28,8 +28,7 @@ SKIP2 += test/1040-structs.spl
 
 # stage3 compiler
 SKIP3 := $(SKIPALL) $(SKIPANON)
-SKIP3 += test/1060-fn-ptr.spl
-SKIP3 += test/1021-numbers.spl test/1040-structs.spl
+SKIP3 += test/1040-structs.spl
 
 ifneq (,$(filter noskip,$(MAKECMDGOALS)))
 SKIP0 :=
