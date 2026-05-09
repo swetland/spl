@@ -64,6 +64,7 @@ var __alloc_string u32 = 0;
 var __alloc_scope u32 = 0;
 var __alloc_symbol u32 = 0;
 var __alloc_type u32 = 0;
+var __alloc_ptr_type u32 = 0;
 var __alloc_node u32 = 0;
 var __lookup_string u32 = 0;
 var __lookup_symbol u32 = 0;
@@ -202,30 +203,31 @@ fn type_make(name String, kind TypeKind, of Type, list Symbol, count u32) Type {
 			type.name = ctx.str_type_unknown;
 		}
 	}
-	if WITH_STATS { __alloc_type++; }
+	if WITH_STATS {
+		__alloc_type++;
+		if kind == TYPE_POINTER { __alloc_ptr_type++; }
+	}
 	return type;
 }
 
 // for use by the parser
 fn type_make_ptr(type Type) Type {
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
-		// structs cache a pointer-to-type here
-		return type.of;
-	}
 	if !(type.kind & TYPE_NEED_PTR) {
 		Error("pointers to '@' are not allowed").t(type);
 	}
-	return type_make(nil, TYPE_POINTER, type, nil, 0);
+	if type.ptr == nil {
+		type.ptr = type_make(nil, TYPE_POINTER, type, nil, 0);
+	}
+	return type.ptr;
 }
 
 // for use by the validator which may create
 // pointers to things the parser would not allow
 fn type_make_ptr_internal(type Type) Type {
-	if (type.kind == TYPE_STRUCT) || (type.kind == TYPE_UNDEFINED) {
-		// structs cache a pointer-to-type here
-		return type.of;
+	if type.ptr == nil {
+		type.ptr = type_make(nil, TYPE_POINTER, type, nil, 0);
 	}
-	return type_make(nil, TYPE_POINTER, type, nil, 0);
+	return type.ptr;
 }
 
 fn type_find(name String) Type {
@@ -308,7 +310,7 @@ fn anon_type_match(a Type, b Type) bool {
 }
 
 fn types_match(a Type, b Type, fcall bool) bool {
-	// simple case: same object
+	// simple case: same object or both nil
 	if a == b { return true; }
 	// not the same, but one is nil
 	if (a == nil) || (b == nil) { return false; }
@@ -320,11 +322,7 @@ fn types_match(a Type, b Type, fcall bool) bool {
 	// cannot match if counts differ
 	if a.count != b.count { return false; }
 	// cannot match if -of types differ
-	// but STRUCT/UNDEFINED use this as a cache which
-	// leads to infinite recursion, so be careful
-	if (a.kind != TYPE_STRUCT) && (a.kind != TYPE_UNDEFINED) {
-		if !types_match(a.of, b.of, fcall) { return false; }
-	}
+	if !types_match(a.of, b.of, fcall) { return false; }
 	// cannot match if field/param type lists differ
 	var aa Symbol = a.list;
 	var bb Symbol = b.list;

@@ -94,8 +94,9 @@ struct Type {
 	next *Type,
 	name *String,
 	// for slice, array, ptr, fn (return type)
-	// for structs, pointer-to-this-struct
 	of *Type,
+	// cached pointer-to-this-type
+	ptr *Type,
 	// for struct (fields), fn (params)
 	list *Symbol,
 	kind TypeKind,

@@ -254,6 +254,7 @@ fn start() i32 {
 		FmtLn(err, "alloc scope:  @").u(__alloc_scope);
 		FmtLn(err, "alloc symbol: @").u(__alloc_symbol);
 		FmtLn(err, "alloc type:   @").u(__alloc_type);
+		FmtLn(err, "alloc ptype:  @").u(__alloc_ptr_type);
 		FmtLn(err, "alloc node:   @").u(__alloc_node);
 		FmtLn(err, "find string:  @").u(__lookup_string);
 		FmtLn(err, "find symbol:  @").u(__lookup_symbol);
