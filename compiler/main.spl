@@ -90,6 +90,7 @@ fn dump_ast_node(fd i32, node Ast, indent i32) {
 		writes(fd, " ");
 		printstr(fd, node.sval.text);
 	} else if kind == AST_NEW {
+		writes(fd, " ");
 		print_type(fd, node.type);
 	} else {
 		if node.sym {
@@ -197,7 +198,7 @@ fn start() i32 {
 	}
 
 	if astfd != -1 {
-		dump_ast_node(astfd, ctx.program.left, -1);
+		dump_ast_nodes(astfd, ctx.program.left, -1);
 		writes(astfd, "\n");
 		dump_types(astfd);
 	}
