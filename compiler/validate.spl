@@ -60,8 +60,6 @@ fn adapt_int_arg(node Ast, type Type) {
 fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
-var wsl u32;
-
 //TODO: should bool convert to 0/1 value?
 fn is_assignable(src Type, dst Type, snode Ast, fcall bool) bool {
 	if types_match(src, dst, fcall) { return true; }
@@ -97,10 +95,6 @@ fn is_assignable(src Type, dst Type, snode Ast, fcall bool) bool {
 	if dk == TYPE_POINTER {
 		if src == ctx.type_nil { return true; }
 	}
-	if dst == ctx.type_str {
-		// str and various []u8 types are compatible
-		if (sk == TYPE_ARRAY) && (src.of == ctx.type_u8) { return true; }
-	}
 	if (sk == TYPE_POINTER) && (dk == TYPE_POINTER) {
 		// arrays of differing (or 0) sizes are compatible (for now)
 		src = src.of;
@@ -125,7 +119,6 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 				.u(n + 1).u(type.count);
 		}
 		validate_expr(arg);
-		wsl = arg.srcloc;
 		if !is_assignable(arg.type, param.type, arg, true) {
 			ErrorAt(arg, "arg @: cannot assign @ to @")
 				.u(n).t(arg.type).t(param.type);
@@ -285,7 +278,6 @@ fn validate_assign(node Ast) {
 		}
 	}
 
-	wsl = node.srcloc;
 	if !is_assignable(rtype, ltype, right, false) {
 		ErrorAt(node, "cannot assign @ to @").t(rtype).t(ltype);
 	}
@@ -519,7 +511,7 @@ fn validate_expr(node Ast) {
 	if kind == AST_ASSIGN   { return validate_assign(node); }
 	if kind == AST_CAST     { return validate_cast(node); }
 	if kind == AST_NEW      { return validate_new(node); }
-	ErrorAt(node, "unsupported @ in expr x").s(ast_kind[kind]);
+	ErrorAt(node, "unsupported @ in expr").s(ast_kind[kind]);
 }
 
 fn validate_if(node Ast) {

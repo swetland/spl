@@ -133,7 +133,6 @@ enum AstKind u8 {
 	AST_SYMBOL,   // sym: symbol
 	AST_CONST,    // ival: numeric constant
 	AST_STRING,   // name: string constant
-	AST_DEREF,    // l=EXPR type: pointer-to-...
 	AST_INDEX,    // l=EXPR type: array-of-...  r=EXPR index
 	AST_FIELD,    // l=EXPR type: struct        r=SYMBOL field
 	AST_ADDROF,   // l=EXPR type: lvalue
@@ -172,7 +171,7 @@ var ast_kind []str = {
 	"BLOCK", "WHILE", "BREAK", "CONTINUE",
 	"RETURN", "IF", "CASE", "ELSE",
 	"SYMBOL", "CONST", "STRING",
-	"DEREF", "INDEX", "FIELD", "ADDROF",
+	"INDEX", "FIELD", "ADDROF",
 	"CALL", "ASSIGN", "CAST", "ARRAY", "NEW",
 	"EQ", "NE", "LT", "LE", "GT", "GE",
 	"ADD", "SUB", "OR", "XOR",
