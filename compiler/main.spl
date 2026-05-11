@@ -54,6 +54,8 @@ fn print_type(fd i32, type Type) {
 	writes(fd, type.name.text);
 }
 
+var mark_this_node Ast;
+
 fn dump_ast_nodes(fd i32, node Ast, indent i32);
 
 fn dump_ast_node(fd i32, node Ast, indent i32) {
@@ -102,6 +104,9 @@ fn dump_ast_node(fd i32, node Ast, indent i32) {
 		writes(fd, " ");
 		print_type(fd, node.type);
 	}
+	if node == mark_this_node {
+		writes(fd, "   <<<-- ERROR");
+	}
 	writes(fd, "\n");
 
 	dump_ast_nodes(fd, node.left, indent);
@@ -137,11 +142,23 @@ fn dump_types(fd i32) {
 	}
 }
 
+var astfd i32 = -1;
+
+fn error_dump_ast(badnode Ast) {
+	if astfd < 0 {
+		return;
+	}
+	mark_this_node = badnode;
+	dump_ast_nodes(astfd, ctx.program.left, -1);
+	writes(astfd, "\n");
+	dump_types(astfd);
+	astfd = -1;
+}
+
 fn start() i32 {
 	ctx_init();
 	parse_init();
 	var ptfd i32 = -1;
-	var astfd i32 = -1;
 	var outfd i32 = 1;
 	var stats i32 = 0;
 	var err OutStream = OutFd(2);
@@ -235,6 +252,7 @@ fn start() i32 {
 		dump_ast_nodes(astfd, ctx.program.left, -1);
 		writes(astfd, "\n");
 		dump_types(astfd);
+		astfd = -1;
 	}
 
 	if outfd != -1 {

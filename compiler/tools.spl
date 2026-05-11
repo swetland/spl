@@ -3,6 +3,8 @@
 
 // message tools
 
+fn error_dump_ast(badnode Ast);
+
 fn print_type(fd i32, type Type);
 
 fn (os OutStream) t(type Type) OutStream {
@@ -27,6 +29,7 @@ fn ErrorAtLoc(srcloc u32, msg str) OutStream {
 }
 
 fn ErrorAt(node Ast, msg str) OutStream {
+	error_dump_ast(node);
 	return ErrorAtLoc(node.srcloc, msg);
 }
 
