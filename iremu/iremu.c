@@ -47,6 +47,44 @@ typedef struct Inst {
 	uint32_t c;
 } Inst;
 
+typedef struct Func Func;
+
+struct Func {
+	Func *next;
+	const char *name;
+	uint32_t icount; // number of instructions
+	uint32_t rcount; // max number of registers
+	uint32_t id;     // function id
+	Inst code[0];
+};
+
+typedef struct RegPair {
+	uint32_t r;
+	uint32_t s;
+} RegPair;
+
+typedef struct Global {
+	int32_t id;
+	const char *name;
+} Global;
+
+typedef struct State {
+	Func **fntab;    // array of functions by id
+	uint32_t fnmax;  // size of fntab
+
+	uint32_t vrmax;  // active virtual register window size
+	RegPair *vr;     // active virtual register window base
+	uint32_t pr[32]; // physical register file
+	uint8_t *data;   // RAM
+	RegPair *vregs;  // virtual register storage start
+	RegPair *vlast;  // virtual register storage end
+
+	// load-time context
+	Func *fnlist;    // linked list of all functions
+	Global *gtab;    // array of global names and IDs
+	uint32_t gmax;   // number of global names
+} State;
+
 void fmtarg(char *buf, uint32_t n, int isreg) {
 	if (!isreg) {
 		sprintf(buf, "%d", n);
@@ -88,24 +126,6 @@ void trace(Inst *i, uint32_t pc, uint32_t v) {
 		fprintf(stderr, "%04d          %-8s %s, %s, %s\n", pc - 1, sop, sa, sb, sc);
 	}
 }
-
-typedef struct RegPair {
-	uint32_t r;
-	uint32_t s;
-} RegPair;
-
-typedef struct State {
-	Inst *code;
-	uint32_t pcmax;  // last valid instruction
-	uint32_t vrmax;  // active virtual register window size
-	RegPair *vr;    // active virtual register window base
-	uint32_t pr[32]; // physical register file
-	uint8_t *data;   // RAM
-	RegPair *vregs; // virtual register storage start
-	RegPair *vlast; // virtual register storage end
-	uint32_t gmax;   // number of global names
-	char**   gname;  // array of global names
-} State;
 
 void magic(State *s, uint32_t n);
 
@@ -174,18 +194,25 @@ static void srwr(State *s, uint32_t r, uint32_t v) {
 #define IB ((int32_t) XB)
 #define IC ((int32_t) XC)
 
-void emu(State *s, uint32_t pc) {
-	// ensure that the entry point is a valid fn block
-	if (s->code[pc].op != INS_BLOCK) die("invalid fn @ %d", pc);
+//TODO: xor random key with ID for fnptr
+
+void emu(State *s, uint32_t fid) {
+	if (fid >= s->fnmax) die("invalid fn id %d", fid);
+	Func *fn = s->fntab[fid];
+
+	uint32_t pc = 0;
+	uint32_t pcmax = fn->icount;
+	uint32_t rcount = fn->rcount;
+	Inst *code = fn->code;
 
 	// ensure we have room for the virtual registers
-	uint32_t n = s->code[pc].a;
-	if ((s->vlast - s->vr) < n) die("vreg overflow");
-	s->vrmax = n;
+	if ((s->vlast - s->vr) < rcount) die("vreg overflow");
+	s->vrmax = rcount;
 
+	uint32_t n = 0;
 	for (;;) {
-		if (pc >= s->pcmax) die("invalid pc: %d", pc);
-		Inst i = s->code[pc++];
+		if (pc >= pcmax) die("invalid pc: %d", pc);
+		Inst i = code[pc++];
 		if (do_trace && !(i.op & INF_SET_A)) { trace(&i, pc, 0); }
 		switch (i.op & INS_OP_MASK) {
 		case INS_ADD:    n = XB + XC; break;
@@ -218,22 +245,21 @@ void emu(State *s, uint32_t pc) {
 		case INS_JUMP:   pc = i.a; continue;
 		case INS_BRANCH: pc = XA ? i.b : i.c; continue;
 		case INS_CALL:   {
-			n = s->vrmax;
-			s->vr += n;
+			s->vr += rcount;
 			emu(s, i.a);
-			s->vr -= n;
-			s->vrmax = n;
+			s->vr -= rcount;
+			s->vrmax = rcount;
 			continue;
 		}
 		case INS_CALLPTR: {
-			n = s->vrmax;
-			s->vr += n;
-			emu(s, XA);
-			s->vr -= n;
-			s->vrmax = n;
+			n = XA;
+			s->vr += rcount;
+			emu(s, n);
+			s->vr -= rcount;
+			s->vrmax = rcount;
 			continue;
 		}
-		case INS_FNPTR:  n = XA; break;
+		case INS_FNPTR:  n = XB; break;
 		case INS_RET:    return;
 		case INS_SET:    srwr(s, i.a, regrd(s, i.c)); continue;
 		case INS_GET:    n = srrd(s, i.c); break;
@@ -341,12 +367,55 @@ void setup_data(State *s) {
 	}
 }
 
-int32_t load(State *s, const char *fn) {
-	int32_t *gentry = 0;
-	int32_t start = 0xffffffff;
-	int fd = open(fn, O_RDONLY);
+void setup_func(State *s, Func *fn) {
 	uint32_t n;
-	if (fd < 0) die("cannot open '%s'", fn);
+	for (n = 0; n < fn->icount; n++) {
+		Inst *i = fn->code + n;
+		uint32_t op = i->op & INS_OP_MASK;
+		// convert CALLs from global id to instruction id
+		// translate CALLs to undef fns to MAGICs
+		if (op == INS_CALL) {
+			if (i->a >= s->gmax) {
+				die("bad call");
+			}
+			if (s->gtab[i->a].id < 0) {
+				i->op = INS_MAGIC;
+			}
+			i->a = s->gtab[i->a].id;
+		}
+		if (op == INS_FNPTR) {
+			if (i->b >= s->gmax) {
+				die("bad fnptr");
+			}
+			if (s->gtab[i->b].id < 0) {
+				die("invalid fnptr %d %d", i->b, s->gtab[i->b].id);
+			}
+			i->b = s->gtab[i->b].id;
+		}
+		// resolve cdata references to addresses
+		if (op == INS_CDATA) {
+			DataChunk *dc = dc_find(i->b);
+			i->b = dc->addr + i->c;
+		}
+		if (op == INS_SET) {
+			// transform for the sake of tracing clarity
+			i->op = INS_SET | INF_SET_A | INF_USE_C;
+		}
+	}
+}
+
+int32_t lookup_global(const char* name) {
+	if (!strcmp(name, "_hexout_i")) return MAGIC_HEXOUT;
+	if (!strcmp(name, "_hexout_u")) return MAGIC_HEXOUT;
+	if (!strcmp(name, "__new")) return MAGIC_ALLOC;
+	return MAGIC_UNDEF;
+}
+
+Func *load(State *s, const char *fname) {
+	Func *start = NULL;
+	int fd = open(fname, O_RDONLY);
+	uint32_t n;
+	if (fd < 0) die("cannot open '%s'", fname);
 	if (rd32(fd) != TAG_IR_XIR0) die("invalid xir file");
 	rd32(fd);
 	rd32(fd);
@@ -357,15 +426,17 @@ int32_t load(State *s, const char *fn) {
 			uint32_t icount = rd32(fd);
 			uint32_t id = rd32(fd);
 			uint32_t rcount = rd32(fd);
-			// the header becomes a start-of-block instruction
-			s->code[s->pcmax].op = INS_BLOCK;
-			s->code[s->pcmax].a = rcount;
-			s->code[s->pcmax].b = id;
-			s->code[s->pcmax].c = s->pcmax;
-			s->pcmax++;
+			Func *fn = malloc(sizeof(Func) + sizeof(Inst) * icount);
+			fn->icount = icount;
+			fn->rcount = rcount;
+			fn->id = id;
 			n = icount * sizeof(Inst);
-			if (read(fd, s->code + s->pcmax, n) != n) die("read fail: code");
-			s->pcmax += icount;
+			if (read(fd, fn->code, n) != n) {
+				die("read fail: code");
+			}
+			fn->next = s->fnlist;
+			s->fnlist = fn;
+			s->fnmax++;
 		} else if (n == TAG_IR_DATA) {
 			uint32_t count = rd32(fd);
 			uint32_t id = rd32(fd);
@@ -386,9 +457,9 @@ int32_t load(State *s, const char *fn) {
 			if (read(fd, dc->data, n) != n) die("read fail: data chunk");
 		} else if (n == TAG_IR_GLBL) {
 			s->gmax = rd32(fd);
-			n = s->gmax * sizeof(int32_t);
-			gentry = malloc(n);
-			s->gname = malloc(s->gmax * sizeof(char*));
+			s->gtab = malloc(s->gmax * sizeof(Global));
+			n = s->gmax * sizeof(uint32_t);
+			int32_t *gentry = malloc(n);
 			if (read(fd, gentry, n) != n) die("read fail: str entries");
 			n = 0;
 			for (int i = 0; i < s->gmax; i++) {
@@ -397,10 +468,11 @@ int32_t load(State *s, const char *fn) {
 			char* strtab = malloc(n);
 			if (read(fd, strtab, n) != n) die("read fail: str table");
 			for (int i = 0; i < s->gmax; i++) {
-				s->gname[i] = strtab;
+				s->gtab[i].name = strtab;
+				s->gtab[i].id = lookup_global(strtab);
 				strtab += gentry[i] + 1;
-				gentry[i] = MAGIC_UNDEF;
 			}
+			free(gentry);
 			break;
 		}
 	}
@@ -409,60 +481,42 @@ int32_t load(State *s, const char *fn) {
 	// load data blocks into ram and resolve pointers
 	setup_data(s);
 
-	// map functions
-	for (n = 0; n < s->pcmax; n++) {
-		Inst *i = s->code + n;
-		if (i->op == INS_BLOCK) {
-			if (i->c != n) die("%d: bad block pc", n);
-			if (i->b >= s->gmax) die("%d: bad block id", n);
-			gentry[i->b] = i->c;
-		} else if (i->op == INS_LABEL) {
-			if (i->c != n) die("%d: bad label pc", n);
+	// build table of all functions
+	// assign function ids (table slots)
+	// point global table entries at function ids
+	s->fntab = malloc(sizeof(Func*) * s->fnmax);
+	Func *fn = s->fnlist;
+	int32_t fid = 0;
+	while (fn != NULL) {
+		s->fntab[fid] = fn;
+		if (fn->id >= s->gmax) {
+			die("fn#%d: illegal global id: %d", fid, fn->id);
 		}
-	}
-	// resolve start and builtin functions
-	for (n = 0; n < s->gmax; n++) {
-		if (!strcmp(s->gname[n],"start")) start = gentry[n];
-		if (gentry[n] < 0) {
-			if (!strcmp(s->gname[n],"_hexout_i")) gentry[n] = MAGIC_HEXOUT;
-			if (!strcmp(s->gname[n],"_hexout_u")) gentry[n] = MAGIC_HEXOUT;
-			if (!strcmp(s->gname[n],"__new")) gentry[n] = MAGIC_ALLOC;
+		if (s->gtab[fn->id].id != MAGIC_UNDEF) {
+			die("fn#%d: redefining '%s'", fid, s->gtab[fn->id].name);
 		}
+		fn->name = s->gtab[fn->id].name;
+		if (!strcmp(fn->name, "start")) {
+			start = fn;
+		}
+		s->gtab[fn->id].id = fid;
+		fn->id = fid;
+		fn = fn->next;
+		fid++;
 	}
 
-	for (n = 0; n < s->pcmax; n++) {
-		Inst *i = s->code + n;
-		uint32_t op = i->op & INS_OP_MASK;
-		// convert CALLs from global id to instruction id
-		// translate CALLs to undef fns to MAGICs
-		if (op == INS_CALL) {
-			if (i->a >= s->gmax) die("bad call");
-			if (gentry[i->a] < 0) {
-				i->op = INS_MAGIC;
-			}
-			i->a = gentry[i->a];
-		}
-		if (op == INS_FNPTR) {
-			if (i->b >= s->gmax) die("bad fnptr");
-			if (gentry[i->b] < 0) die("invalid fnptr %d %d", i->a, gentry[i->a]);
-			i->b = gentry[i->b];
-		}
-		// resolve cdata references to addresses
-		if (op == INS_CDATA) {
-			DataChunk *dc = dc_find(i->b);
-			i->b = dc->addr + i->c;
-		}
-		if (op == INS_SET) {
-			// transform for the sake of tracing clarity
-			i->op = INS_SET | INF_SET_A | INF_USE_C;
-		}
+	// validate instructions
+	for (fn = s->fnlist; fn != NULL; fn = fn->next) {
+		setup_func(s, fn);
 	}
+
+	// check for undefined globals
 	for (n = 0; n < s->gmax; n++) {
-		if (gentry[n] == MAGIC_UNDEF) {
-			die("undefined reference to '%s'", s->gname[n]);
+		if (s->gtab[n].id == MAGIC_UNDEF) {
+			die("undefined reference to '%s'", s->gtab[n].name);
 		}
 	}
-	if (start == 0xffffffff) die("no start function");
+	if (start == NULL) die("no start function");
 	return start;
 }
 
@@ -489,7 +543,6 @@ void check_state(State *s) {
 
 int main(int argc, char **argv) {
 	State *s = calloc(1, sizeof(State));
-	s->code = malloc(1 * 1024 * 1024);
 	s->vregs = malloc(4096 * sizeof(RegPair));
 	s->data = malloc(RAMSIZE);
 	s->vlast = s->vregs + 4096;
@@ -512,8 +565,8 @@ usage:
 		fprintf(stderr, "error: usage: iremu [-t|-check] <xir>\n");
 		return -1;
 	}
-	uint32_t entry = load(s, argv[1]);
-	emu(s, entry);
+	Func *entry = load(s, argv[1]);
+	emu(s, entry->id);
 	printf("X %08x\n", s->pr[R_RV]);
 	if (do_check_state) {
 		check_state(s);
