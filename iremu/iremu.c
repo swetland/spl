@@ -107,7 +107,7 @@ const char* opname(uint32_t op) {
 	return "invalid";
 }
 
-void trace(Inst *i, uint32_t pc, uint32_t v) {
+void dis_inst(Inst *i, uint32_t pc, uint32_t v, int trace) {
 	uint32_t op = i->op & INS_OP_MASK;
 	char sop[32], sa[32], sb[32], sc[32];
 	fmtarg(sa, i->a, i->op & (INF_SET_A|INF_USE_A));
@@ -120,10 +120,26 @@ void trace(Inst *i, uint32_t pc, uint32_t v) {
 		else { ssz = "b"; }
 	}
 	sprintf(sop, "%s%s%s", opname(op), ssz, i->op & INF_C_IMM ? "i" : "");
+	if (!trace) {
+		printf("%04d %-8s %s, %s, %s\n", pc, sop, sa, sb, sc);
+		return;
+	}
 	if (i->op & INF_SET_A) {
 		fprintf(stderr, "%04d %08x %-8s %s, %s, %s\n", pc - 1, v, sop, sa, sb, sc);
 	} else {
 		fprintf(stderr, "%04d          %-8s %s, %s, %s\n", pc - 1, sop, sa, sb, sc);
+	}
+}
+
+void disassemble(State *s) {
+	uint32_t n;
+	for (n = 0; n < s->fnmax; n++) {
+		Func *fn = s->fntab[n];
+		printf("%s: // fid=%d, vregs=%d\n", fn->name, fn->id, fn->rcount);
+		for (uint32_t i = 0; i < fn->icount; i++) {
+			dis_inst(fn->code + i, i, 0, 0);
+		}
+		printf("\n");
 	}
 }
 
@@ -213,7 +229,7 @@ void emu(State *s, uint32_t fid) {
 	for (;;) {
 		if (pc >= pcmax) die("invalid pc: %d", pc);
 		Inst i = code[pc++];
-		if (do_trace && !(i.op & INF_SET_A)) { trace(&i, pc, 0); }
+		if (do_trace && !(i.op & INF_SET_A)) { dis_inst(&i, pc, 0, 1); }
 		switch (i.op & INS_OP_MASK) {
 		case INS_ADD:    n = XB + XC; break;
 		case INS_SUB:    n = XB - XC; break;
@@ -267,7 +283,7 @@ void emu(State *s, uint32_t fid) {
 		default:         die("invalid op %d", i.op & INS_OP_MASK);
 		}
 		regwr(s, i.a, n);
-		if (do_trace) { trace(&i, pc, n); }
+		if (do_trace) { dis_inst(&i, pc, n, 1); }
 	}
 }
 
@@ -542,6 +558,7 @@ void check_state(State *s) {
 }
 
 int main(int argc, char **argv) {
+	int do_disassemble = 0;
 	State *s = calloc(1, sizeof(State));
 	s->vregs = malloc(4096 * sizeof(RegPair));
 	s->data = malloc(RAMSIZE);
@@ -554,6 +571,8 @@ int main(int argc, char **argv) {
 			do_trace = 1;
 		} else if (!strcmp(argv[1], "-check")) {
 			do_check_state = 1;
+		} else if (!strcmp(argv[1], "-dis")) {
+			do_disassemble = 1;
 		} else {
 			goto usage;
 		}
@@ -562,10 +581,14 @@ int main(int argc, char **argv) {
 	}
 	if (argc != 2) {
 usage:
-		fprintf(stderr, "error: usage: iremu [-t|-check] <xir>\n");
+		fprintf(stderr, "error: usage: iremu [-t|-check|-dis] <xir>\n");
 		return -1;
 	}
 	Func *entry = load(s, argv[1]);
+	if (do_disassemble) {
+		disassemble(s);
+		return 0;
+	}
 	emu(s, entry->id);
 	printf("X %08x\n", s->pr[R_RV]);
 	if (do_check_state) {
