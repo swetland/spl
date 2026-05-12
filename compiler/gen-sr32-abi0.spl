@@ -490,7 +490,7 @@ fn setup_locals(node Ast, n u32) {
 	}
 }
 
-fn emit_data_chunk(dc DataChunk) {
+fn emit_data_chunk(fd i32, dc DataChunk) {
 	emit("G$@:\n").u(dc.id);
 	var n u32 = 0;
 	while n < dc.count {
@@ -539,7 +539,7 @@ fn gen_fn(node Ast) {
 	emit("    ldw fp, -8(fp)\n");
 	emit("    addi sp, sp, @\n").u(local_max + MaxTmpRegs * 4);
 	emit("    ret\n");
-	emit_data_chunks();
+	emit_data_chunks(-1);
 }
 
 fn gen_functions(node Ast) {
@@ -571,11 +571,14 @@ fn gen_global_inits(node Ast) {
 		}
 		node = node.next;
 	}
-	emit_data_chunks();
+	emit_data_chunks(-1);
 }
 
-fn gen(outfd i32, node Ast) {
+fn gen(outfd i32, xirfd i32, node Ast) {
 	os = OutFd(outfd);
+	if os == nil {
+		Error("no output file specified");
+	}
 	emit("// gen-sr32-abi0\n\n");
 	gen_global_addrs(node);
 	gen_functions(node);

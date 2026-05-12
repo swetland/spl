@@ -18,7 +18,7 @@ struct DataChunk {
 	id u32,
 };
 
-fn emit_data_chunk(dc DataChunk);
+fn emit_data_chunk(fd i32, dc DataChunk);
 
 var data_id u32 = 0;
 var data_first DataChunk = nil;
@@ -72,10 +72,10 @@ fn make_string_chunk(s str) u32 {
 	return dc.id;
 }
 
-fn emit_data_chunks() {
+fn emit_data_chunks(fd i32) {
 	var dc DataChunk = data_first;
 	while dc != nil {
-		emit_data_chunk(dc);
+		emit_data_chunk(fd, dc);
 		dc = dc.next;
 	}
 	data_first = nil;

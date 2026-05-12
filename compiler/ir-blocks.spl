@@ -921,11 +921,19 @@ fn comparerange(a Inst, b Inst) i32 {
 	return a.i - b.i;
 }
 
-// TODO: make this nondestructive so we can do it
 fn dump_ir(os OutStream, blist []*BasicBlock, bcount u32,
 	ni u32, ranges []*Inst, nranges u32);
 
+fn dump_bb_list(os OutStream, bl BlockVec);
+
 fn finalize_fn(bl BlockVec) {
+	// dump initial ir
+	var ir0 OutStream = ctx_make_outfile(ctx.options & OPT_WITH_IR0, ctx.curfn, ".ir0");
+	if ir0 != nil {
+		dump_bb_list(ir0, bb_order);
+		ir0.close();
+	}
+
 	cleanup_blocks(bl);
 
 	// this may insert additional BasicBlocks
@@ -972,10 +980,11 @@ fn finalize_fn(bl BlockVec) {
 	}
 	quicksort(list, count, 0, comparerange);
 
-	var os OutStream = ctx_make_outfile(true, ctx.curfn, ".ir0");
-	if os {
-		dump_ir(os, bl.data, bl.len, ni, list, count);
-		os.close();
+	// dump final ir
+	var ir1 OutStream = ctx_make_outfile(true, ctx.curfn, ".ir1");
+	if ir1 {
+		dump_ir(ir1, bl.data, bl.len, ni, list, count);
+		ir1.close();
 	}
 }
 

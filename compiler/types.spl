@@ -364,8 +364,9 @@ struct Context {
 };
 
 enum CtxOptions {
-	OPT_WITH_IR = 1,
-	OPT_PANIC_ON_ERROR = 2,
+	OPT_WITH_IR0 = 1,
+	OPT_WITH_IR1 = 2,
+	OPT_PANIC_ON_ERROR = 4,
 };
 
 var ctx Context;

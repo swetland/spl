@@ -155,11 +155,23 @@ fn error_dump_ast(badnode Ast) {
 	astfd = -1;
 }
 
+fn create_output(fname str, kind str) i32 {
+	var fd i32 = fd_create(fname);
+	if fd == -1 {
+		Error("cannot create @ file '@'").s(kind).s(fname);
+	}
+	if ctx.out_base == nil {
+		ctx.out_base = fname;
+	}
+	return fd;
+}
+
 fn start() i32 {
 	ctx_init();
 	parse_init();
 	var ptfd i32 = -1;
 	var outfd i32 = 1;
+	var xirfd i32 = -1;
 	var stats i32 = 0;
 	var err OutStream = OutFd(2);
 
@@ -171,8 +183,12 @@ fn start() i32 {
 			stats = 1;
 			continue;
 		}
-		if streq(arg, "-ir") {
-			ctx.options |= OPT_WITH_IR;
+		if streq(arg, "-ir0") {
+			ctx.options |= OPT_WITH_IR0;
+			continue;
+		}
+		if streq(arg, "-ir1") {
+			ctx.options |= OPT_WITH_IR1;
 			continue;
 		}
 		if streq(arg, "-panic") {
@@ -180,32 +196,23 @@ fn start() i32 {
 			continue;
 		}
 		if streq(arg, "-pt") {
-			arg = os_arg(n);
+			ptfd = create_output(os_arg(n), "parse tree list");
 			n++;
-			ptfd = fd_create(arg);
-			if ptfd == -1 {
-				Error("cannot open parse tree list file '@'").s(arg);
-			}
-			ctx.out_base = arg;
 			continue;
 		}
 		if streq(arg, "-ast") {
-			arg = os_arg(n);
+			astfd = create_output(os_arg(n), "AST list");
 			n++;
-			astfd = fd_create(arg);
-			if astfd == -1 {
-				Error("cannot open AST list file '@'").s(arg);
-			}
-			ctx.out_base = arg;
 			continue;
 		}
 		if streq(arg, "-out") {
-			arg = os_arg(n);
+			outfd = create_output(os_arg(n), "output");
 			n++;
-			outfd = fd_create(arg);
-			if outfd == -1 {
-				Error("cannot open output file '@'").s(arg);
-			}
+			continue;
+		}
+		if streq(arg, "-xir") {
+			xirfd = create_output(os_arg(n), "xir");
+			n++;
 			continue;
 		}
 		if arg[0] == '-' {
@@ -255,8 +262,9 @@ fn start() i32 {
 		astfd = -1;
 	}
 
-	if outfd != -1 {
-		gen(outfd, ctx.program.left);
+	// allow generation of either or both formats
+	if (outfd != -1) || (xirfd != -1) {
+		gen(outfd, xirfd, ctx.program.left);
 	}
 
 	if stats {

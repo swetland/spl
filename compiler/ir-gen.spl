@@ -1,17 +1,6 @@
 // Copyright 2026, Brian Swetland <swetland@frotz.net>
 // Licensed under the Apache License, Version 2.0.
 
-var os OutStream;
-
-fn emit(msg str) OutStream {
-	os.msg = msg;
-	os.idx = 0;
-	os_advance(os);
-	return os;
-}
-
-// ----
-
 var func_exit BasicBlock = nil;
 var func_type Type = nil;
 var loop_exit BasicBlock = nil;
@@ -426,7 +415,7 @@ fn setup_locals(node Ast, n u32) { //dup
 	}
 }
 
-fn gen_fn(node Ast) {
+fn gen_fn(xirfd i32, node Ast) {
 	if node.left == nil { return; }
 
 	ctx.curfn = node.sym.name.text;
@@ -482,40 +471,38 @@ fn gen_fn(node Ast) {
 
 	finalize_fn(bb_order);
 
-	var is OutStream = ctx_make_outfile(ctx.options & OPT_WITH_IR, name, ".ir");
-	if is != nil {
-		is.fmt("\n// fn @\n").s(name);
-		dump_bb_list(is, bb_order);
-		is.close();
+	if xirfd >= 0 {
+		serialize_fn(xirfd, bb_order);
 	}
-
-	serialize_fn(os.fd, bb_order);
 }
 
-fn gen_functions(node Ast) {
+fn gen_functions(xirfd i32, node Ast) {
 	while node != nil {
 		if node.kind == AST_FUNC {
-			gen_fn(node);
+			gen_fn(xirfd, node);
 		}
 		node = node.next;
 	}
 }
 
-fn emit_data_chunk(dc DataChunk) {
-	serialize_data_chunk(os.fd, dc);
+fn emit_data_chunk(xirfd i32, dc DataChunk) {
+	serialize_data_chunk(xirfd, dc);
 }
 
-fn gen(outfd i32, node Ast) {
+fn gen(outfd i32, xirfd i32, node Ast) {
 	ir_init();
-	os = OutFd(outfd);
 	gen_global_addrs(node);
 	gen_global_data(node);
 
-	serialize_header(os.fd);
-	gen_functions(node);
-	emit_data_chunks();
-	serialize_cdata(os.fd);
+	if xirfd >= 0 {
+		serialize_header(xirfd);
+	}
 
-	// these are always last
-	serialize_globals(os.fd);
+	gen_functions(xirfd, node);
+
+	if xirfd >= 0 {
+		emit_data_chunks(xirfd);
+		serialize_cdata(xirfd);
+		serialize_globals(xirfd);
+	}
 }
