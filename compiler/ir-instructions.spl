@@ -16,15 +16,11 @@ enum IRtag {
 // the number of virtual registers necessary to execute
 // that function.
 //
-// All FUNC chunks should be loaded into the Inst array
-// in sequence, with the header treated as an instruction
-// (consuming an entry as well), exact meaning up to the
-// consumer. Instructions are globally numbered from 0 and:
+// JUMP.a and BRANCH.b/BRANCH.c are target instruction numbers
+// local to the function they are within.
 //
-// JUMP.a and BRANCH.b/BRANCH.c are target instruction numbers.
-//
-// LABEL.b refers to the GLBL entry with the name of the label.
-// LABEL.c contains the instruction number for verification.
+// LABEL.b refers to the GLBL entry with the name of the label
+// for the first label in a function. Do not rely on this.
 //
 // CALL.a refers to the GLBL entry with the name of the target.
 // FNPTR.b also refers to such a GLBL entry

@@ -1100,51 +1100,58 @@ fn dump_bb_list(os OutStream, bl BlockVec) {
 	}
 }
 
-// tools to serialize BasicBlocks and DataChunks
-var global_ic u32 = 0;
-
 // at multiple stages of optimization, etc
 fn serialize_fn(fd i32, bl BlockVec) {
 	var blist []*BasicBlock = bl.data;
 	var bcount u32 = bl.len;
 	var bn u32 = 0;
-	// count the fn header as an instruction, since it'll be
-	// transformed into one on load, but don't include it
-	// in the count
-	global_ic++;
-	var n u32 = global_ic;
+
+	// count the instructions
+	// TODO: obtain this from outside
+	var n u32 = 0;
 	while bn < bcount {
 		var inst Inst = blist[bn].first;
 		// record the instruction number in each block's label
-		inst.c = global_ic;
+		//inst.c = n;
 		while inst != nil {
-			global_ic++;
+			n++;
 			inst = inst.next;
 		}
 		bn++;
 	}
 
-	bn = 0;
+	// write the block header:
+	// FUNC, ins count, global name id, max vreg
 	writeu32(fd, TAG_IR_FUNC);
-	writeu32(fd, global_ic - n); // ins count
-	writeu32(fd, blist[0].first.b); // global name id
-	writeu32(fd, reg_next);      // max virtual reg used
+	writeu32(fd, n);
+	writeu32(fd, blist[0].first.b);
+	writeu32(fd, reg_next);
+
+	// write the instructions
+	bn = 0;
 	while bn < bcount {
 		var inst Inst = blist[bn].first;
 		while inst != nil {
-			var op u32 = inst.op & INS_OP_MASK;
+			var iop u32 = inst.op;
+			var ia u32 = inst.a;
+			var ib u32 = inst.b;
+			var ic u32 = inst.c;
+			var op u32 = iop & INS_OP_MASK;
 			// translate bb.ids to instruction numbers via labels
 			if op == INS_JUMP {
-				inst.a = bb_idx[inst.a].first.c;
+				//ia = bb_idx[ia].first.c;
+				ia = u32(bb_idx[ia].first.i);
 			}
 			if op == INS_BRANCH {
-				inst.b = bb_idx[inst.b].first.c;
-				inst.c = bb_idx[inst.c].first.c;
+				//ib = bb_idx[ib].first.c;
+				//ic = bb_idx[ic].first.c;
+				ib = u32(bb_idx[ib].first.i);
+				ic = u32(bb_idx[ic].first.i);
 			}
-			writeu32(fd, inst.op);
-			writeu32(fd, inst.a);
-			writeu32(fd, inst.b);
-			writeu32(fd, inst.c);
+			writeu32(fd, iop);
+			writeu32(fd, ia);
+			writeu32(fd, ib);
+			writeu32(fd, ic);
 			inst = inst.next;
 		}
 		bn++;
