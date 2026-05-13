@@ -395,6 +395,17 @@ fn (os OutStream) arg(n u32, op u32) OutStream {
 	return os;
 }
 
+fn (os OutStream) argi(n u32, op u32) OutStream {
+	var i i32 = i32(n);
+	if op & INF_C_IMM {
+		writei(os.fd, i);
+	} else {
+		return os.reg(n);
+	}
+	os_advance(os);
+	return os;
+}
+
 fn (os OutStream) label(n u32) OutStream {
 	writes(os.fd, "bb.");
 	writeu(os.fd, n);
@@ -419,7 +430,8 @@ fn inst_disasm(os OutStream, ins Inst) {
 		os.fmt("mov@ @, @\n").s(imm).reg(ins.a).arg(ins.c,ins.op);
 	} else if (op == INS_LOAD) || (op == INS_STORE) {
 		var sz str = isz_name[(ins.op & INF_SZ_MASK) >> INF_SZ_SHIFT];
-		os.fmt("@@ @, [@, @]\n").s(iop_name[op]).s(sz).reg(ins.a).reg(ins.b).arg(ins.c,ins.op);
+		os.fmt("@@ @, [@, @]\n").s(iop_name[op]).s(sz)
+			.reg(ins.a).reg(ins.b).argi(ins.c,ins.op);
 	} else if op == INS_LABEL {
 		if ins.b != 0 {
 			os.fmt("label bb.@, \"@\"\n").u(ins.a).s(ir_string(ins.b));
