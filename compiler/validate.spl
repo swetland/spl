@@ -57,6 +57,8 @@ fn adapt_int_arg(node Ast, type Type) {
 	}
 }
 
+var validate_flags u32 = 0;
+
 fn validate_expr(node Ast);
 fn validate_block(node Ast);
 
@@ -136,6 +138,9 @@ fn fn_check_args(node Ast, type Type, arg Ast) {
 fn validate_lhs(node Ast);
 
 fn validate_call(fcall Ast) {
+	// this is not a leaf function if it makes fn calls
+	validate_flags &^= FN_LEAF;
+
 	var type Type;
 	if (fcall.left.kind == AST_SYMBOL) &&
 		(fcall.left.sym.kind & SYMBOL_FN) {
@@ -578,10 +583,12 @@ fn validate_fn(node Ast) {
 	if node.left == nil {
 		return;
 	}
+	validate_flags = FN_LEAF;
 	ctx.curfn = node.sym.name.text;
 	ctx.curfnloc = node.srcloc;
 	v_return_type = node.sym.type.of;
 	validate_block(node.left);
+	node.ival = validate_flags;
 }
 
 fn validate(node Ast) {

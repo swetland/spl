@@ -14,6 +14,15 @@
 
 var os OutStream;
 
+// local and param symbols are tagged in setup_{locals,params}()
+// to indicate the nature of their storage location
+enum SymIvalFlags {
+	SIF_PHYS_REG =     0x10000000, // register
+	SIF_STACK_PARAM =  0x20000000, // fp[(n * 4)]
+	SIF_STACK_LOCAL =  0x40000000, // fp[-(n * 4)]
+	SIF_MASK =         0x0FFFFFFF,
+};
+
 var pr_name [32]str = {
         "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
         "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
@@ -271,33 +280,47 @@ fn gen_load_fnaddr(node Ast) u32 {
 	return t;
 }
 
-fn gen_load_local(node Ast) u32 {
-	var t u32 = get_reg();
-	emit("    ldw @, -@(fp)\n").pr(t).u(node.sym.ival);
-	return t;
+fn gen_load(node Ast) u32 {
+	var n u32 = node.sym.ival;
+	if n & SIF_PHYS_REG {
+		return n & SIF_MASK;
+	}
+	if n & SIF_STACK_LOCAL {
+		var t u32 = get_reg();
+		emit("    ldw @, -@(fp)\n").pr(t).u(n & SIF_MASK);
+		return t;
+	}
+	if n & SIF_STACK_PARAM {
+		var t u32 = get_reg();
+		emit("    ldw @, @(fp)\n").pr(t).u(n & SIF_MASK);
+		return t;
+	}
+	ErrorAt(node, "illegal local/param ival @").x(n);
+	return 0;
 }
 
-fn gen_load_param(node Ast) u32 {
-	var t u32 = get_reg();
-	emit("    ldw @, @(fp)\n").pr(t).u(node.sym.ival);
-	return t;
+fn gen_store(node Ast) u32 {
+	var n u32 = node.sym.ival;
+	var t u32 = gen_expr(node.left);
+	if n & SIF_PHYS_REG {
+		emit("    mv @, @").pr(n & SIF_MASK).pr(t);
+		return t;
+	}
+	if n & SIF_STACK_LOCAL {
+		emit("    stw @, -@(fp)\n").pr(t).u(n & SIF_MASK);
+		return t;
+	}
+	if n & SIF_STACK_PARAM {
+		emit("    stw @, @(fp)\n").pr(t).u(n & SIF_MASK);
+		return t;
+	}
+	ErrorAt(node, "illegal local/param ival @").x(n);
+	return 0;
 }
 
 fn gen_load_global(node Ast) u32 {
 	var t u32 = get_reg();
 	emit("    ldw @, @(gp)\n").pr(t).u(node.sym.ival);
-	return t;
-}
-
-fn gen_store_local(node Ast) u32 {
-	var t u32 = gen_expr(node.left);
-	emit("    stw @, -@(fp)\n").pr(t).u(node.sym.ival);
-	return t;
-}
-
-fn gen_store_param(node Ast) u32 {
-	var t u32 = gen_expr(node.left);
-	emit("    stw @, @(fp)\n").pr(t).u(node.sym.ival);
 	return t;
 }
 
@@ -371,10 +394,10 @@ fn gen_expr(node Ast) u32 {
 	if kind == AST_BOOL_OR  { return gen_bool_or(node); }
 	if kind == AST_STRING   { return gen_string_const(node.sval.text); }
 	if kind == AST_CALL          { return gen_call(node); }
-	if kind == AST_LOAD_LOCAL    { return gen_load_local(node); }
-	if kind == AST_STORE_LOCAL   { return gen_store_local(node); }
-	if kind == AST_LOAD_PARAM    { return gen_load_param(node); }
-	if kind == AST_STORE_PARAM   { return gen_store_param(node); }
+	if kind == AST_LOAD_LOCAL    { return gen_load(node); }
+	if kind == AST_STORE_LOCAL   { return gen_store(node); }
+	if kind == AST_LOAD_PARAM    { return gen_load(node); }
+	if kind == AST_STORE_PARAM   { return gen_store(node); }
 	if kind == AST_LOAD_GLOBAL   { return gen_load_global(node); }
 	if kind == AST_STORE_GLOBAL  { return gen_store_global(node); }
 	if kind == AST_ADDROF_ELEM   { return gen_addrof_elem(node); }
@@ -486,10 +509,10 @@ fn setup_locals(node Ast, n u32) {
 	if node.kind == AST_BLOCK {
 		var sym Symbol = node.sym;
 		while sym != nil {
-			emit("// local @ @\n").u(n).s(sym.name.text);
-			sym.ival = n;
-			n += 4;
+			sym.ival = n | SIF_STACK_LOCAL;
+			emit("// local -@(fp) @\n").u(n).s(sym.name.text);
 			sym = sym.next;
+			n += 4;
 		}
 	}
 	var node2 Ast = node.left;
@@ -504,6 +527,14 @@ fn setup_locals(node Ast, n u32) {
 	}
 	if n > local_max {
 		local_max = n;
+	}
+}
+
+fn setup_params(sym Symbol) {
+	while sym != nil {
+		emit("// param @(fp) @\n").u(sym.ival).s(sym.name.text);
+		sym.ival |= SIF_STACK_PARAM;
+		sym = sym.next;
 	}
 }
 
@@ -543,6 +574,7 @@ fn gen_fn(node Ast) {
 	// first two slots go to ra, fp
 	local_max = 0;
 	setup_locals(node.left, 12);
+	setup_params(node.sym.type.list);
 	// prologue
 	emit("    stw ra, -4(sp)\n");
 	emit("    stw fp, -8(sp)\n");

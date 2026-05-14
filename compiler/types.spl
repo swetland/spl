@@ -118,7 +118,7 @@ enum AstKind u8 {
 // top node
 	AST_PROGRAM,  // l=FUNC*
 // program components (chained into a list by next)
-	AST_FUNC,     // l=BLOCK sym: fn-symbol
+	AST_FUNC,     // l=BLOCK sym: fn-symbol ival: fnflags
 // container of statements
 	AST_BLOCK,    // l=STMT* sym: local-symbols-list
 // statements (chained into a list by next)
@@ -183,6 +183,11 @@ var ast_kind []str = {
 	"STORE-LOCAL", "STORE-PARAM", "STORE-GLOBAL",
 	"LOAD-PTR", "STORE-PTR",
 	"ADDROF-FIELD", "ADDROF-ELEM",
+};
+
+// AST_FUNC node ival:
+enum FN_FLAGS {
+	FN_LEAF = 1, // doesn't make any function calls
 };
 
 fn ast_is_relop(kind AstKind) bool {
