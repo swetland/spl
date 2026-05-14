@@ -182,6 +182,7 @@ fn gen_call(fcall Ast) u32 {
 		// fn pointer
 		var fptr u32 = gen_expr(fcall.left);
 		emit("    jalr ra, x@\n").u(fptr);
+		put_reg(fptr);
 	}
 	if type.count > 0 {
 		emit("    addi sp, sp, @\n").u(type.count * 4);
