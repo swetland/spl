@@ -39,18 +39,22 @@ fn Error(msg str) OutStream {
 
 var warn_os OutStream;
 
-fn WarnAtLoc(srcloc u32, msg str) OutStream {
+fn MsgAtLoc(srcloc u32, msg str, tag str) OutStream {
 	if warn_os == nil {
 		warn_os = new(OutStream);
 		warn_os.fd = 2;
 		warn_os.flags = OS_NEWLINE;
 	}
 	print_srcloc(2, srcloc);
-	writes(2, ": warning: ");
+	writes(2, tag);
 	warn_os.msg = msg;
 	warn_os.idx = 0;
 	os_advance(warn_os);
 	return warn_os;
+}
+
+fn WarnAtLoc(srcloc u32, msg str) OutStream {
+	return MsgAtLoc(srcloc, msg, ": warning: ");
 }
 
 fn WarnAt(node Ast, msg str) OutStream {

@@ -303,6 +303,7 @@ struct Context {
 	cc u32,			// scanner: next character
 
 	curfn str,		// current function name during codegen
+	curfnloc u32,           // srcloc of current function during codegen
 
 	srcloc u32,		// position at the start of the last token
 

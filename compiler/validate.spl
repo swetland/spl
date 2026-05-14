@@ -452,6 +452,7 @@ fn validate_cast(node Ast) {
 	if kind == TYPE_U16 { return; }
 	if kind == TYPE_I16 { return; }
 	if kind == TYPE_U8  { return; }
+	if kind == TYPE_POINTER { return; }
 
 	ErrorAt(node, "cannot cast @ to @").t(node.left.type).t(node.type);
 }
@@ -578,6 +579,7 @@ fn validate_fn(node Ast) {
 		return;
 	}
 	ctx.curfn = node.sym.name.text;
+	ctx.curfnloc = node.srcloc;
 	v_return_type = node.sym.type.of;
 	validate_block(node.left);
 }

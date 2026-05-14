@@ -419,6 +419,7 @@ fn gen_fn(xirfd i32, node Ast) {
 	if node.left == nil { return; }
 
 	ctx.curfn = node.sym.name.text;
+	ctx.curfnloc = node.srcloc;
 
 	Warn("gen_fn() @ ---------------------").s(node.sym.name.text);
 	bb_reset();
