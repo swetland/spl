@@ -205,7 +205,7 @@ int sys_alloc(uint32_t sz) {
 }
 
 #define R_SP 2
-#define R_RV 5
+#define R_RV 10
 
 #define ARG(n) mem_rd32(mem, sp + (n) * 4)
 
