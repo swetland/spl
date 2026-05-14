@@ -14,6 +14,8 @@ var MultiplyDeBruijnBitPosition [32]u32 = {
 	31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9,
 };
 
+// returns 0 if input is 0 or 0xFFFFFFFF
+// otherwise returns the number of 0 bits before the least significant 1 bit
 fn ctz(n u32) u32 {
 	return MultiplyDeBruijnBitPosition[((n & -n) * 0x077CB531) >> 27];
 }
