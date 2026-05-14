@@ -3,7 +3,14 @@
 
 struct RegInfo {
 	inst *Inst,
-	used i32,
+	used i16,
+	rloc u16,
+};
+
+enum RegInfoLoc {
+	RLOC_PHYS = 0x8000,
+	RLOC_SLOT = 0x4000,
+	RLOC_MASK = 0x0FFF,
 };
 
 var reg_info []RegInfo;
@@ -13,8 +20,9 @@ var reg_next u32 = 0;
 fn ir_reg_get() u32 {
 	var r u32 = reg_next;
 	reg_next++;
-	reg_info[r].used = 0;
 	reg_info[r].inst = nil;
+	reg_info[r].used = 0;
+	reg_info[r].rloc = 0;
 	return r;
 }
 
@@ -768,6 +776,7 @@ fn cleanup_blocks(bl BlockVec) {
 			bb2.first = nil;
 			bb2.last = nil;
 			bb2.flags |= BB_DEAD;
+			Warn("discarding bb.@").u(bb2.id);
 
 			// check to see if we can merge *again*
 			// does not happen with current test cases
@@ -885,8 +894,8 @@ fn compute_live_ranges(blist []*BasicBlock, bcount u32, nr u32) {
 	while bcount > 0 {
 		bcount--;
 		var bb BasicBlock = blist[bcount];
-		Warn("compute-live-range bb.@ @:@")
-			.u(bb.id).n(bb.first.i).n(bb.last.i);
+		//Warn("compute-live-range bb.@ @:@")
+		//	.u(bb.id).n(bb.first.i).n(bb.last.i);
 
 		var live BitSet = BitSet_make(nr);
 		if bb.next0 && bb.next0.live_in {
@@ -895,7 +904,7 @@ fn compute_live_ranges(blist []*BasicBlock, bcount u32, nr u32) {
 		if bb.next1 && bb.next1.live_in {
 			live.union(bb.next1.live_in);
 		}
-		dump_live_set("live-out", live);
+		//dump_live_set("live-out", live);
 		var i Inst = bb.last;
 		while i != nil {
 			if i.op & INF_USE_A { reg_use(live, i.a, i); }
@@ -904,16 +913,169 @@ fn compute_live_ranges(blist []*BasicBlock, bcount u32, nr u32) {
 			if i.op & INF_SET_A { reg_def(live, i); }
 			i = i.prev;
 		}
-		dump_live_set("live-in", live);
+		//dump_live_set("live-in", live);
 		bb.live_in = live;
 	}
-	var n u32 = 0;
-	while n < reg_next {
-		var i Inst = reg_info[n].inst;
-		if i && (i.x >= 0) {
-			Warn("live range %@ @:@").u(n).n(i.i).n(i.x);
+	if false {
+		var n u32 = 0;
+		while n < reg_next {
+			var i Inst = reg_info[n].inst;
+			if i && (i.x >= 0) {
+				Warn("live range %@ @:@").u(n).n(i.i).n(i.x);
+			}
+			n++;
 		}
+	}
+}
+
+struct ActiveRange {
+	prev *ActiveRange,
+	next *ActiveRange,
+	inst *Inst,
+};
+
+fn RAMsg(msg str) OutStream {
+	return MsgAtLoc(ctx.curfnloc, msg, ": regalloc: ");
+}
+
+struct RegAllocState {
+	// list of active ranges, ordered by their endpoints
+	afirst *ActiveRange,
+	alast *ActiveRange,
+	// bitmask of available registers
+	avail u32,
+	tmp_avail u32,
+	// next stack slot for spilling
+	nextslot u32,
+	spillcount u32,
+	// general working registers
+	reg_gen u32,
+	// temporary registers
+	reg_tmp u32,
+};
+
+fn (s RegAllocState) init() {
+	s.afirst = new(ActiveRange);
+	s.alast = new(ActiveRange);
+	s.afirst.next = s.alast;
+	s.alast.prev = s.afirst;
+	s.reg_gen = 0x0000FF00;
+	s.reg_tmp = 0x00000000;
+	s.avail = s.reg_gen;
+	s.tmp_avail = s.reg_tmp;
+}
+
+fn (s RegAllocState) getreg() u32 {
+	// grab an available pr if possible
+	if s.avail > 0 {
+		var n u32 = ctz(s.avail);
+		s.avail &^= 1u << n;
+		return n | RLOC_PHYS;
+	}
+	if s.afirst.next == s.alast { Error("impossible: getreg() failure"); }
+
+	// grab the pr used by the longest-lived range
+	var ar ActiveRange = s.alast.prev;
+	var n u32 = reg_info[ar.inst.i].rloc;
+	RAMsg("spill %@ $@ to slot @")
+		.u(ar.inst.a & VF_MASK).u(n & RLOC_MASK).u(s.nextslot);
+	// spill that range's vr onto the stack
+	reg_info[ar.inst.i].rloc = u16(s.nextslot | RLOC_SLOT);
+	s.nextslot++;
+	s.spillcount++;
+
+	// remove that range from the active list
+	ar.prev.next = ar.next;
+	ar.next.prev = ar.prev;
+
+	// return the newly available register
+	return n;
+}
+
+fn (s RegAllocState) gettmp() u32 {
+	if s.tmp_avail > 0 {
+		var n u32 = ctz(s.tmp_avail);
+		s.tmp_avail &^= 1u << n;
+		return n | RLOC_PHYS;
+	}
+	return s.getreg();
+}
+
+fn (s RegAllocState) putreg(n u32) {
+	//RAMsg("release $@").u(n & RLOC_MASK);
+	n = 1u << (n & RLOC_MASK);
+	if n & s.reg_gen {
+		s.avail |= n;
+	} else if n & s.reg_tmp {
+		s.tmp_avail |= n;
+	} else {
+		Error("wat @").x(n);
+	}
+}
+
+fn (s RegAllocState) nextrange(ins Inst) {
+	var n u32 = u32(ins.i);
+	var ar ActiveRange = s.afirst.next;
+	var last ActiveRange = s.alast;
+	// release any ranges that are no longer active
+	while ar != last {
+		if u32(ar.inst.x) >= n { break; }
+		s.putreg(reg_info[ar.inst.i].rloc);
+		ar.prev.next = ar.next;
+		ar.next.prev = ar.prev;
+		ar = ar.next;
+	}
+	// assign a register to this new range
+	var r u32;
+	if (ins.i + 1) == ins.x {
+		// if we only need it for a short time (one inst)...
+		r = s.gettmp();
+	} else {
+		r = s.getreg();
+	}
+	reg_info[ins.i].rloc = u16(r);
+	RAMsg("alloc $@ to %@")
+		.u(reg_info[ins.i].rloc & RLOC_MASK).u(ins.a & VF_MASK);
+
+	// and add it to the active list
+	ar = new(ActiveRange);
+	ar.inst = ins;
+
+	// ordered by the endpoint
+	while last.prev != s.afirst {
+		if last.prev.inst.x < ins.x { break; }
+		last = last.prev;
+	}
+
+	ar.prev = last.prev;
+	ar.prev.next = ar;
+	ar.next = last;
+	last.prev = ar;
+}
+
+fn (s RegAllocState) dump_active() {
+	var ar ActiveRange = s.afirst.next;
+	while ar != s.alast {
+		RAMsg("active @:@ %@").n(ar.inst.i).n(ar.inst.x).u(ar.inst.a & VF_MASK);
+		ar = ar.next;
+	}
+}
+
+fn regalloc(rlist []*Inst, rcount u32, blist []*BasicBlock, bcount u32) {
+	RAMsg("@: begin").s(ctx.curfn);
+
+	var s RegAllocState = new(RegAllocState);
+	s.init();
+
+	var n u32 = 0;
+	while n < rcount {
+		RAMsg("range @:@").n(rlist[n].i).n(rlist[n].x);
+		s.nextrange(rlist[n]);
 		n++;
+		//s.dump_active();
+	}
+	if s.spillcount {
+		RAMsg("@: spilled @").s(ctx.curfn).u(s.spillcount);
 	}
 }
 
@@ -980,6 +1142,8 @@ fn finalize_fn(bl BlockVec) {
 	}
 	quicksort(list, count, 0, comparerange);
 
+	regalloc(list, count, bl.data, bl.len);
+
 	// dump final ir
 	var ir1 OutStream = ctx_make_outfile(true, ctx.curfn, ".ir1");
 	if ir1 {
@@ -1017,12 +1181,19 @@ fn dump_ir(os OutStream, blist []*BasicBlock, bcount u32,
 
 	// draw live intervals for each range
 	n = 0;
+	var c u8;
 	while n < nranges {
 		var ins Inst = ranges[n];
 		var i i32 = ins.i;
 		var dead i32 = ins.x;
+		if reg_info[ins.i].rloc & RLOC_SLOT {
+			c = ':';
+		} else {
+			c = '|';
+		}
 		while i <= dead {
-			art[i][n] = '|';
+
+			art[i][n] = c; //'|';
 			i++;
 		}
 		n++;
