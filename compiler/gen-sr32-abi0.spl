@@ -12,12 +12,21 @@
 // Language features not present in the bootstrap transpiler are
 // avoided.
 
-enum CodeGenConfig {
-	MaxTmpRegs = 8,
-	FirstTmpReg = 8,
+var os OutStream;
+
+var pr_name [32]str = {
+        "zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
+        "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
+        "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
+        "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6",
 };
 
-var os OutStream;
+fn (os OutStream) pr(n u32) OutStream {
+	if n > 31 { Error("illegal machine register @").u(n); }
+	writes(os.fd, pr_name[n]);
+	os_advance(os);
+	return os;
+}
 
 fn emit(msg str) OutStream {
 	os.msg = msg;
@@ -26,37 +35,44 @@ fn emit(msg str) OutStream {
 	return os;
 }
 
-var local_max u32 = 0;
-var tmp_mask u32 = 0;
+enum CodeGenConfig {
+	TMP_REGS = 7,
+};
 
-fn find_bit(set u32) u32 {
-	var n u32 = 0;
-	while n < 32 {
-		if (set & (1u << n)) == 0 {
-			break;
-		}
-		n++;
-	}
-	return n;
-}
+// temporary number to physical register mapping
+var tmpreg [7]u32 = { 5, 6, 7, 28, 29, 30, 31 };
+
+// physical register to temporary number mapping
+// 32 = invalid
+var reg2tmp [32]u32 = {
+	32, 32, 32, 32, 32, 0, 1, 2,
+	32, 32, 32, 32, 32, 32, 32, 32,
+	32, 32, 32, 32, 32, 32, 32, 32,
+	32, 32, 32, 32, 3, 4, 5, 6,
+};
+
+var local_max u32 = 0;
+var tmp_mask u32 = 0xFFFFFFFF;
 
 fn get_reg() u32 {
-	var n u32 = find_bit(tmp_mask);
-	if n > MaxTmpRegs {
+	var n u32 = ctz(tmp_mask);
+	if n >= TMP_REGS {
 		Error("out of temporary registers");
 	}
-	tmp_mask |= (1u << n);
-	return n + FirstTmpReg;
+	tmp_mask &^= 1u << n;
+	return tmpreg[n];
 }
 
 fn put_reg(n u32) {
-	if n != 0 {
-		n = 1u << (n - FirstTmpReg);
-		if (tmp_mask & n) == 0 {
-			Error("freeing unallocated temporary register @").u(n);
-		}
-		tmp_mask &^= n;
+	if n == 0 { return; }
+	if n > 31 { Error("illegal register number @").u(n); }
+	n = reg2tmp[n];
+	if n == 32 { Error("invalid temporary register"); }
+	n = 1u << n;
+	if tmp_mask & n {
+		Error("freeing unallocated temporary register @").u(n);
 	}
+	tmp_mask |= n;
 }
 
 var nextlabel u32 = 0;
@@ -70,16 +86,16 @@ fn emit_target(id u32) {
 	emit("L$@:\n").u(id);
 }
 fn emit_branch(x str, a u32, b u32, tgt u32) {
-	emit("    b@ x@, x@, L$@\n").s(x).u(a).u(b).u(tgt);
+	emit("    b@ @, @, L$@\n").s(x).pr(a).pr(b).u(tgt);
 }
 fn emit_jump(tgt u32) {
 	emit("    j L$@\n").u(tgt);
 }
 fn emit_binop(op str, t u32, a u32, b u32) {
-	emit("    @ x@, x@, x@\n").s(op).u(t).u(a).u(b);
+	emit("    @ @, @, @\n").s(op).pr(t).pr(a).pr(b);
 }
 fn emit_li(t u32, v u32) {
-	emit("    li x@, @\n").u(t).u(v);
+	emit("    li @, @\n").pr(t).u(v);
 }
 
 fn gen_expr(node Ast) u32;
@@ -114,7 +130,7 @@ fn gen_binop(node Ast, op str) u32 {
 fn gen_clrop(node Ast) u32 {
 	var a u32 = gen_expr(node.left);
 	var b u32 = gen_expr(node.right);
-	emit("    not x@, x@\n").u(b).u(b);
+	emit("    not @, @\n").pr(b).pr(b);
 	emit_binop("and", a, a, b);
 	put_reg(b);
 	return a;
@@ -122,26 +138,26 @@ fn gen_clrop(node Ast) u32 {
 
 fn gen_unop(node Ast, op str) u32 {
 	var x u32 = gen_expr(node.left);
-	emit("    @ x@, x@\n").s(op).u(x).u(x);
+	emit("    @ @, @\n").s(op).pr(x).pr(x);
 	return x;
 }
 
 fn emit_load_tmp() {
 	var n u32 = 0;
-	while n < MaxTmpRegs {
-		if tmp_mask & (1u << n) {
-			emit("    ldw x@, -@(fp) //RT\n")
-			.u(FirstTmpReg + n).u(local_max + 4*n);
+	while n < TMP_REGS {
+		if tmp_mask & (1u << n) == 0 {
+			emit("    ldw @, -@(fp) //RT\n")
+			.pr(tmpreg[n]).u(local_max + 4*n);
 		}
 		n++;
 	}
 }
 fn emit_save_tmp() {
 	var n u32 = 0;
-	while n < MaxTmpRegs {
-		if tmp_mask & (1u << n) {
-			emit("    stw x@, -@(fp) //ST\n")
-			.u(FirstTmpReg + n).u(local_max + 4*n);
+	while n < TMP_REGS {
+		if tmp_mask & (1u << n) == 0 {
+			emit("    stw @, -@(fp) //ST\n")
+			.pr(tmpreg[n]).u(local_max + 4*n);
 		}
 		n++;
 	}
@@ -150,7 +166,7 @@ fn emit_save_tmp() {
 fn gen_string_const(s str) u32 {
 	var id u32 = make_string_chunk(s);
 	var r u32 = get_reg();
-	emit("    la x@, G$@\n").u(r).u(id);
+	emit("    la @, G$@\n").pr(r).u(id);
 	return r;
 }
 
@@ -166,7 +182,7 @@ fn gen_call(fcall Ast) u32 {
 	var node Ast = fcall.right;
 	while node != nil {
 		var x u32 = gen_expr(node);
-		emit("    stw x@, @(sp)\n").u(x).u(n * 4);
+		emit("    stw @, @(sp)\n").pr(x).u(n * 4);
 		put_reg(x);
 		n++;
 		node = node.next;
@@ -181,7 +197,7 @@ fn gen_call(fcall Ast) u32 {
 	} else {
 		// fn pointer
 		var fptr u32 = gen_expr(fcall.left);
-		emit("    jalr ra, x@\n").u(fptr);
+		emit("    jalr ra, @\n").pr(fptr);
 		put_reg(fptr);
 	}
 	if type.count > 0 {
@@ -193,7 +209,7 @@ fn gen_call(fcall Ast) u32 {
 		return 0;
 	} else {
 		var t u32 = get_reg();
-		emit("    mv x@, rv\n").u(t);
+		emit("    mv @, a0\n").pr(t);
 		return t;
 	}
 }
@@ -203,13 +219,13 @@ fn gen_load_ptr(node Ast) u32 {
 	var sz u32 = type_size(node.type);
 	if sz > 4 { ErrorAt(node, "illegal sz @ load").u(sz); }
 	if node.type.kind & TYPE_IS_SIGNED {
-		if sz == 1 { emit("    ldb x@, (x@)\n").u(ar).u(ar); }
-		if sz == 2 { emit("    ldh x@, (x@)\n").u(ar).u(ar); }
-		if sz == 4 { emit("    ldw x@, (x@)\n").u(ar).u(ar); }
+		if sz == 1 { emit("    ldb @, (@)\n").pr(ar).pr(ar); }
+		if sz == 2 { emit("    ldh @, (@)\n").pr(ar).pr(ar); }
+		if sz == 4 { emit("    ldw @, (@)\n").pr(ar).pr(ar); }
 	} else {
-		if sz == 1 { emit("    ldbu x@, (x@)\n").u(ar).u(ar); }
-		if sz == 2 { emit("    ldhu x@, (x@)\n").u(ar).u(ar); }
-		if sz == 4 { emit("    ldw x@, (x@)\n").u(ar).u(ar); }
+		if sz == 1 { emit("    ldbu @, (@)\n").pr(ar).pr(ar); }
+		if sz == 2 { emit("    ldhu @, (@)\n").pr(ar).pr(ar); }
+		if sz == 4 { emit("    ldw @, (@)\n").pr(ar).pr(ar); }
 	}
 	return ar;
 }
@@ -219,9 +235,9 @@ fn gen_store_ptr(node Ast) u32 {
 	var vr u32 = gen_expr(node.right);
 	var sz u32 = type_size(node.type);
 	if sz > 4 { ErrorAt(node, "illegal sz @ store").u(sz); }
-	if sz == 1 { emit("    stb x@, (x@)\n").u(vr).u(ar); }
-	if sz == 2 { emit("    sth x@, (x@)\n").u(vr).u(ar); }
-	if sz == 4 { emit("    stw x@, (x@)\n").u(vr).u(ar); }
+	if sz == 1 { emit("    stb @, (@)\n").pr(vr).pr(ar); }
+	if sz == 2 { emit("    sth @, (@)\n").pr(vr).pr(ar); }
+	if sz == 4 { emit("    stw @, (@)\n").pr(vr).pr(ar); }
 	put_reg(ar);
 	return vr;
 }
@@ -232,62 +248,62 @@ fn gen_addrof_elem(node Ast) u32 {
 	// left must be a pointer-to-array
 	var sz u32 = type_size(node.left.type.of.of);
 	if sz == 2 {
-		emit("    slli x@, x@, 1\n").u(ir).u(ir);
+		emit("    slli @, @, 1\n").pr(ir).pr(ir);
 	} else if sz == 4 {
-		emit("    slli x@, x@, 2\n").u(ir).u(ir);
+		emit("    slli @, @, 2\n").pr(ir).pr(ir);
 	} else if sz != 1 {
-		emit("    muli x@, x@, @\n").u(ir).u(ir).u(sz);
+		emit("    muli @, @, @\n").pr(ir).pr(ir).u(sz);
 	}
-	emit("    add x@, x@, x@\n").u(ar).u(ar).u(ir);
+	emit("    add @, @, @\n").pr(ar).pr(ar).pr(ir);
 	put_reg(ir);
 	return ar;
 }
 
 fn gen_addrof_field(node Ast) u32 {
 	var ar u32 = gen_expr(node.left);
-	emit("    addi x@, x@, @\n").u(ar).u(ar).u(node.sym.ival);
+	emit("    addi @, @, @\n").pr(ar).pr(ar).u(node.sym.ival);
 	return ar;
 }
 
 fn gen_load_fnaddr(node Ast) u32 {
 	var t u32 = get_reg();
-	emit("    la x@, @\n").u(t).s(node.sym.type.name.text);
+	emit("    la @, @\n").pr(t).s(node.sym.type.name.text);
 	return t;
 }
 
 fn gen_load_local(node Ast) u32 {
 	var t u32 = get_reg();
-	emit("    ldw x@, -@(fp)\n").u(t).u(node.sym.ival);
+	emit("    ldw @, -@(fp)\n").pr(t).u(node.sym.ival);
 	return t;
 }
 
 fn gen_load_param(node Ast) u32 {
 	var t u32 = get_reg();
-	emit("    ldw x@, @(fp)\n").u(t).u(node.sym.ival);
+	emit("    ldw @, @(fp)\n").pr(t).u(node.sym.ival);
 	return t;
 }
 
 fn gen_load_global(node Ast) u32 {
 	var t u32 = get_reg();
-	emit("    ldw x@, @(gp)\n").u(t).u(node.sym.ival);
+	emit("    ldw @, @(gp)\n").pr(t).u(node.sym.ival);
 	return t;
 }
 
 fn gen_store_local(node Ast) u32 {
 	var t u32 = gen_expr(node.left);
-	emit("    stw x@, -@(fp)\n").u(t).u(node.sym.ival);
+	emit("    stw @, -@(fp)\n").pr(t).u(node.sym.ival);
 	return t;
 }
 
 fn gen_store_param(node Ast) u32 {
 	var t u32 = gen_expr(node.left);
-	emit("    stw x@, @(fp)\n").u(t).u(node.sym.ival);
+	emit("    stw @, @(fp)\n").pr(t).u(node.sym.ival);
 	return t;
 }
 
 fn gen_store_global(node Ast) u32 {
 	var t u32 = gen_expr(node.left);
-	emit("    stw x@, @(gp)\n").u(t).u(node.sym.ival);
+	emit("    stw @, @(gp)\n").pr(t).u(node.sym.ival);
 	return t;
 }
 
@@ -434,7 +450,7 @@ fn gen_return(node Ast) {
 	if node.left {
 		var x u32 = gen_expr(node.left);
 		if node.type != ctx.type_void {
-			emit("    mv rv, x@\n").u(x);
+			emit("    mv a0, @\n").pr(x);
 		}
 		put_reg(x);
 	}
@@ -531,15 +547,15 @@ fn gen_fn(node Ast) {
 	emit("    stw ra, -4(sp)\n");
 	emit("    stw fp, -8(sp)\n");
 	emit("    mv fp, sp\n");
-	emit("    subi sp, sp, @\n").u(local_max + MaxTmpRegs * 4);
+	emit("    subi sp, sp, @\n").u(local_max + TMP_REGS * 4);
 	gen_block(node.left);
 	//TODO: check for no return on non-void functions
-	emit("    li rv, 0\n");
+	emit("    li a0, 0\n");
 	emit_target(return_target);
 	// epilogue
 	emit("    ldw ra, -4(fp)\n");
 	emit("    ldw fp, -8(fp)\n");
-	emit("    addi sp, sp, @\n").u(local_max + MaxTmpRegs * 4);
+	emit("    addi sp, sp, @\n").u(local_max + TMP_REGS * 4);
 	emit("    ret\n");
 	emit_data_chunks(-1);
 }

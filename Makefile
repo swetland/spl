@@ -40,7 +40,7 @@ FRONTEND_SRC := compiler/stdlib.spl compiler/types.spl compiler/io.spl compiler/
 FRONTEND_SRC += compiler/lexer.spl compiler/constexpr.spl compiler/parser.spl compiler/validate.spl
 
 # sr32 compiler backend used by stage1 and stage2
-GEN_SR32_SRC += compiler/gen-global-data.spl compiler/gen-sr32-abi0.spl
+GEN_SR32_SRC += compiler/bits.spl compiler/gen-global-data.spl compiler/gen-sr32-abi0.spl
 
 # full compiler backend used by stage3
 GEN_IR_SRC := compiler/bits.spl compiler/quicksort.spl
