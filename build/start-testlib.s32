@@ -5,8 +5,7 @@ __start:
 
 _hexout_i:
 _hexout_u:
-	ldw t0, 0(sp)
-	stx t0, -2(x0)
+	syscall 0x103
 	ret
 
 __new:

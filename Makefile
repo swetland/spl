@@ -51,10 +51,10 @@ GEN_IR_SRC += compiler/ir-instructions.spl compiler/ir-blocks.spl compiler/ir-ge
 COMPILER1_SRC := build/stdlib-stub.spl $(FRONTEND_SRC) $(GEN_SR32_SRC) compiler/main.spl
 
 # stage2 which is built by stage1
-COMPILER2_SRC := build/stdlib-abi0.spl $(FRONTEND_SRC) $(GEN_SR32_SRC) compiler/main.spl
+COMPILER2_SRC := build/stdlib.spl $(FRONTEND_SRC) $(GEN_SR32_SRC) compiler/main.spl
 
 # stage3 which is built by stage2
-COMPILER3_SRC := build/stdlib-abi0.spl $(FRONTEND_SRC) $(GEN_IR_SRC) compiler/main.spl
+COMPILER3_SRC := build/stdlib.spl $(FRONTEND_SRC) $(GEN_IR_SRC) compiler/main.spl
 
 # compiler1: SPL compiler written in SPL
 #
@@ -87,7 +87,7 @@ out/compiler2a.s32: out/compiler1 $(COMPILER2_SRC)
 	@echo '### BUILDING STAGE 2A COMPILER USING STAGE 1 COMPILER ###'
 	./out/compiler1 -ast out/compiler2a.ast -out $@ $(COMPILER2_SRC)
 
-COMPILER2_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2a.s32
+COMPILER2_ASM := build/start-stdlib.s32 build/syscalls.s32 out/compiler2a.s32
 out/compiler2a.bin: out/asm $(COMPILER2_ASM)
 	@mkdir -p out/
 	./out/asm -o $@ $(COMPILER2_ASM)
@@ -101,7 +101,7 @@ out/compiler2b.s32: out/compiler2a.bin out/emu $(COMPILER2_SRC)
 	./out/emu -q -hgp -perf out/compiler2b.perf.raw out/compiler2a.bin -ast out/compiler2b.ast -out $@ $(COMPILER2_SRC)
 	@sort -rn out/compiler2b.perf.raw | head -30 > out/compiler2b.perf
 
-COMPILER2B_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler2b.s32
+COMPILER2B_ASM := build/start-stdlib.s32 build/syscalls.s32 out/compiler2b.s32
 out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
 	./out/asm -o $@ $(COMPILER2B_ASM)
 
@@ -113,7 +113,7 @@ out/compiler3a.s32: out/compiler2b.bin out/emu $(COMPILER3_SRC)
 	./out/emu -q -hgp -perf out/compiler3a.perf.raw out/compiler2b.bin -stats -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
 	@sort -rn out/compiler3a.perf.raw | head -30 > out/compiler3a.perf
 
-COMPILER3A_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3a.s32
+COMPILER3A_ASM := build/start-stdlib.s32 build/syscalls.s32 out/compiler3a.s32
 out/compiler3a.bin: ./out/asm $(COMPILER3A_ASM)
 	./out/asm -o $@ $(COMPILER3A_ASM)
 
@@ -124,7 +124,7 @@ out/compiler3b.s32: out/compiler3a.bin out/emu $(COMPILER3_SRC)
 	@echo '### BUILDING STAGE 3A COMPILER USING STAGE 2B COMPILER ###'
 	./out/emu -q ./out/compiler3a.bin -stats -ir -ast out/compiler3b.ast -out $@ $(COMPILER3_SRC)
 
-COMPILER3B_ASM := build/stdlib-abi0.s32 build/syscall-abi0.s32 out/compiler3b.s32
+COMPILER3B_ASM := build/start-stdlib.s32 build/syscalls.s32 out/compiler3b.s32
 out/compiler3b.bin: ./out/asm $(COMPILER3A_ASM)
 	./out/asm -o $@ $(COMPILER3A_ASM)
 
@@ -145,7 +145,7 @@ spotless::
 
 TESTDEPS0 := out/compiler0 build/runtest build/compile0
 TESTDEPS0 += $(wildcard bootstrap/inc/*.h) $(wildcard bootstrap/inc/*.c)
-TESTDEPSX := out/asm out/emu build/runtest build/stdlib-abi0.spl build/stdlib-abi0.s32
+TESTDEPSX := out/asm out/emu build/runtest $(wildcard build/*.spl) $(wildcard build/*.s32)
 TESTDEPS1 := $(TESTDEPSX) out/compiler1
 TESTDEPS2 := $(TESTDEPSX) out/compiler2b.bin
 TESTDEPS3 := $(TESTDEPSX) out/compiler3a.bin out/iremu
