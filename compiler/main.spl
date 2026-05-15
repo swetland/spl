@@ -195,6 +195,10 @@ fn start() i32 {
 			ctx.options |= OPT_PANIC_ON_ERROR;
 			continue;
 		}
+		if streq(arg, "-abi1") {
+			ctx.options |= OPT_ABI_1;
+			continue;
+		}
 		if streq(arg, "-pt") {
 			ptfd = create_output(os_arg(n), "parse tree list");
 			n++;

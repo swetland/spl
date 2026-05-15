@@ -373,6 +373,7 @@ enum CtxOptions {
 	OPT_WITH_IR0 = 1,
 	OPT_WITH_IR1 = 2,
 	OPT_PANIC_ON_ERROR = 4,
+	OPT_ABI_1 = 8,
 };
 
 var ctx Context;
