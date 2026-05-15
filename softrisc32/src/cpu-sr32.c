@@ -137,7 +137,7 @@ void sr32core(CpuState *s) {
 			if (b) s->r[b] = pc;
 			pc = pc + a;
 			break;
-		case 1: s->pc = pc; do_syscall(s, ins >> 11); break;
+		case 1: s->pc = pc; s->syscall(s, ins >> 11); break;
 		//case 1: s->xpc = pc; pc = s->vec_syscall; break;
 		//case 2: s->xpc = pc; pc = s->vec_break; break;
 		//case 3: pc = s->xpc;

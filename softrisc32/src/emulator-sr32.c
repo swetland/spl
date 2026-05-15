@@ -11,6 +11,9 @@
 
 #include <emulator-sr32.h>
 
+void do_syscall_abi0(CpuState *s, uint32_t n);
+void do_syscall_abi1(CpuState *s, uint32_t n);
+
 int quiet = 0;
 
 #define RAMSIZE   (8*1024*1024)
@@ -105,12 +108,14 @@ void backtrace(uint32_t pc, uint32_t fp) {
 
 void dump_cpu_state(void) {
 	fprintf(stderr, "\nPC %08x  RA %08x  SP %08x  FP %08x\n",
-		CS.pc, CS.r[1], CS.r[2], CS.r[7]);
+		CS.pc, CS.r[1], CS.r[2], CS.r[8]);
+	fprintf(stderr, "A0 %08x  A1 %08x  A2 %08x  A3 %08x\n",
+		CS.r[10], CS.r[11], CS.r[12], CS.r[13]);
 	fprintf(stderr, "T0 %08x  T1 %08x  T2 %08x  T3 %08x\n",
-		CS.r[8], CS.r[9], CS.r[10], CS.r[11]);
+		CS.r[5], CS.r[6], CS.r[7], CS.r[28]);
 	fprintf(stderr, "00 %08x  04 %08x  08 %08x  12 %08x\n",
-		RD(CS.r[7] + 0), RD(CS.r[7] + 4), RD(CS.r[7] + 8), RD(CS.r[7] + 12));
-	backtrace(CS.pc, CS.r[7]);
+		RD(CS.r[8] + 0), RD(CS.r[8] + 4), RD(CS.r[8] + 8), RD(CS.r[8] + 12));
+	backtrace(CS.pc, CS.r[8]);
 }
 
 void memory_fault(uint32_t addr) {
@@ -281,6 +286,7 @@ int main(int argc, char** argv) {
 	CpuState *cs = &CS;
 	memset(cs, 0, sizeof(CpuState));
 	cs->mem = mem;
+	cs->syscall = do_syscall_abi0;
 
 	signal(SIGINT, ctrl_c_handler);
 
@@ -313,6 +319,8 @@ int main(int argc, char** argv) {
 			}
 		} else if (!strcmp(argv[1], "-q")) {
 			quiet = 1;
+		} else if (!strcmp(argv[1], "-abi1")) {
+			cs->syscall = do_syscall_abi1;
 		} else if (argv[1][0] == '-') {
 			fprintf(stderr, "emu: unknown option: %s\n", argv[1]);
 			return -1;

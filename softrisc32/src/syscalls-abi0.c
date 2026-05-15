@@ -205,36 +205,42 @@ int sys_alloc(uint32_t sz) {
 }
 
 #define R_SP 2
-#define R_RV 10
+#define R_A0 10
 
 #define ARG(n) mem_rd32(mem, sp + (n) * 4)
 
-static inline uint32_t _do_syscall(uint32_t sp, uint32_t n) {
-	//fprintf(stderr, "SYSCALL #0x%x 0x%x 0x%x 0x%x 0x%x\n", n, ARG(0), ARG(1), ARG(2), ARG(3));
+static inline uint32_t _do_syscall(uint32_t a0, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t n) {
+	//fprintf(stderr, "SYSCALL #0x%x 0x%x 0x%x 0x%x 0x%x\n", n, a0, a1, a2, a3);
 	switch (n) {
-	case 0x100: exit_emu(ARG(0));
-	case 0x101: return mem_rd32(mem, guest_argv + 4 * ARG(0));
+	case 0x100: exit_emu(a0);
+	case 0x101: return mem_rd32(mem, guest_argv + 4 * a0);
 	case 0x102: return guest_argc;
-	case 0x200: return sys_fd_open(ARG(0));
-	case 0x201: return sys_fd_create(ARG(0));
-	case 0x202: return sys_fd_close(ARG(0));
-	case 0x203: return sys_fd_readc(ARG(0));
-	case 0x204: return sys_fd_writec(ARG(0), ARG(1));
-	case 0x205: return sys_fd_writes(ARG(0), ARG(1));
-	case 0x206: return sys_fd_writei(ARG(0), ARG(1));
-	case 0x207: return sys_fd_writex(ARG(0), ARG(1));
-	case 0x208: return sys_fd_write(ARG(0), ARG(1), ARG(2), ARG(3));
-	case 0x209: return sys_fd_writeu32(ARG(0), ARG(1));
-	case 0x20a: return sys_fd_writeu(ARG(0), ARG(1));
-	case 0x300: return sys_alloc(ARG(0));
+	case 0x200: return sys_fd_open(a0);
+	case 0x201: return sys_fd_create(a0);
+	case 0x202: return sys_fd_close(a0);
+	case 0x203: return sys_fd_readc(a0);
+	case 0x204: return sys_fd_writec(a0, a1);
+	case 0x205: return sys_fd_writes(a0, a1);
+	case 0x206: return sys_fd_writei(a0, a1);
+	case 0x207: return sys_fd_writex(a0, a1);
+	case 0x208: return sys_fd_write(a0, a1, a2, a3);
+	case 0x209: return sys_fd_writeu32(a0, a1);
+	case 0x20a: return sys_fd_writeu(a0, a1);
+	case 0x300: return sys_alloc(a0);
 	case 0x301: return heap_alloc_count;
 	case 0x302: return heap_alloc_bytes;
 	}
 	return -1;
 }
 
-void do_syscall(CpuState *s, uint32_t n) {
-	s->r[R_RV] = _do_syscall(s->r[R_SP], n);
+void do_syscall_abi0(CpuState *s, uint32_t n) {
+	uint32_t sp = s->r[R_SP];
+	s->r[R_A0] = _do_syscall(ARG(0), ARG(1), ARG(2), ARG(3), n);
+	//fprintf(stderr,"RETURN: 0x%x\n", s->r[R_RV]);
+}
+
+void do_syscall_abi1(CpuState *s, uint32_t n) {
+	s->r[R_A0] = _do_syscall(s->r[10], s->r[11], s->r[12], s->r[13], n);
 	//fprintf(stderr,"RETURN: 0x%x\n", s->r[R_RV]);
 }
 
