@@ -161,17 +161,14 @@ fn gen_unop(node Ast, op str) u32 {
 	return x;
 }
 
-fn emit_load_tmp() {
-	var n u32 = 0;
-	while n < TMP_REGS {
-		if tmp_mask & (1u << n) == 0 {
-			emit("    ldw @, -@(fp) //RT\n")
-			.pr(tmpreg[n]).u(local_max + 4*n);
-		}
-		n++;
-	}
+fn gen_string_const(s str) u32 {
+	var id u32 = make_string_chunk(s);
+	var r u32 = get_reg();
+	emit("    la @, G$@\n").pr(r).u(id);
+	return r;
 }
-fn emit_save_tmp() {
+
+fn emit_save_tmp_regs() {
 	var n u32 = 0;
 	while n < TMP_REGS {
 		if tmp_mask & (1u << n) == 0 {
@@ -182,15 +179,19 @@ fn emit_save_tmp() {
 	}
 }
 
-fn gen_string_const(s str) u32 {
-	var id u32 = make_string_chunk(s);
-	var r u32 = get_reg();
-	emit("    la @, G$@\n").pr(r).u(id);
-	return r;
+fn emit_restore_tmp_regs() {
+	var n u32 = 0;
+	while n < TMP_REGS {
+		if tmp_mask & (1u << n) == 0 {
+			emit("    ldw @, -@(fp) //RT\n")
+			.pr(tmpreg[n]).u(local_max + 4*n);
+		}
+		n++;
+	}
 }
 
 fn gen_call_ins(fcall Ast) {
-	emit_save_tmp();
+	emit_save_tmp_regs();
 	if fcall.left.kind == AST_FNNAME {
 		// TODO: possibly better way to get the (mangled) canonical
 		// function name from a method than indirecting through the type?
@@ -203,10 +204,16 @@ fn gen_call_ins(fcall Ast) {
 		emit("    jalr ra, @\n").pr(fptr);
 		put_reg(fptr);
 	}
-	emit_load_tmp();
+	emit_restore_tmp_regs();
 }
 
-fn gen_call_abi0(fcall Ast, type Type) u32 {
+fn gen_call_abi0(fcall Ast) u32 {
+	// ABI0 calls push all arguments on the stack
+	var type Type = fcall.left.type;
+	if type.kind == TYPE_POINTER {
+		type = type.of;
+	}
+
 	// reserve room on the stack for arguments
 	if type.count > 0 {
 		emit("    subi sp, sp, @\n").u(type.count * 4);
@@ -236,7 +243,7 @@ fn gen_call_abi0(fcall Ast, type Type) u32 {
 	}
 }
 
-fn emit_save_args(acount u32) {
+fn emit_save_arg_regs(acount u32) {
 	if acount == 0 { return; }
 	emit("    subi sp, sp, @\n").u(acount * 4);
 	var n u32 = 0;
@@ -246,7 +253,7 @@ fn emit_save_args(acount u32) {
 	}
 }
 
-fn emit_restore_args(acount u32) {
+fn emit_restore_arg_regs(acount u32) {
 	if acount == 0 { return; }
 	var n u32 = 0;
 	while n < acount {
@@ -261,9 +268,15 @@ fn emit_restore_args(acount u32) {
 // a call to evalute an argument
 var arg_regs_in_use u32 = 0;
 
-fn gen_call_abi1(fcall Ast, type Type) u32 {
+fn gen_call_abi1(fcall Ast) u32 {
+	// ABI1 calls pass arguments via a0..a7
+	var type Type = fcall.left.type;
+	if type.kind == TYPE_POINTER {
+		type = type.of;
+	}
+
 	// stash any args we might overwrite
-	emit_save_args(arg_regs_in_use);
+	emit_save_arg_regs(arg_regs_in_use);
 	var save_ariu u32 = arg_regs_in_use;
 
 	// evaluate arguments and load registers
@@ -286,23 +299,17 @@ fn gen_call_abi1(fcall Ast, type Type) u32 {
 	}
 
 	arg_regs_in_use = save_ariu;
-	emit_restore_args(arg_regs_in_use);
+	emit_restore_arg_regs(arg_regs_in_use);
 	return t;
 }
 
 fn gen_call(fcall Ast) u32 {
-	var type Type = fcall.left.type;
-	if type.kind == TYPE_POINTER {
-		type = type.of;
-	}
-
 	if ctx.options & OPT_ABI_1 {
-		return gen_call_abi1(fcall, type);
+		return gen_call_abi1(fcall);
 	} else {
-		return gen_call_abi0(fcall, type);
+		return gen_call_abi0(fcall);
 	}
 }
-
 
 fn gen_load_ptr(node Ast) u32 {
 	var ar u32 = gen_expr(node.left);
@@ -367,7 +374,6 @@ fn gen_load(node Ast) u32 {
 		var t u32 = get_reg();
 		emit("    mv @, @\n").pr(t).pr(n & SIF_MASK);
 		return t;
-		//return n & SIF_MASK;
 	}
 	if n & SIF_STACK_LOCAL {
 		var t u32 = get_reg();
@@ -590,6 +596,7 @@ fn gen_block(node Ast) {
 }
 
 fn setup_locals(node Ast, n u32) {
+	// recursively assign the locals to stack slots
 	if node.kind == AST_BLOCK {
 		var sym Symbol = node.sym;
 		while sym != nil {
@@ -617,23 +624,40 @@ fn setup_locals(node Ast, n u32) {
 var saved_regs_offset u32;
 var saved_regs_count u32;
 
-fn setup_params(sym Symbol, pcount u32, n u32) {
+fn setup_params(sym Symbol, pcount u32, n u32, isleaf bool) {
 	if ctx.options & OPT_ABI_1 {
+		// ABI1 receives arguments via a0..a7
 		if pcount > ARG_REGS {
 			Error("too many arguments for ABI: @").u(pcount);
 		}
-		// reserve space for saved regs
-		saved_regs_offset = n;
-		local_max = n + pcount * 4;
-		// assign params to saved regs
+
+		if !isleaf {
+			// reserve space for saved regs
+			saved_regs_offset = n;
+			saved_regs_count = pcount;
+			local_max = n + pcount * 4;
+		}
+
+		// assign params to registers
 		n = 0;
 		while sym != nil {
-			emit("// param @ @\n").pr(savreg[n]).s(sym.name.text);
-			sym.ival = savreg[n] | SIF_PHYS_REG;
+			var r u32;
+			if isleaf {
+				// leaf functions will just leave their
+				// arguments in the a# registers
+				r = argreg[n];
+			} else {
+				// non-leaf functions will copy arguments
+				// into the s# registers, after saving those
+				r = savreg[n];
+			}
+			emit("// param @ @\n").pr(r).s(sym.name.text);
+			sym.ival = r | SIF_PHYS_REG;
 			sym = sym.next;
 			n++;
 		}
 	} else {
+		// ABI0 receives all arguments via stack slots
 		while sym != nil {
 			emit("// param @(fp) @\n").u(sym.ival).s(sym.name.text);
 			sym.ival |= SIF_STACK_PARAM;
@@ -642,30 +666,32 @@ fn setup_params(sym Symbol, pcount u32, n u32) {
 	}
 }
 
-fn setup_params_2(sym Symbol) {
-	if ctx.options & OPT_ABI_1 {
-		// save saved regs and copy args into them
-		var n u32 = saved_regs_offset;
-		var a u32 = 0;
+fn save_callee_save_regs(sym Symbol, isleaf bool) {
+	var n u32 = 0;
+	while n < saved_regs_count {
+		emit("    stw @, -@(fp)\n")
+			.pr(savreg[n]).u(saved_regs_offset + n * 4);
+		n++;
+	}
+
+	if (ctx.options & OPT_ABI_1) && !isleaf {
+		// ABI 1 copies parameters into the newly
+		// vacated s# registers
+		n = 0;
 		while sym != nil {
-			emit("    stw @, -@(fp)\n").pr(sym.ival & SIF_MASK).u(n);
-			emit("    mv @, a@\n").pr(sym.ival & SIF_MASK).u(a);
+			emit("    mv @, a@\n").pr(sym.ival & SIF_MASK).u(n);
 			sym = sym.next;
-			n += 4;
-			a++;
+			n++;
 		}
 	}
 }
 
-fn cleanup_params(sym Symbol) {
-	if ctx.options & OPT_ABI_1 {
-		// restore saved regs
-		var n u32 = saved_regs_offset;
-		while sym != nil {
-			emit("    ldw @, -@(fp)\n").pr(sym.ival & SIF_MASK).u(n);
-			sym = sym.next;
-			n += 4;
-		}
+fn restore_callee_save_regs() {
+	var n u32 = 0;
+	while n < saved_regs_count {
+		emit("    ldw @, -@(fp)\n")
+			.pr(savreg[n]).u(saved_regs_offset + n * 4);
+		n++;
 	}
 }
 
@@ -697,6 +723,8 @@ fn gen_fn(node Ast) {
 	if node.left == nil {
 		return;
 	}
+	var leaf bool = node.ival & FN_LEAF;
+
 	return_type = node.sym.type.of;
 	return_target = make_label();
 	ctx.curfn = node.sym.name.text;
@@ -709,14 +737,17 @@ fn gen_fn(node Ast) {
 
 	// first two slots go to ra, fp
 	local_max = 12;
+	saved_regs_count = 0;
 	setup_locals(node.left, local_max);
-	setup_params(plist, pcount, local_max);
+	setup_params(plist, pcount, local_max, leaf);
+
 	// prologue
 	emit("    stw ra, -4(sp)\n");
 	emit("    stw fp, -8(sp)\n");
 	emit("    mv fp, sp\n");
 	emit("    subi sp, sp, @\n").u(local_max + TMP_REGS * 4);
-	setup_params_2(node.sym.type.list);
+
+	save_callee_save_regs(plist, leaf);
 
 	emit("    //\n");
 	gen_block(node.left);
@@ -725,8 +756,9 @@ fn gen_fn(node Ast) {
 	//TODO: check for no return on non-void functions
 	emit("    li a0, 0\n");
 	emit_target(return_target);
+
 	// epilogue
-	cleanup_params(plist);
+	restore_callee_save_regs();
 	emit("    ldw ra, -4(fp)\n");
 	emit("    ldw fp, -8(fp)\n");
 	emit("    addi sp, sp, @\n").u(local_max + TMP_REGS * 4);
