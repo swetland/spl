@@ -204,6 +204,11 @@ int sys_alloc(uint32_t sz) {
 	return addr;
 }
 
+uint32_t sys_hexout(uint32_t n) {
+	fprintf(stdout, "D %08x\n", n);
+	return 0;
+}
+
 #define R_SP 2
 #define R_A0 10
 
@@ -215,6 +220,7 @@ static inline uint32_t _do_syscall(uint32_t a0, uint32_t a1, uint32_t a2, uint32
 	case 0x100: exit_emu(a0);
 	case 0x101: return mem_rd32(mem, guest_argv + 4 * a0);
 	case 0x102: return guest_argc;
+	case 0x103: return sys_hexout(a0);
 	case 0x200: return sys_fd_open(a0);
 	case 0x201: return sys_fd_create(a0);
 	case 0x202: return sys_fd_close(a0);
