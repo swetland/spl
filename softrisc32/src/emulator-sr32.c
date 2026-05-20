@@ -198,6 +198,14 @@ uint32_t load_hex_image(const char* fn) {
 		exit(1);
 	}
 	while (fgets(line, sizeof(line), fp) != NULL) {
+		if ((line[0] == '#') && (line[1] == '.')) {
+			if (!strncmp(line + 2, "abi0", 4)) {
+				CS.syscall = do_syscall_abi0;
+			} else if (!strncmp(line + 2, "abi1", 4)) {
+				CS.syscall = do_syscall_abi1;
+			}
+			continue;
+		}
 		if ((line[0] == '#') || (line[0] == '/')) {
 			continue;
 		}
