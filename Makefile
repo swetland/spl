@@ -3,6 +3,8 @@
 COMPILERS := out/compiler1 out/compiler2a.bin out/compiler2b.bin out/compiler3a.bin
 #COMPILERS += out/compiler3b.s32
 
+ABI := -abi1
+
 all: out/asm out/emu out/iremu $(COMPILERS)
 
 include build/test-exclusions.mk
@@ -85,7 +87,7 @@ else
 out/compiler2a.s32: out/compiler1 $(COMPILER2_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 2A COMPILER USING STAGE 1 COMPILER ###'
-	./out/compiler1 -ast out/compiler2a.ast -out $@ $(COMPILER2_SRC)
+	./out/compiler1 $(ABI) -ast out/compiler2a.ast -out $@ $(COMPILER2_SRC)
 
 COMPILER2_ASM := build/start-stdlib.s32 build/syscalls.s32 out/compiler2a.s32
 out/compiler2a.bin: out/asm $(COMPILER2_ASM)
@@ -98,7 +100,7 @@ endif
 out/compiler2b.s32: out/compiler2a.bin out/emu $(COMPILER2_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 2B COMPILER USING STAGE 2A COMPILER ###'
-	./out/emu -q -hgp -perf out/compiler2b.perf.raw out/compiler2a.bin -ast out/compiler2b.ast -out $@ $(COMPILER2_SRC)
+	./out/emu -q -hgp -perf out/compiler2b.perf.raw out/compiler2a.bin $(ABI) -ast out/compiler2b.ast -out $@ $(COMPILER2_SRC)
 	@sort -rn out/compiler2b.perf.raw | head -30 > out/compiler2b.perf
 
 COMPILER2B_ASM := build/start-stdlib.s32 build/syscalls.s32 out/compiler2b.s32
@@ -110,7 +112,7 @@ out/compiler2b.bin: ./out/asm $(COMPILER2B_ASM)
 out/compiler3a.s32: out/compiler2b.bin out/emu $(COMPILER3_SRC)
 	@echo ''
 	@echo '### BUILDING STAGE 3A COMPILER USING STAGE 2B COMPILER ###'
-	./out/emu -q -hgp -perf out/compiler3a.perf.raw out/compiler2b.bin -stats -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
+	./out/emu -q -hgp -perf out/compiler3a.perf.raw out/compiler2b.bin $(ABI) -stats -ast out/compiler3a.ast -out $@ $(COMPILER3_SRC)
 	@sort -rn out/compiler3a.perf.raw | head -30 > out/compiler3a.perf
 
 COMPILER3A_ASM := build/start-stdlib.s32 build/syscalls.s32 out/compiler3a.s32
