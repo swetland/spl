@@ -803,7 +803,11 @@ fn gen(outfd i32, xirfd i32, node Ast) {
 	if os == nil {
 		Error("no output file specified");
 	}
-	emit("// gen-sr32-abi0\n\n");
+	if ctx.options & OPT_ABI_1 {
+		emit(".abi1\n");
+	} else {
+		emit(".abi0\n");
+	}
 	gen_global_addrs(node);
 	gen_functions(node);
 	gen_global_inits(node);
