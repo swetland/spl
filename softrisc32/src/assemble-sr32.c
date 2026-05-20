@@ -15,6 +15,7 @@
 #define RBUFSIZE 4096
 #define SMAXSIZE 1024
 
+static unsigned abi = 0;
 static unsigned linenumber = 0;
 static char *filename;
 
@@ -227,6 +228,7 @@ void save(const char *fn) {
 
 	FILE *fp = fopen(fn, "w");
 	if (!fp) die("cannot write to '%s'", fn);
+	fprintf(fp, "#.abi%d\n", abi);
 	for (n = image_base; n < PC; n += 4) {
 		uint32_t ins = rd32(n);
 		sr32dis(n, ins, dis, getlabel);
@@ -266,6 +268,7 @@ enum tokens {
 	tBEQZ, tBNEZ, tBLEZ, tBGEZ, tBLTZ, tBGTZ,
 	tBGT, tBLE, tBGTU, tBLEU,
 	tEQU, tBYTE, tHALF, tWORD,
+	tABI0, tABI1,
 	NUMTOKENS,
 };
 
@@ -286,6 +289,7 @@ char *tnames[] = { "<EOF>", "<EOL>", "IDENT", "REGISTER", "NUMBER", "STRING",
 	"BEQZ", "BNEZ", "BLEZ", "BGEZ", "BLTZ", "BGTZ",
 	"BGT", "BLE", "BGTU", "BLEU",
 	".EQU", ".BYTE", ".HALF", ".WORD",
+	".ABI0", ".ABI1",
 };
 
 static_assert(NUMTOKENS == (sizeof(tnames) / sizeof(tnames[0])),
@@ -554,6 +558,12 @@ int parse_line(State *s) {
 	}
 
 	switch (tok) {
+	case tABI0:
+		abi = 0;
+		break;
+	case tABI1:
+		abi = 1;
+		break;
 	case tADD: case tSUB: case tAND: case tOR:
 	case tXOR: case tSLL: case tSRL: case tSRA:
 	case tSLT: case tSLTU: case tMUL: case tDIV:
