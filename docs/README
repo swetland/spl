@@ -1,0 +1,29 @@
+
+integer operators must have operands of matching size and type
+
+integer literals default to i32
+
+integer literals will be automatically transformed to match the
+size and type of the other argument, if it can be done losslessly
+
+enum values are treated as equivalent to their underlying integer
+type for this purpose
+
+enum values have an associated integer type with the default being
+u32 if unspecified
+
+smaller-than-wordsize integer types are zero or sign extended when
+loaded from memory
+
+larger integer types must be truncated with an explicit cast to be
+stored in a smaller sized container
+
+
+struct layout is done in the order fields are defined
+
+1, 2, and 4 byte fields are aligned to an offset that is a multiple
+of their size
+
+larger fields are aligned on 4 byte offets (target dependent)
+
+
